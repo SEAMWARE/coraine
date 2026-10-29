@@ -12,6 +12,60 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
 
 ---
 
+## 0.6.2 — 2026-10-29
+
+Bug fixes: a batch upsert on a new tenant, a batch naming one Entity more than once in the temporal
+history, the temporal API's times, a stop that could hang on the built-in HTTP server, and the versions of
+the apt packages built between releases. Beside them, two changes to how a release and its packages are
+built - none to the broker.
+
+### Changed behaviour
+
+- The Debian packages can be built again for a release with a fix of c³'s, without a new release: a
+  package revision, version `<X>+<dist>.<N>` (`0.6.1+debian13.1`), which `apt upgrade` installs over
+  `<X>+<dist>` - the broker the same, c³ at a later commit (named in `MANIFEST.txt`). The `Packages`
+  workflow, run by hand, takes `ref`, `c3_ref` and `revision` for it.
+  ([Install with apt](doc/installation.md#install-with-apt))
+- A release is built from the libraries its pre-release campaign tested, not from each library's `main`
+  at tag time: the campaign records the commit of every library (corLibs and c³ too) once, every part of
+  it builds from that record, and `release.yml` builds and tags the release from the newest green
+  campaign of the tag's tree - with none, it stops before publishing anything. c³'s tag must be the
+  commit in the record. 0.6.0 was one commit newer in the NGSI-LD library than its campaign.
+  ([The pre-release campaign](doc/testing.md#the-pre-release-campaign))
+
+### Fixed
+
+- A build of a commit between releases (`0.6.1+git<date>.<sha>+<dist>`) published to the apt repository
+  went into the component `main`, beside the releases, instead of `testing`.
+  ([Install with apt](doc/installation.md#install-with-apt))
+- On Ubuntu, a Debian package of a commit between releases sorted before the release it follows
+  (`0.6.1+git<date>.<sha>+ubuntu24.04` < `0.6.1+ubuntu24.04`), so `apt upgrade` did not install it over the
+  release. Its version is now `0.6.1+<dist>.<YYYYMMDD>.git<sha8>`: after the release and its package
+  revisions, before the next release, on every distribution.
+  ([Install with apt](doc/installation.md#install-with-apt))
+- `POST /ngsi-ld/v1/entityOperations/upsert` on a tenant that does not exist yet creates the tenant, as
+  Create Entity and Batch Create do - it answered 404 NonexistentTenant and wrote nothing. A query, an
+  update, a PATCH or a DELETE on an unknown tenant is still a 404 NonexistentTenant.
+  ([Multi-tenancy](doc/installation.md#multi-tenancy))
+- A batch that names one Entity more than once - `POST /ngsi-ld/v1/entityOperations/upsert?options=update`,
+  `/entityOperations/update` and `/entityOperations/merge` - records each entry in the temporal history with
+  its own value and `observedAt`. Every instance carried the last entry's values, so a batch of monthly
+  readings stored copies of the last one; Batch Merge's notification entries did the same. With
+  `--troe corDB` only one instance was recorded, the replace-mode upsert's too.
+- The temporal API renders its times as `/entities` does: to the microsecond (to the nanosecond with
+  `--high-precision`, for `--troe corDB`), the fraction's trailing zeros left out. An `observedAt` sent as
+  `.290` was `.29` in `/entities` and `.290` in `/temporal`; `--troe corDB` gave `observedAt` to the
+  millisecond only, `--troe timescale` its `createdAt` and `modifiedAt` with all six digits (`.123000`),
+  and rounded where `/entities` truncates - one microsecond apart for every other write.
+  ([--high-precision](doc/options.md#--high-precision))
+- A build of `main` after 0.6.1 said it was 0.6.1 (`GET /version`, the packages, the image tags) - it is
+  `0.6.1+dev`, as between any two releases.
+- A broker built with the built-in HTTP server (`COR_HTTP_SERVER=builtin`) could hang on SIGTERM / SIGINT that
+  arrived right after it started serving: an HTTP event loop that had not started yet missed the stop and
+  kept running, and the broker waited for it forever. (corHttp)
+
+---
+
 ## 0.6.1 — 2026-10-28
 
 The same day as 0.6.0: 0.6.0 was built with an NGSI-LD library that accepts a Subscription's

@@ -7,7 +7,7 @@ StatefulSet. Every option used here is described in [Installation & Administrati
 ## The image
 
 `quay.io/seamware/coraine:<version>-<date>-<commit>` - one immutable tag per merge to `main`, for
-example `0.6.1` (a release) or `0.6.1-post-<date>-<commit>` (a merge after 0.6.1). There is no `latest` tag: name the tag you tested. The images are
+example `0.6.2` (a release) or `0.6.2-post-<date>-<commit>` (a merge after 0.6.2). There is no `latest` tag: name the tag you tested. The images are
 multi-arch (linux/amd64 and linux/arm64): the same tag pulls the image for the node's architecture;
 `<tag>-amd64` and `<tag>-arm64` pin one. The arm64 image is built without the DDS bridge.
 
@@ -155,7 +155,7 @@ spec:
     spec:
       containers:
         - name: coraine
-          image: quay.io/seamware/coraine:0.6.1
+          image: quay.io/seamware/coraine:0.6.2
           args:
             - --database
             - mongoc
@@ -224,7 +224,7 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
         - name: coraine
-          image: quay.io/seamware/coraine:0.6.1
+          image: quay.io/seamware/coraine:0.6.2
           args:
             - --database
             - corDB
