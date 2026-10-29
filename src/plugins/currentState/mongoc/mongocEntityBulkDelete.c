@@ -26,6 +26,7 @@
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
 
+#include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocBsonToTree.h"        // mongocEntityBsonToTree
 #include "currentState/mongoc/mongocEntityBulkDelete.h"  // Own interface
 
@@ -63,7 +64,7 @@ int mongocEntityBulkDelete(Tenant* tenantP, const char** idV, int N,
     BSON_APPEND_DOCUMENT_BEGIN(&filter, "_id", &inDoc);
 
     bson_t idArr;
-    BSON_APPEND_ARRAY_BEGIN(&inDoc, "$in", &idArr);
+    mongocArrayBegin(&inDoc, "$in", -1, &idArr);
 
     for (int i = 0; i < N; i++)
     {

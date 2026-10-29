@@ -39,6 +39,7 @@
 #include "corNgsild/ldEntityMerge.h"                      // LdMergeReport
 
 #include "db/DbDriver.h"                                 // DB_OK, DB_NOT_FOUND, DB_ERR, Tenant
+#include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocBsonToTree.h"        // mongocEntityBsonToTree
 #include "currentState/mongoc/mongocEntityMerge.h"       // mongocBuildSurgicalUpdate
 #include "corNgsild/CorNgsild.h"                         // corNgsild (geoConflictAttr)
@@ -105,7 +106,7 @@ int mongocEntityBulkRetrieve(Tenant* tenantP, CorNode* fragmentsArr, CorNode** t
   BSON_APPEND_DOCUMENT_BEGIN(&filter, "_id", &inDoc);
 
   bson_t idArr;
-  BSON_APPEND_ARRAY_BEGIN(&inDoc, "$in", &idArr);
+  mongocArrayBegin(&inDoc, "$in", -1, &idArr);
 
   int ix = 0;
   for (CorNode* fragP = fragmentsArr->value.head; fragP != NULL; fragP = fragP->next, ix++)
