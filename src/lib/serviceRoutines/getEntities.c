@@ -1763,73 +1763,16 @@ static void mapSourcesUnpin(MapSource* srcV, int srcN)
 
 // -----------------------------------------------------------------------------
 //
-// entityMapServe - one page of an EntityMap: the slice [offset, offset + limit) of its frozen set
+// mapSliceAssemble - the entities of a slice of an EntityMap, each assembled from the places the map records
 //
-// The map freezes WHICH entities the query has (§ 7.4.2.4), not their values: each entity of the
-// slice is fetched now, from where the map says it lives - local "@none" via db.entityRetrieve, a
-// Context Source via GET /entities/{id} on the registration the map recorded (§ 9.6; never the
-// registration cache's current matching: the map is a stable snapshot, immune to later registration
-// changes) - and the query's filters are applied to it again. An entity that no longer matches is
-// dropped from the page and the page is SHORTER than limit: limit=20 with 3 that no longer match is a
-// page of 17, and the next page still starts at offset + 20 (decided in ETSI - the positions in the
-// frozen set never move, so prev/next are stable).
+// mergedV[i] is the entity of sliceV[i]: its local part and the parts of its Context Sources merged (§ 4.5.5.3),
+// NULL where no place has it any more. What a page of the map is made of (entityMapServe), and what the
+// candidates of a new map are checked with (mapCandidatesMatch).
 //
-// The byte budget (--maxResponseSize) can only shorten the slice: the page ends before the entity that
-// would pass it and the next one starts there - a page of a map is never refused unless its FIRST
-// entity alone does not fit.
-//
-// NGSILD-Results-Count is the size of the frozen set.
-//
-static bool entityMapServe(LdEntityMap* mapP)
+static CorNode** mapSliceAssemble(LdEntityMap* mapP, LdEntityMapEntry** sliceV, int sliceN, const char* ownAlias)
 {
-  Tenant* tP = (Tenant*) corNgsild.tenantP;
-
-  entityMapHeader(mapP);
-
-  // Build result array from map entries at [offset..offset+limit]
-  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
-  int limit  = (corNgsild.limit > 0) ? corNgsild.limit : 20;
-  int ix     = 0;
-  int added  = 0;
-
-  //
-  // An offset at or past the end of the frozen set: its last entry (TS 104-176 § 6.4.7.2), as a query's
-  //
-  if ((corNgsild.offset > 0) && (corNgsild.offset >= mapP->entryCount) && (mapP->entryCount > 0))
-    offsetPastEnd(mapP->entryCount);
-
-  int offset = corNgsild.offset;
-
-#if COR_FEATURE_RESPONSE_BUDGET
-  int64_t budgetBytes = 0;
-#endif
-
-  //
-  // Each map entry records a list of sources that contribute to the
-  // entity. Retrieve from each listed source — local "@none" via
-  // db.entityRetrieve, remote via HTTP GET on the CSR identified by
-  // regId. Do NOT consult the registration cache for routing — the
-  // whole point of the map is a stable snapshot, immune to later
-  // reg changes.
-  //
-  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
-
-  //
-  // The slice: the entries [offset, offset + limit) of the frozen set
-  //
-  LdEntityMapEntry*  entryP = mapP->head;
-
-  while ((entryP != NULL) && (ix < offset))
-  {
-    entryP = entryP->next;
-    ix++;
-  }
-
-  LdEntityMapEntry** sliceV = (LdEntityMapEntry**) corAlloc(&corRest.kalloc, sizeof(LdEntityMapEntry*) * (limit + 1));
-  int                sliceN = 0;
-
-  for (; (entryP != NULL) && (sliceN < limit); entryP = entryP->next)
-    sliceV[sliceN++] = entryP;
+  Tenant*   tP      = (Tenant*) corNgsild.tenantP;
+  CorNode** mergedV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * (sliceN + 1));
 
   //
   // The slice's local entities, fetched in ONE call to the store (db.entityBulkRetrieve - mongoc: one
@@ -1890,9 +1833,9 @@ static bool entityMapServe(LdEntityMap* mapP)
   int        mapSrcN = 0;
   MapSource* mapSrcV = (sliceN > 0) ? mapSourcesFetch(sliceV, sliceN, ownAlias, &mapSrcN) : NULL;
 
-  for (int sliceIx = 0; (sliceIx < sliceN) && (added < limit); sliceIx++)
+  for (int sliceIx = 0; sliceIx < sliceN; sliceIx++)
   {
-    entryP = sliceV[sliceIx];
+    LdEntityMapEntry* entryP = sliceV[sliceIx];
 
     CorNode* mergedEntity = NULL;
 
@@ -1970,6 +1913,94 @@ static bool entityMapServe(LdEntityMap* mapP)
       }
     }
 
+    mergedV[sliceIx] = mergedEntity;
+  }
+
+  mapSourcesUnpin(mapSrcV, mapSrcN);
+
+  return mergedV;
+}
+
+
+// -----------------------------------------------------------------------------
+//
+// entityMapServe - one page of an EntityMap: the slice [offset, offset + limit) of its frozen set
+//
+// The map freezes WHICH entities the query has (§ 7.4.2.4), not their values: each entity of the
+// slice is fetched now, from where the map says it lives - local "@none" via db.entityRetrieve, a
+// Context Source via GET /entities/{id} on the registration the map recorded (§ 9.6; never the
+// registration cache's current matching: the map is a stable snapshot, immune to later registration
+// changes) - and the query's filters are applied to it again. An entity that no longer matches is
+// dropped from the page and the page is SHORTER than limit: limit=20 with 3 that no longer match is a
+// page of 17, and the next page still starts at offset + 20 (decided in ETSI - the positions in the
+// frozen set never move, so prev/next are stable).
+//
+// The byte budget (--maxResponseSize) can only shorten the slice: the page ends before the entity that
+// would pass it and the next one starts there - a page of a map is never refused unless its FIRST
+// entity alone does not fit.
+//
+// NGSILD-Results-Count is the size of the frozen set.
+//
+static bool entityMapServe(LdEntityMap* mapP)
+{
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
+
+  entityMapHeader(mapP);
+
+  // Build result array from map entries at [offset..offset+limit]
+  CorNode* arrayP = corTreeArray(corRest.kallocP, NULL);
+  int limit  = (corNgsild.limit > 0) ? corNgsild.limit : 20;
+  int ix     = 0;
+  int added  = 0;
+
+  //
+  // An offset at or past the end of the frozen set: its last entry (TS 104-176 § 6.4.7.2), as a query's
+  //
+  if ((corNgsild.offset > 0) && (corNgsild.offset >= mapP->entryCount) && (mapP->entryCount > 0))
+    offsetPastEnd(mapP->entryCount);
+
+  int offset = corNgsild.offset;
+
+#if COR_FEATURE_RESPONSE_BUDGET
+  int64_t budgetBytes = 0;
+#endif
+
+  //
+  // Each map entry records a list of sources that contribute to the
+  // entity. Retrieve from each listed source — local "@none" via
+  // db.entityRetrieve, remote via HTTP GET on the CSR identified by
+  // regId. Do NOT consult the registration cache for routing — the
+  // whole point of the map is a stable snapshot, immune to later
+  // reg changes.
+  //
+  const char* ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
+
+  //
+  // The slice: the entries [offset, offset + limit) of the frozen set
+  //
+  LdEntityMapEntry*  entryP = mapP->head;
+
+  while ((entryP != NULL) && (ix < offset))
+  {
+    entryP = entryP->next;
+    ix++;
+  }
+
+  LdEntityMapEntry** sliceV = (LdEntityMapEntry**) corAlloc(&corRest.kalloc, sizeof(LdEntityMapEntry*) * (limit + 1));
+  int                sliceN = 0;
+
+  for (; (entryP != NULL) && (sliceN < limit); entryP = entryP->next)
+    sliceV[sliceN++] = entryP;
+
+  //
+  // The slice's entities, assembled (mapSliceAssemble)
+  //
+  CorNode** mergedV = mapSliceAssemble(mapP, sliceV, sliceN, ownAlias);
+
+  for (int sliceIx = 0; (sliceIx < sliceN) && (added < limit); sliceIx++)
+  {
+    CorNode* mergedEntity = mergedV[sliceIx];
+
 #if COR_FEATURE_RESPONSE_BUDGET
     //
     // The byte budget: the page ends before the entity that would pass it, the next page starts at it.
@@ -1983,7 +2014,6 @@ static bool entityMapServe(LdEntityMap* mapP)
       {
         if (added == 0)
         {
-          mapSourcesUnpin(mapSrcV, mapSrcN);
           responseBudgetTooMany("the next entity of the EntityMap");
           return true;
         }
@@ -2002,8 +2032,6 @@ static bool entityMapServe(LdEntityMap* mapP)
 
     added++;
   }
-
-  mapSourcesUnpin(mapSrcV, mapSrcN);
 
   // Filters on the assembled entities — § 5.7.2.4.
   applyResultFilters(arrayP);
@@ -2372,6 +2400,107 @@ static void srcMapAddLocalToRemote(CorNode* srcMap)
 
   for (CorNode* arrP = srcMap->value.head; arrP != NULL; arrP = arrP->next)
     srcMapAdd(srcMap, arrP->name, "@none");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mapCandidatesMatch - the candidates of a new EntityMap of split entities that do not match the query, out
+//
+// With split entities the sources are asked without the query's filters - a part of an entity cannot be
+// checked - so the ids they answer are only candidates (§ 9.6), and a candidate that does not match "shall be
+// removed from the Entity map" (§ 7.4.2.4). Done here, once, before the map is frozen: each candidate is
+// assembled as a page would assemble it (mapSliceAssemble), a hundred at a time, and the query's filters
+// applied (applyResultFilters). Left to the pages, the map held every entity of the type: NGSILD-Results-Count
+// was the number of candidates, whatever q said, and a page was cut from the candidates before q took most of
+// it away - limit=1 with a match further on was an empty page (#523).
+//
+// Only under a filter a source was not given - q, scopeQ, a geo-query: the type alone is the candidates'
+// own selector, and a map of the type was not assembled entity by entity before a page asked for it.
+//
+static void mapCandidatesMatch(LdEntityMap* mapP, CorNode* arrayP, CorNode* srcMap)
+{
+  if ((corNgsild.qExpr == NULL) && (corNgsild.scopeExpr == NULL) && (corNgsild.geoRel == NULL))
+    return;
+
+  Tenant*      tP       = (Tenant*) corNgsild.tenantP;
+  const char*  ownAlias = ldCsourceAliasForTenant(tP->name, &corRest.kalloc);
+  const int    chunk    = 100;
+  CorNode*     candV[100];
+  LdEntityMapEntry  entryV[100];
+  LdEntityMapEntry* sliceV[100];
+  CorNode*     candP    = arrayP->value.head;
+
+  while (candP != NULL)
+  {
+    int n = 0;
+
+    //
+    // The next hundred candidates as map entries: the id and the places it is in, as entityMapFill records them
+    //
+    for (; (candP != NULL) && (n < chunk); candP = candP->next)
+    {
+      CorNode* idP = corTreeLookup(candP, "id");
+
+      if ((idP == NULL) || (idP->type != CorString))
+        continue;
+
+      CorNode*     srcArr = (srcMap != NULL) ? corTreeLookup(srcMap, idP->value.s) : NULL;
+      int          srcN   = 0;
+      const char** srcV;
+
+      if ((srcArr != NULL) && (srcArr->type == CorArray))
+        for (CorNode* sP = srcArr->value.head; sP != NULL; sP = sP->next)
+          srcN++;
+
+      srcV = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * (srcN + 2));
+      if (srcN == 0)
+        srcV[srcN++] = "@none";
+      else
+      {
+        srcN = 0;
+        for (CorNode* sP = srcArr->value.head; sP != NULL; sP = sP->next)
+          if (sP->type == CorString)
+            srcV[srcN++] = sP->value.s;
+      }
+      srcV[srcN] = NULL;
+
+      entryV[n].entityId    = idP->value.s;
+      entryV[n].sourceIdV   = (char**) srcV;
+      entryV[n].sourceCount = srcN;
+      entryV[n].next        = NULL;
+      sliceV[n]             = &entryV[n];
+      candV[n]              = candP;
+      n++;
+    }
+
+    if (n == 0)
+      break;
+
+    //
+    // Assembled and filtered; a candidate whose entity did not survive leaves the candidates
+    //
+    CorNode** mergedV  = mapSliceAssemble(mapP, sliceV, n, ownAlias);
+    CorNode*  matchesP = corTreeArray(corRest.kallocP, NULL);
+
+    for (int i = 0; i < n; i++)
+      if (mergedV[i] != NULL)
+        corTreeChildAdd(matchesP, mergedV[i]);
+
+    applyResultFilters(matchesP);
+
+    for (int i = 0; i < n; i++)
+    {
+      bool kept = false;
+
+      for (CorNode* mP = matchesP->value.head; (mP != NULL) && (kept == false); mP = mP->next)
+        kept = (mP == mergedV[i]);
+
+      if (kept == false)
+        corTreeChildRemove(arrayP, candV[i]);
+    }
+  }
 }
 
 
@@ -3721,7 +3850,8 @@ static bool queryEntities(PagePosition* posP)
 
     //
     // Split mode post-assembly filters (§ 5.7.2.4). Not on the candidates of an EntityMap: they are
-    // ids, and the filters run on each page, on the entities assembled for it (entityMapServe).
+    // ids - assembled and filtered when the map is created (mapCandidatesMatch), and again on each page,
+    // on the entities assembled for it (entityMapServe).
     //
     if (splitMode && (idsOnly == false))
       applyResultFilters(arrayP);
@@ -3800,6 +3930,9 @@ static bool queryEntities(PagePosition* posP)
       mapP->automatic = corNgsild.entityMapAuto;
 
       ldEntityMapRequestPin(mapP);   // created pinned; held (and filled, rendered) till the request ends
+
+      if (splitQuery && idsOnly)
+        mapCandidatesMatch(mapP, arrayP, srcMap);   // split entities: only the candidates that match the query (§ 7.4.2.4)
 
       entityMapFill(mapP, arrayP, srcMap, linkedMapsTracker);
 

@@ -1,0 +1,110 @@
+#
+# FILE            distop_query_count_q_entitymap.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A distributed query with q, over a registered source that holds 20 or more entities of the type - one
+# page of the source or more, so the query gets an automatic EntityMap: the rows, NGSILD-Results-Count
+# and the page all follow q. The count is the number of matches (not every entity of the type), the
+# source is asked with q, and a page is cut from the matches (limit=1 is the first match, not nothing).
+# Issue #523.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Distributed query, automatic EntityMap: NGSILD-Results-Count and the page follow q
+
+--TAGS--
+entity entitymap entityMap pagination query distop count
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+
+ids()
+{
+  tr -d '\r' | sed -n '/^\[/,$p' | python3 -c 'import sys, json; print(" ".join([e["id"] for e in json.load(sys.stdin)]) or "none")'
+}
+
+query()
+{
+  local out=$(corCurl --url "/ngsi-ld/v1/entities?type=W&count=true&options=keyValues&$1")
+  echo "$1: count $(echo "$out" | tr -d '\r' | grep -i '^NGSILD-Results-Count' | awk '{ print $2 }'), rows: $(echo "$out" | ids)"
+}
+
+
+echo "01. W: L0 and L1 (colour red) on the broker, R0..R24 (weight 0..24) on CP1"
+echo "==========================================================================="
+for i in 0 1; do corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:L'$i'","type":"W","colour":{"type":"Property","value":"red"}}' | head -1; done
+for i in $(seq 0 24); do corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:R'$i'","type":"W","weight":{"type":"Property","value":'$i'}}' | head -1; done | sort | uniq -c
+echo
+echo
+
+
+echo "02. An inclusive registration of CP1 for W"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["federationOps"],"information":[{"entities":[{"type":"W"}]}]}' | head -1
+echo
+echo
+
+
+echo "03. q that matches nothing, a local match, a remote match, none"
+echo "==============================================================="
+query 'limit=100&q=colour==%22zzz%22'
+query 'limit=100&q=weight>9999'
+query 'limit=100&q=colour==%22red%22'
+query 'limit=100&q=weight>21'
+query 'limit=3&q=weight>21'
+query 'limit=1&q=weight==7'
+echo
+echo
+
+
+echo "04. No q: every entity, 20 a page"
+echo "================================="
+query 'limit=20'
+echo
+echo
+
+
+--EXPECT--
+01. W: L0 and L1 (colour red) on the broker, R0..R24 (weight 0..24) on CP1
+===========================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+     25 HTTP/1.1 201 Created
+
+
+02. An inclusive registration of CP1 for W
+==========================================
+HTTP/1.1 201 Created
+
+
+03. q that matches nothing, a local match, a remote match, none
+===============================================================
+limit=100&q=colour==%22zzz%22: count 0, rows: none
+limit=100&q=weight>9999: count 0, rows: none
+limit=100&q=colour==%22red%22: count 2, rows: urn:L0 urn:L1
+limit=100&q=weight>21: count 3, rows: urn:R22 urn:R23 urn:R24
+limit=3&q=weight>21: count 3, rows: urn:R22 urn:R23 urn:R24
+limit=1&q=weight==7: count 1, rows: urn:R7
+
+
+04. No q: every entity, 20 a page
+=================================
+limit=20: count 27, rows: urn:L0 urn:L1 urn:R0 urn:R1 urn:R2 urn:R3 urn:R4 urn:R5 urn:R6 urn:R7 urn:R8 urn:R9 urn:R10 urn:R11 urn:R12 urn:R13 urn:R14 urn:R15 urn:R16 urn:R17
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

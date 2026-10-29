@@ -1351,8 +1351,11 @@ query asks for it: `?entityMap=true`.
   more than `limit` local matches, a source that answered a whole page, or more than `limit` together.
   The broker then asks each source for its own EntityMap (`GET /ngsi-ld/v1/entityMaps` on the source)
   and records it (`linkedMaps`); the pages fetch each entity from its sources, asking a source that
-  answered with a map for its entity from that map. With split entities (the default) the map holds
-  candidates and the filters are applied to the entities assembled for each page.
+  answered with a map for its entity from that map. With split entities (the default) the sources are
+  given no filters (a part of an entity cannot be checked), so what they answer are candidates: when the
+  map is created, the broker assembles them and keeps the ones that match `q`, `scopeQ` and the GeoQuery
+  (TS 104-175 § 7.4.2.4) - a hundred at a time, the cost of the query's first page with a filter. The map
+  holds the matches, and `NGSILD-Results-Count` is their number; each page applies the filters again.
 
 Not for: a query of one page (nothing to paginate - no map, and the sources are asked exactly what a
 query without maps asks them), a query that starts at another `offset`, `limit=0`, `POST
