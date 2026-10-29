@@ -144,6 +144,10 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 Without `"accept": "application/geo+json"` a `geometryProperty` is refused (400 BadRequestData), as a
 query's is without a GeoJSON `Accept`.
 
+As for a query (§ 5.3.3.2), the geometry is taken before `pick`, `omit` and `attributes`: a projection
+that leaves the GeoProperty out still has it as the `geometry` - the GeoProperty is in `properties` only
+when the projection keeps it. The same holds for `location` without a `geometryProperty`.
+
 ## 6. Delete
 
 ```sh

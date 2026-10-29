@@ -9,7 +9,8 @@
 # GeoJSON notification's Features, as geometryProperty is a query's - location without it. Only with
 # notification.endpoint.accept application/geo+json: without, BadRequestData. A string naming a GeoProperty,
 # expanded with the subscription's @context; read back as it was sent; PATCHed like any notification member;
-# kept over a restart.
+# kept over a restart. As for a query, the geometry is taken before pick / omit / attributes: projected away,
+# the GeoProperty is still the geometry, only not in "properties" - location without a geometryProperty too.
 #
 # REQUIRE_FEATURE: SUBSCRIPTIONS
 #
@@ -27,14 +28,14 @@ coraineStart
 --RUN--
 
 #
-# geometry - each Feature of the notifications received so far: its id, its geometry, its properties' names
+# geometry - each Feature of the notifications received so far: its id ('-' when pick left it out), its geometry, its properties' names
 #
 geometry() {
   ftClientDump | python3 -c '
 import json, sys
 for n in json.load(sys.stdin):
     for f in n["body"]["data"]["features"]:
-        print(f["id"], json.dumps(f["geometry"]), sorted(f["properties"].keys()))'
+        print(f.get("id", "-"), json.dumps(f["geometry"]), sorted(f["properties"].keys()))'
 }
 
 sub='{
@@ -97,16 +98,13 @@ echo
 echo
 
 
-echo "06. Refused: without accept, accept application/json, not a string, empty, picked/omitted away"
-echo "=============================================================================================="
+echo "06. Refused: without accept, accept application/json, not a string, empty"
+echo "========================================================================="
 for n in \
   '{"geometryProperty":"position","endpoint":{"uri":"http://localhost:1/x"}}' \
   '{"geometryProperty":"position","endpoint":{"uri":"http://localhost:1/x","accept":"application/json"}}' \
   '{"geometryProperty":["position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
-  '{"geometryProperty":"","endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
-  '{"geometryProperty":"position","pick":["speed"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
-  '{"geometryProperty":"position","attributes":["speed"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
-  '{"geometryProperty":"position","omit":["speed","position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}'
+  '{"geometryProperty":"","endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}'
 do
   curl -s localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"Drone"}],"notification":'"$n"'}' | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d["status"], d["detail"])'
 done
@@ -114,9 +112,22 @@ echo
 echo
 
 
-echo "07. Accepted: a pick that keeps it"
-echo "=================================="
-curl -s -o /dev/null -w '%{http_code}\n' localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"Ship"}],"notification":{"geometryProperty":"position","pick":["speed","position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}}'
+echo "07. Projected away - the geometry is still there, the GeoProperty not in properties (as for a query)"
+echo "===================================================================================================="
+for n in \
+  'Ship1 "geometryProperty":"position","pick":["speed"]' \
+  'Ship2 "geometryProperty":"position","attributes":["speed"]' \
+  'Ship3 "geometryProperty":"position","omit":["position"]' \
+  'Ship4 "geometryProperty":"position","pick":["speed","position"]' \
+  'Boat "pick":["speed"]'
+do
+  t=${n%% *}
+  echo "$t - ${n#* }:"
+  curl -s -o /dev/null -w '  subscription: %{http_code}\n' localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"'$t'"}],"notification":{'"${n#* }"',"endpoint":{"uri":"http://localhost:'"$FT_CLIENT_PORT"'/notify","accept":"application/geo+json"}}}'
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:'$t'","type":"'$t'","speed":{"type":"Property","value":7},"location":{"type":"GeoProperty","value":{"type":"Point","coordinates":[1,1]}},"position":{"type":"GeoProperty","value":{"type":"Point","coordinates":[10,20]}}}' | head -1 | sed 's/^/  /'
+  ftClientWait 1
+  geometry | sed 's/^/  /'
+done
 echo
 echo
 
@@ -155,20 +166,36 @@ HTTP/1.1 204 No Content
 urn:D1 {"coordinates": [1, 1], "type": "Point"} ['location', 'position', 'type']
 
 
-06. Refused: without accept, accept application/json, not a string, empty, picked/omitted away
-==============================================================================================
+06. Refused: without accept, accept application/json, not a string, empty
+=========================================================================
 400 'notification.geometryProperty' needs 'notification.endpoint.accept' application/geo+json
 400 'notification.geometryProperty' needs 'notification.endpoint.accept' application/geo+json
 400 'notification.geometryProperty' must be a non-empty string - the name of a GeoProperty
 400 'notification.geometryProperty' must be a non-empty string - the name of a GeoProperty
-400 'notification.pick' leaves out 'position', the 'notification.geometryProperty' of the GeoJSON geometry
-400 'notification.attributes' leaves out 'position', the 'notification.geometryProperty' of the GeoJSON geometry
-400 'notification.omit' names 'position', the 'notification.geometryProperty' of the GeoJSON geometry
 
 
-07. Accepted: a pick that keeps it
-==================================
-201
+07. Projected away - the geometry is still there, the GeoProperty not in properties (as for a query)
+====================================================================================================
+Ship1 - "geometryProperty":"position","pick":["speed"]:
+  subscription: 201
+  HTTP/1.1 201 Created
+  - {"coordinates": [10, 20], "type": "Point"} ['speed']
+Ship2 - "geometryProperty":"position","attributes":["speed"]:
+  subscription: 201
+  HTTP/1.1 201 Created
+  urn:Ship2 {"coordinates": [10, 20], "type": "Point"} ['speed', 'type']
+Ship3 - "geometryProperty":"position","omit":["position"]:
+  subscription: 201
+  HTTP/1.1 201 Created
+  urn:Ship3 {"coordinates": [10, 20], "type": "Point"} ['location', 'speed', 'type']
+Ship4 - "geometryProperty":"position","pick":["speed","position"]:
+  subscription: 201
+  HTTP/1.1 201 Created
+  - {"coordinates": [10, 20], "type": "Point"} ['position', 'speed']
+Boat - "pick":["speed"]:
+  subscription: 201
+  HTTP/1.1 201 Created
+  - {"coordinates": [1, 1], "type": "Point"} ['speed']
 
 
 []
