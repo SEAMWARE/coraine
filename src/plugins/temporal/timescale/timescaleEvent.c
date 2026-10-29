@@ -74,12 +74,12 @@ static const char* opName(TroeOp op)
 // timescaleNsToSqlTimestamp - epoch nanoseconds → "to_timestamp(<seconds>)"
 // SQL fragment. Exposed so timescaleHistoryWrite can format the broker's
 // request-start timestamp into UPDATE statements without duplicating the
-// conversion.
+// conversion. Truncated to the microsecond, as nsToSecs - a double through
+// "%.6f" rounded it.
 //
 void timescaleNsToSqlTimestamp(uint64_t ns, char* buf, int bufSize)
 {
-  double secs = (double) ns / 1e9;
-  snprintf(buf, bufSize, "to_timestamp(%.6f)", secs);
+  snprintf(buf, bufSize, "to_timestamp(%llu.%06llu)", (unsigned long long) (ns / 1000000000), (unsigned long long) ((ns % 1000000000) / 1000));
 }
 
 
@@ -384,7 +384,8 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
 // -----------------------------------------------------------------------------
 //
 // nsToSecs - epoch nanoseconds as seconds with six decimals, the element to_timestamp() takes
-// (timescaleUnitsExec), rounded to the microsecond
+// (timescaleUnitsExec), truncated to the microsecond - as the core API renders a time (corTimeIso). It
+// was rounded, and /temporal said '.64813' where /entities said '.648129' for every other write
 //
 // Integers only: a double through "%.6f" is glibc's multi-precision float printer, and it was more
 // than half of what a request's history cost the broker - two timestamps a row.
@@ -392,13 +393,7 @@ static const char* entityTypeArrayLiteral(const TroeEvent* evP, char* buf, int b
 static const char* nsToSecs(uint64_t ns, char* buf, int bufSize)
 {
   uint64_t secs = ns / 1000000000;
-  uint64_t us   = (ns % 1000000000 + 500) / 1000;
-
-  if (us == 1000000)
-  {
-    secs += 1;
-    us    = 0;
-  }
+  uint64_t us   = (ns % 1000000000) / 1000;
 
   char  digits[24];
   int   n    = 0;

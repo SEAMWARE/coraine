@@ -521,25 +521,25 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 1806
+Content-Length: 1776
 
 {
-  "createdAt": "2024-01-02T03:04:05.123000Z",
+  "createdAt": "2024-01-02T03:04:05.123Z",
   "id": "urn:ngsi-ld:Vehicle:V1",
   "isParked": [
     {
-      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "createdAt": "2024-01-02T03:04:05.123Z",
       "instanceId": "urn:ngsi-ld:attribute:instance:a-0004",
-      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
       "object": "urn:ngsi-ld:Parking:P1",
       "type": "Relationship"
     }
   ],
   "location": [
     {
-      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "createdAt": "2024-01-02T03:04:05.123Z",
       "instanceId": "urn:ngsi-ld:attribute:instance:a-0003",
-      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
       "type": "GeoProperty",
       "value": {
         "coordinates": [
@@ -550,12 +550,12 @@ Content-Length: 1806
       }
     }
   ],
-  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "modifiedAt": "2024-02-02T03:04:05.456Z",
   "speed": [
     {
-      "createdAt": "2024-01-02T03:04:05.123000Z",
+      "createdAt": "2024-01-02T03:04:05.123Z",
       "instanceId": "urn:ngsi-ld:attribute:instance:a-0001",
-      "modifiedAt": "2024-01-02T03:04:05.123000Z",
+      "modifiedAt": "2024-01-02T03:04:05.123Z",
       "observedAt": "2024-01-02T03:00:00Z",
       "source": {
         "createdAt": "2024-01-02T03:04:05.123Z",
@@ -568,9 +568,9 @@ Content-Length: 1806
       "value": 40
     },
     {
-      "createdAt": "2024-02-02T03:04:05.456000Z",
+      "createdAt": "2024-02-02T03:04:05.456Z",
       "instanceId": "urn:ngsi-ld:attribute:instance:a-0002",
-      "modifiedAt": "2024-02-02T03:04:05.456000Z",
+      "modifiedAt": "2024-02-02T03:04:05.456Z",
       "observedAt": "2024-02-02T03:03:20Z",
       "type": "Property",
       "unitCode": "KMH",
@@ -598,13 +598,13 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 663
+Content-Length: 657
 
 {
   "createdAt": "2024-01-02T03:04:06Z",
-  "deletedAt": "2024-02-02T03:04:05.456000Z",
+  "deletedAt": "2024-02-02T03:04:05.456Z",
   "id": "urn:ngsi-ld:Vehicle:V9",
-  "modifiedAt": "2024-02-02T03:04:05.456000Z",
+  "modifiedAt": "2024-02-02T03:04:05.456Z",
   "name": [
     {
       "createdAt": "2024-01-02T03:04:06Z",
