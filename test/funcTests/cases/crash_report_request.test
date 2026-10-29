@@ -113,17 +113,22 @@ wait $CURL_PID
 # A process the kernel is writing a core for (CoreDumping: 1 in /proc/<pid>/status) is past its end: it is
 # gone, however long the dump takes - on an arm64 runner (nightly 2026-10-14) it took longer than the 30 s.
 #
+# Once seen gone, gone - no second look: when the dump ends, CoreDumping goes back to 0 while the process
+# is still in its exit (not yet a zombie), and a second look there sees it 'still running' (arm64 nightly
+# 2026-10-29).
+#
 alive() {
   [ -d /proc/$PID ] || return 1
   [ "$(awk '{print $3}' /proc/$PID/stat 2>/dev/null)" != "Z" ] || return 1
   [ "$(awk '/^CoreDumping:/ { print $2 }' /proc/$PID/status 2>/dev/null)" != "1" ] || return 1
   return 0
 }
+STATE="still running"
 for i in $(seq 1 300); do
-  alive || break
+  alive || { STATE="gone"; break; }
   sleep 0.1
 done
-if alive; then echo "broker: still running"; else echo "broker: gone"; fi
+echo "broker: $STATE"
 echo
 echo
 
