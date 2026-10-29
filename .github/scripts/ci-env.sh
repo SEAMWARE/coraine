@@ -14,7 +14,7 @@
 #
 set -euxo pipefail
 
-MONGOC_VERSION=${MONGOC_VERSION:-2.2.2}
+MONGOC_VERSION=${MONGOC_VERSION:-2.5.7}
 MHD_VERSION=${MHD_VERSION:-1.0.10}
 
 sudo apt-get update

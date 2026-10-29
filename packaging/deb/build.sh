@@ -28,7 +28,7 @@ SRC=$(realpath "${1:?usage: build.sh <coraine-src.tar.xz> <out-dir>}")
 OUT=$(mkdir -p "${2:?usage: build.sh <coraine-src.tar.xz> <out-dir>}" && cd "$2" && pwd)
 HERE=$(cd "$(dirname "$0")" && pwd)
 BUILD_KIND=${BUILD_KIND:-pgo}
-MONGOC_VERSION=${MONGOC_VERSION:-2.2.2}
+MONGOC_VERSION=${MONGOC_VERSION:-2.5.7}
 MAINTAINER=${DEB_MAINTAINER:-Ken Zangelin <ken.zangelin@seamware.com>}
 
 die() { echo "build.sh: $*" >&2; exit 1; }
@@ -37,7 +37,7 @@ die() { echo "build.sh: $*" >&2; exit 1; }
 # Which distribution: the version suffix, and whether mongo-c v2 comes from it or is bundled
 #
 #   Ubuntu 26.04  libmongoc 2.2.2   -> Depends on it
-#   Ubuntu 24.04  libmongoc 1.26    -> v2 built here, bundled in /opt/seamware/lib (the system's 1.x untouched)
+#   Ubuntu 24.04  libmongoc 1.26    -> v2 ($MONGOC_VERSION) built here, bundled in /opt/seamware/lib (the system's 1.x untouched)
 #   Debian 13     libmongoc 1.30    -> the same
 #
 . /etc/os-release

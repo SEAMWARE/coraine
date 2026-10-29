@@ -30,7 +30,7 @@
 # with the `container:` image in .github/workflows/ci.yml - the same image,
 # used for the two things the stack is for.
 #
-ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-10-13-f4804c2
+ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-10-29-6dba3e1
 
 #
 # The Ubuntu every stage but the DDS one is FROM. Upstream's name here, for a build anywhere; CI's
@@ -74,7 +74,7 @@ FROM ${BASE_IMAGE} AS builder
 # Both of these are source-built on the dev box, so the image matches it rather
 # than taking whatever apt has (apt's libmicrohttpd is a release behind, and
 # mongo-c v2 — which the mongoc plugin needs for mongoc2.pc — isn't packaged).
-ARG MONGOC_VERSION=2.2.2
+ARG MONGOC_VERSION=2.5.7
 ARG MHD_VERSION=1.0.10
 
 ENV DEBIAN_FRONTEND=noninteractive \
