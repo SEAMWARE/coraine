@@ -49,7 +49,7 @@ sub='{
 
 
 echo "01. A subscription with geometryProperty position, accept application/geo+json"
-echo "==============================================================================="
+echo "=============================================================================="
 corCurl --url /ngsi-ld/v1/subscriptions --payload "$sub" | head -1
 echo
 echo
@@ -97,16 +97,26 @@ echo
 echo
 
 
-echo "06. Refused: without accept, with accept application/json, not a string, empty"
-echo "=============================================================================="
+echo "06. Refused: without accept, accept application/json, not a string, empty, picked/omitted away"
+echo "=============================================================================================="
 for n in \
   '{"geometryProperty":"position","endpoint":{"uri":"http://localhost:1/x"}}' \
   '{"geometryProperty":"position","endpoint":{"uri":"http://localhost:1/x","accept":"application/json"}}' \
   '{"geometryProperty":["position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
-  '{"geometryProperty":"","endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}'
+  '{"geometryProperty":"","endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"position","pick":["speed"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"position","attributes":["speed"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}' \
+  '{"geometryProperty":"position","omit":["speed","position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}'
 do
   curl -s localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"Drone"}],"notification":'"$n"'}' | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d["status"], d["detail"])'
 done
+echo
+echo
+
+
+echo "07. Accepted: a pick that keeps it"
+echo "=================================="
+curl -s -o /dev/null -w '%{http_code}\n' localhost:$COR_PORT/ngsi-ld/v1/subscriptions -H 'Content-Type: application/json' -d '{"type":"Subscription","entities":[{"type":"Ship"}],"notification":{"geometryProperty":"position","pick":["speed","position"],"endpoint":{"uri":"http://localhost:1/x","accept":"application/geo+json"}}}'
 echo
 echo
 
@@ -117,7 +127,7 @@ echo
 
 --EXPECT--
 01. A subscription with geometryProperty position, accept application/geo+json
-===============================================================================
+==============================================================================
 HTTP/1.1 201 Created
 
 
@@ -145,12 +155,20 @@ HTTP/1.1 204 No Content
 urn:D1 {"coordinates": [1, 1], "type": "Point"} ['location', 'position', 'type']
 
 
-06. Refused: without accept, with accept application/json, not a string, empty
-==============================================================================
+06. Refused: without accept, accept application/json, not a string, empty, picked/omitted away
+==============================================================================================
 400 'notification.geometryProperty' needs 'notification.endpoint.accept' application/geo+json
 400 'notification.geometryProperty' needs 'notification.endpoint.accept' application/geo+json
 400 'notification.geometryProperty' must be a non-empty string - the name of a GeoProperty
 400 'notification.geometryProperty' must be a non-empty string - the name of a GeoProperty
+400 'notification.pick' leaves out 'position', the 'notification.geometryProperty' of the GeoJSON geometry
+400 'notification.attributes' leaves out 'position', the 'notification.geometryProperty' of the GeoJSON geometry
+400 'notification.omit' names 'position', the 'notification.geometryProperty' of the GeoJSON geometry
+
+
+07. Accepted: a pick that keeps it
+==================================
+201
 
 
 []
