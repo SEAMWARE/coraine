@@ -35,6 +35,16 @@ extern void troeDeferEntityEvent(const TroeEvent* evP);
 // event would be built only to be dropped - and the entity read again only to build it
 //
 extern bool troeEventsOn(void);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// troeFromWrites - is the history recorded by the store, from its own writes (a TRoE driver that takes no
+// events - --troe corDB)? Then a state the store is not written never reaches the history: a batch that
+// names an Entity more than once writes each of its states, not only the last
+//
+extern bool troeFromWrites(void);
 extern void troeDeferAttrEvent(const TroeEvent* evP);
 
 

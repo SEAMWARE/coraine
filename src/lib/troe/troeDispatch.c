@@ -90,6 +90,17 @@ bool troeEventsOn(void)
 
 // -----------------------------------------------------------------------------
 //
+// troeFromWrites -
+//
+bool troeFromWrites(void)
+{
+  return (troe.entityTemporalRetrieve != NULL) && (troeEventsOn() == false);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // troeDispatchPending -
 //
 void troeDispatchPending(void)
