@@ -72,6 +72,7 @@
 #include "bridge/channelCheck.h"                     // channelChecksBeforeWrite, channelChecksActive
 #endif
 
+#include "troe/troeDispatch.h"                       // troeFromWrites
 #include "troe/troeFromMerge.h"                      // troeDeferAttrEventsFromMerge
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 
@@ -917,7 +918,22 @@ bool postEntityBatchMerge(void)
     }
 
 
-    db.entityBulkChangesApply(tenantP, localFragsArr, targetsV, reportsV, resultsV);
+    //
+    // The store records the history from its own writes, and an Entity comes more than once: it is given
+    // each fragment's own state (snapshotsV), in order - with the shared target alone, every fragment of
+    // the Entity is the last one in the history (§ 10.3.5.3: each fragment its own)
+    //
+    CorNode** writeV = targetsV;
+
+    if ((uniqueIdN < fragN) && (troeFromWrites() == true))
+    {
+      writeV = (CorNode**) corAlloc(&corRest.kalloc, sizeof(CorNode*) * localN);
+
+      for (int k = 0; k < localN; k++)
+        writeV[k] = (snapshotsV[k] != NULL) ? snapshotsV[k] : targetsV[k];
+    }
+
+    db.entityBulkChangesApply(tenantP, localFragsArr, writeV, reportsV, resultsV);
 
     for (int k = 0; (doneV != NULL) && (k < localN); k++)
     {
