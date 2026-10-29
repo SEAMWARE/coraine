@@ -7,9 +7,10 @@
 #
 # § 7.8.2: a tenant is created implicitly by an operation that creates an NGSI-LD object (Create
 # Entity, Batch Entity Creation, Create or Update Temporal Evolution, Create Subscription, Register
-# Context Source, Create Context Source Registration Subscription - plus the API's other creations).
-# Any other operation on a tenant that does not exist is a 404 NonexistentTenant - and does not
-# create it.
+# Context Source, Create Context Source Registration Subscription - plus the API's other creations),
+# and by Batch Entity Upsert: on a tenant that does not exist yet every Entity of it is a creation
+# (#511 - it was a 404). Any other operation on a tenant that does not exist is a 404
+# NonexistentTenant - and does not create it.
 #
 --NAME--
 A tenant is created only by a creation - anything else on an unknown tenant is a 404 NonexistentTenant
@@ -19,25 +20,25 @@ tenant troe
 
 --INIT--
 corDbDrop
-for t in nx1 nx2 nx3; do corDbDrop -tenant $t; done
+for t in nx1 nx2 nx3 nx4; do corDbDrop -tenant $t; done
 corTroeInit
 coraineStart --troe timescale --troeSync
 
 --RUN--
 
 #
-# 01. PATCH, DELETE, append, batch upsert, batch update, batch query on tenant nx1 - 404 NonexistentTenant each
+# 01. PATCH, DELETE, append, batch update, batch query on tenant nx1 - 404 NonexistentTenant each
 # 02. GET /entities on nx1 - still 404: none of those created it
 # 03. POST /entities on nx1 - 201, the tenant echoed; then the batch upsert - 201
 # 04. POST /subscriptions on nx2, POST /temporal/entities on nx3 - 201, each tenant created
+# 05. Batch upsert on nx4 - 201, the tenant created and echoed; the Entity there
 #
 
-echo "01. PATCH, DELETE, append, batch upsert, batch update, batch query on tenant nx1 - 404 NonexistentTenant each"
-echo "============================================================================================================"
+echo "01. PATCH, DELETE, append, batch update, batch query on tenant nx1 - 404 NonexistentTenant each"
+echo "==============================================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"a":1}' -H "NGSILD-Tenant: nx1" | sed -n '1p;/"type"/p'
 corCurl --url /ngsi-ld/v1/entities/urn:E1 -X DELETE -H "NGSILD-Tenant: nx1" | sed -n '1p;/"type"/p'
 corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"a":1}' -H "NGSILD-Tenant: nx1" | sed -n '1p;/"type"/p'
-corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{"id":"urn:E1","type":"T","a":1}]' -H "NGSILD-Tenant: nx1" | sed -n '1p;/"type"/p'
 corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[{"id":"urn:E1","type":"T","a":1}]' -H "NGSILD-Tenant: nx1" | sed -n '1p;/"type"/p'
 corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{"type":"Query","entities":[{"type":"T"}]}' -H "NGSILD-Tenant: nx1" | sed -n '1p;/"type"/p'
 echo
@@ -69,11 +70,17 @@ echo
 echo
 
 
+echo "05. Batch upsert on nx4 - 201, the tenant created and echoed; the Entity there"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{"id":"urn:E4","type":"T","a":1}]' -H "NGSILD-Tenant: nx4" | sed -n '1p;/^NGSILD-Tenant/p'
+corCurl --url /ngsi-ld/v1/entities/urn:E4 -H "NGSILD-Tenant: nx4" | sed -n '1p;/"id"/p'
+echo
+echo
+
+
 --EXPECT--
-01. PATCH, DELETE, append, batch upsert, batch update, batch query on tenant nx1 - 404 NonexistentTenant each
-============================================================================================================
-HTTP/1.1 404 Not Found
-  "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
+01. PATCH, DELETE, append, batch update, batch query on tenant nx1 - 404 NonexistentTenant each
+===============================================================================================
 HTTP/1.1 404 Not Found
   "type": "https://uri.etsi.org/ngsi-ld/errors/NonexistentTenant"
 HTTP/1.1 404 Not Found
@@ -109,8 +116,16 @@ NGSILD-Tenant: nx3
 HTTP/1.1 200 OK
 
 
+05. Batch upsert on nx4 - 201, the tenant created and echoed; the Entity there
+==============================================================================
+HTTP/1.1 201 Created
+NGSILD-Tenant: nx4
+HTTP/1.1 200 OK
+  "id": "urn:E4",
+
+
 --TEARDOWN--
 coraineStop
 corTroeDrop
-for t in nx1 nx2 nx3; do corDbDrop -tenant $t; done
+for t in nx1 nx2 nx3 nx4; do corDbDrop -tenant $t; done
 corDbDrop
