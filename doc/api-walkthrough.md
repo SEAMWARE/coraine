@@ -123,6 +123,27 @@ Anything with an HTTP endpoint can receive them; MQTT endpoints
 with the MQTT bridge, `--bridges mqtt` - without it such a subscription is refused. The subscription is retrievable,
 patchable and deletable at `/ngsi-ld/v1/subscriptions/{id}`.
 
+With `"accept": "application/geo+json"` a notification's `data` is a GeoJSON FeatureCollection, each
+Feature's `geometry` the value of the entity's `location`. `notification.geometryProperty` names another
+GeoProperty for it, as the `geometryProperty` URL parameter does for a query - proposed for the spec in
+TS 104 175 issue #67, an extension until it is adopted:
+
+```sh
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "type": "Subscription",
+        "entities": [ { "type": "Drone" } ],
+        "notification": {
+          "geometryProperty": "position",
+          "endpoint": { "uri": "http://localhost:9977/notify", "accept": "application/geo+json" }
+        }
+      }'
+```
+
+Without `"accept": "application/geo+json"` a `geometryProperty` is refused (400 BadRequestData), as a
+query's is without a GeoJSON `Accept`.
+
 ## 6. Delete
 
 ```sh
