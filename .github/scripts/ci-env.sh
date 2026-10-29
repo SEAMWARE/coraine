@@ -36,13 +36,8 @@ sudo apt-get install -y --no-install-recommends mongodb-mongosh
 # mhdBuild.sh, as the CI image builds it: corLibs is checked out beside coraine (stack/corLibs)
 MHD_VERSION="$MHD_VERSION" "$(cd "$(dirname "$0")/../../.." && pwd)/corLibs/tools/mhd/mhdBuild.sh" --sudo
 
-# mongo-c-driver
-git clone --depth 1 --branch "${MONGOC_VERSION}" https://github.com/mongodb/mongo-c-driver.git /tmp/mongo-c
-cmake -S /tmp/mongo-c -B /tmp/mongo-c/build -DCMAKE_BUILD_TYPE=Release \
-      -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF -DBUILD_TESTING=OFF
-cmake --build /tmp/mongo-c/build -j"$(nproc)"
-sudo cmake --install /tmp/mongo-c/build
-sudo ldconfig
+# mongo-c-driver - corLibs' tools/mongoc/mongocBuild.sh, as the CI image builds it
+MONGOC_VERSION="$MONGOC_VERSION" "$(cd "$(dirname "$0")/../../.." && pwd)/corLibs/tools/mongoc/mongocBuild.sh" --sudo
 
 # where the stack installs - the libs (corLibs bootstrap), the broker (make di) and its plugins: in the CI
 # image the build runs as root; on a runner it runs as the runner's user, which then owns them (a runner

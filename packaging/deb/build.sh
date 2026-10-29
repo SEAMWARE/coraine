@@ -86,18 +86,18 @@ echo "build.sh: coraine $DEBVER ($ARCH, $BUILD_KIND) from ${gitSha:0:8}"
 
 #
 # mongo-c driver v2, where the distribution has only v1: into /opt/seamware (lib, include), every library
-# with RUNPATH $ORIGIN - libmongoc2 finds libbson2 beside it, never a system one
+# with RUNPATH $ORIGIN - libmongoc2 finds libbson2 beside it, never a system one. Built by corLibs'
+# tools/mongoc/mongocBuild.sh, from the source tarball, as the image and the CI build it - its licence and the
+# patches applied to it into $WORK/mongo-c-doc, which the package ships
 #
 if [ "$BUNDLE" = 1 ]; then
-  git clone -q --depth 1 --branch "$MONGOC_VERSION" https://github.com/mongodb/mongo-c-driver.git "$WORK/mongo-c"
-  cmake -S "$WORK/mongo-c" -B "$WORK/mongo-c/build" -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/seamware -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_RPATH='$ORIGIN' \
-        -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF -DBUILD_TESTING=OFF -DENABLE_STATIC=OFF \
+  tar -xJf "$SRC" -C "$WORK" --wildcards 'coraine-*/corLibs/tools/mongoc'
+  MONGOC_VERSION="$MONGOC_VERSION" bash "$WORK"/coraine-*/corLibs/tools/mongoc/mongocBuild.sh \
+        --prefix /opt/seamware --docdir "$WORK/mongo-c-doc" -- \
+        -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_RPATH='$ORIGIN' -DENABLE_STATIC=OFF \
         -DENABLE_SSL=OPENSSL -DENABLE_SASL=CYRUS -DENABLE_ZSTD=ON -DENABLE_ZLIB=SYSTEM -DENABLE_SNAPPY=OFF \
         -DENABLE_CLIENT_SIDE_ENCRYPTION=OFF -DENABLE_SRV=ON -DENABLE_MAN_PAGES=OFF -DENABLE_HTML_DOCS=OFF \
-        -DENABLE_UNINSTALL=OFF > "$WORK/mongo-c.log"
-  cmake --build "$WORK/mongo-c/build" -j"$(nproc)" >> "$WORK/mongo-c.log"
-  cmake --install "$WORK/mongo-c/build" >> "$WORK/mongo-c.log"
+        -DENABLE_UNINSTALL=OFF > "$WORK/mongo-c.log" 2>&1
   pkg-config --exists mongoc2 && die "a system mongoc2 as well as the bundled one - which would the build take?"
   PKG_CONFIG_PATH=/opt/seamware/lib/pkgconfig pkg-config --modversion mongoc2
 fi
@@ -131,11 +131,9 @@ install -m 0644 "$WORK"/coraine-*/MANIFEST.txt "$S/usr/share/doc/coraine/MANIFES
 make -C "$WORK/tree/c3" install DESTDIR="$S" PREFIX=/usr        # /usr/bin/c3, /usr/share/c3/www
 
 if [ "$BUNDLE" = 1 ]; then
-  install -d "$S/opt/seamware/lib" "$S/usr/share/doc/coraine/mongo-c-driver"
+  install -d "$S/opt/seamware/lib" "$S/usr/share/doc/coraine"
   cp -P /opt/seamware/lib/libmongoc2.so.* /opt/seamware/lib/libbson2.so.* "$S/opt/seamware/lib/"
-  for f in COPYING THIRD_PARTY_NOTICES; do
-    [ ! -f "$WORK/mongo-c/$f" ] || install -m 0644 "$WORK/mongo-c/$f" "$S/usr/share/doc/coraine/mongo-c-driver/"
-  done
+  cp -r "$WORK/mongo-c-doc" "$S/usr/share/doc/coraine/mongo-c-driver"     # COPYING, THIRD_PARTY_NOTICES, patches/
   #
   # The one binary that links libmongoc2: coraine-build gave it RUNPATH /opt/seamware/lib. Check, here
   # rather than at the first `--database mongoc` on somebody's machine.
@@ -219,7 +217,8 @@ for p in coraine coraine-dev; do
       echo "Copyright: MongoDB, Inc."
       echo "License: Apache-2.0"
       echo "Comment: the MongoDB C driver $MONGOC_VERSION (https://github.com/mongodb/mongo-c-driver), built from"
-      echo " source. Its third-party notices: /usr/share/doc/coraine/mongo-c-driver/THIRD_PARTY_NOTICES"
+      echo " source, MODIFIED by Seamware: the patches applied are in /usr/share/doc/coraine/mongo-c-driver/patches."
+      echo " Its third-party notices: /usr/share/doc/coraine/mongo-c-driver/THIRD_PARTY_NOTICES"
     fi
     echo
     echo "License: Apache-2.0"

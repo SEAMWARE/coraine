@@ -121,16 +121,13 @@ COPY docker/vendor/mhd/ /tmp/mhd/
 RUN MHD_VERSION="${MHD_VERSION}" bash /tmp/mhd/mhdBuild.sh -- --disable-https \
  && rm -rf /tmp/mhd
 
-# mongo-c driver v2 — required by the mongoc DB plugin (pkg-config: mongoc2).
-RUN git clone --depth 1 --branch "${MONGOC_VERSION}" \
-      https://github.com/mongodb/mongo-c-driver.git /tmp/mongo-c \
- && cmake -S /tmp/mongo-c -B /tmp/mongo-c/build \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DENABLE_TESTS=OFF -DENABLE_EXAMPLES=OFF -DBUILD_TESTING=OFF \
- && cmake --build /tmp/mongo-c/build -j"$(nproc)" \
- && cmake --install /tmp/mongo-c/build \
- && ldconfig \
- && rm -rf /tmp/mongo-c
+# mongo-c driver v2 — required by the mongoc DB plugin (pkg-config: mongoc2). Built by corLibs'
+# tools/mongoc/mongocBuild.sh, as everywhere in the stack (the release tarball checked against its pinned SHA-256,
+# the stack's patches applied); vendor-libs.sh stages that directory as docker/vendor/mongoc. Its licence and the
+# patches go to /usr/local/share/doc/mongo-c-driver, which the image ships with the library.
+COPY docker/vendor/mongoc/ /tmp/mongoc/
+RUN MONGOC_VERSION="${MONGOC_VERSION}" bash /tmp/mongoc/mongocBuild.sh --docdir /usr/local/share/doc/mongo-c-driver \
+ && rm -rf /tmp/mongoc
 
 # The lib stack. Every lib resolves its dependencies as ../<name>, so they all
 # have to be siblings — the same layout as a dev box. The directory itself is
@@ -243,6 +240,7 @@ RUN A=$(sed -n 's/^TUNE_ALLOCATOR=//p' /opt/seamware/etc/tune.env 2>/dev/null); 
 COPY --from=builder /usr/local/lib/libmicrohttpd.so.12* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmongoc* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libbson* /usr/local/lib/
+COPY --from=builder /usr/local/share/doc/mongo-c-driver/ /usr/local/share/doc/mongo-c-driver/
 
 #
 # And the DDS stack, as a DIRECTORY.

@@ -22,7 +22,7 @@ optional.
 | [GEOS](https://libgeos.org/) | geo-query evaluation | with either current-state plugin |
 | [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) | the HTTP server the REST layer sits on | only `COR_HTTP_SERVER=mhd` — `corHttp`, ours, is the alternative |
 | [ICU](https://icu.unicode.org/) | `orderBy` string collation (§ 7.6.2.1) | only `COR_FEATURE_ICU_COLLATION=ON` |
-| [MongoDB C driver](https://github.com/mongodb/mongo-c-driver) (v2) | the `mongoc` current-state plugin | only `--database mongoc` |
+| [MongoDB C driver](https://github.com/mongodb/mongo-c-driver) (v2) | the `mongoc` current-state plugin - the image and the bundling packages carry it with four patches of ours (corLibs' `tools/mongoc/patches`) | only `--database mongoc` |
 | [PostgreSQL / libpq](https://www.postgresql.org/) | the `timescale` temporal plugin | only `--troe timescale` |
 | [TimescaleDB](https://www.timescale.com/) | temporal storage (hypertables) | only `--troe timescale` |
 

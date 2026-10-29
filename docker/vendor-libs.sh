@@ -77,6 +77,10 @@ done
 # the HTTP server at every change of any lib
 #
 tar -xf "$OUT/corLibs.tar" -C "$OUT" --strip-components=2 corLibs/tools/mhd
+#
+# The MongoDB C driver's (corLibs/tools/mongoc), for the same reason
+#
+tar -xf "$OUT/corLibs.tar" -C "$OUT" --strip-components=2 corLibs/tools/mongoc
 
 echo "vendored $(printf '%s ' "${LIBS[@]}")-> $OUT"
 cat "$MANIFEST"

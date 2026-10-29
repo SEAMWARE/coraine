@@ -2316,6 +2316,72 @@ Instructions per request in the broker (`perf stat -e instructions:u,instruction
 - 2.5.7 is what the fixes of 2.3-2.5 are in (JSON and BSON parsing, SCRAM and SASL, OCSP, name validation), and
   2.5 is the driver MongoDB names for server 9.0.
 
+### The stack's patches to mongo-c-driver 2.5.7
+
+The image, the CI and the `.deb` packages that bundle the driver build it with four patches
+(corLibs' `tools/mongoc/patches/2.5.7`, each saying what it changes and keeps): `0001` a command's retry state
+made at its first retry, `0002` retryReads / retryWrites read from the URI once per client, `0003` a reply's
+error fields found in one pass, `0004` an implicit session without the transaction state it cannot use.
+(`0005` only marks the changed files.)
+
+Instructions per request in the broker, user space (`perf stat -e instructions:u`, 5 s of `wrk -t8 -c50`, 100
+entities, broker on one core, MongoDB 8.2.12, the same release build of coraine; the mean of 2-4 broker starts,
+each patch on top of the ones before it, 2026-10-29 20:20-21:05):
+
+| per request, user | 2.5.7 | + `0001` | + `0002` | + `0003` | + `0004` | |
+|---|---:|---:|---:|---:|---:|---:|
+| query, `limit=20` | 841 911 | 841 444 | 838 942 | 836 403 | 835 662 | -6 249 (-0.7 %) |
+| retrieve | 91 312 | 90 558 | 88 506 | 85 326 | 84 552 | -6 760 (-7.4 %) |
+| `PATCH` of `speed` | 180 126 | 178 182 | 172 468 | 164 799 | 162 970 | -17 156 (-9.5 %) |
+| create | 141 034 | 141 371 | 139 315 | 137 983 | 137 068 | -3 966 (-2.8 %) |
+
+All four patches below 2.2.2's own count (the section above): a retrieve 84 552 against 89 763, a `PATCH`
+162 970 against 175 445.
+
+Requests/s, `perfRun.sh mongoc`, broker on one physical core, AMD Ryzen 9 8940HX; 2026-10-29 21:12-22:18, ABBA
+(2.5.7, patched, patched, 2.5.7), the mean of the two runs of each, and how far apart the two 2.5.7 runs were:
+
+| requests/s | 2.5.7 | patched | | 2.5.7 runs |
+|---|---:|---:|---:|---:|
+| `query_c50` | 6 538 | 6 462 | -1.1 % | 1.9 % apart |
+| `query_c200` | 6 562 | 6 678 | +1.8 % | 3.3 % apart |
+| `query_l1_c50` | 18 758 | 18 834 | +0.4 % | 0.5 % apart |
+| `query_l100_c50` | 1 410 | 1 400 | -0.7 % | 2.1 % apart |
+| `retrieve_c50` | 23 770 | 23 247 | -2.2 % | 1.1 % apart |
+| `patch_c50` | 12 174 | 12 025 | -1.2 % | 2.4 % apart |
+| `patch_c1` | 3 088 | 3 125 | +1.2 % | 2.5 % apart |
+| `batch20_c50` | 1 796 | 1 791 | -0.3 % | 2.4 % apart |
+| `create_c50` | 23 111 | 22 454 | -2.8 % | 5.6 % apart |
+| `create_c1` | 6 856 | 6 882 | +0.4 % | 4.0 % apart |
+| `batch20create_c50` | 6 307 | 6 202 | -1.7 % | 2.3 % apart |
+| `merge_c50` | 15 193 | 15 404 | +1.4 % | 3.9 % apart |
+| `delete_c50` | 17 629 | 18 171 | +3.1 % | 4.0 % apart |
+| `batch20delete_c50` | 4 115 | 3 686 | -10.4 % | 18.0 % apart |
+| `patch_subs_c50` | 7 643 | 7 766 | +1.6 % | 0.1 % apart |
+| `patch_manysubs_c50` | 7 078 | 7 294 | +3.1 % | 6.0 % apart |
+| `patch_10subs_c50` | 3 542 | 3 574 | +0.9 % | 2.8 % apart |
+| `rare_l20_c50` | 6 803 | 6 664 | -2.0 % | 4.5 % apart |
+| `rare_l100_c50` | 1 736 | 1 707 | -1.6 % | 3.5 % apart |
+| `rare_l20_o500_c50` | 4 164 | 4 166 | +0.0 % | 19.7 % apart |
+| `big_r1_l20_c50` | 6 808 | 6 760 | -0.7 % | 1.1 % apart |
+| `big_r1_l20_o1000_c50` | 1 954 | 2 002 | +2.4 % | 3.7 % apart |
+| `big_r01_l20_c50` | 6 657 | 6 642 | -0.2 % | 0.6 % apart |
+| `big_r01_l20_o200_c50` | 6 344 | 6 407 | +1.0 % | 1.6 % apart |
+| `big_retrieve_c50` | 22 071 | 22 242 | +0.8 % | 2.3 % apart |
+| `big_patch_c50` | 11 416 | 11 682 | +2.3 % | 0.1 % apart |
+| `big_create_c50` | 20 498 | 20 676 | +0.9 % | 3.2 % apart |
+
+- **No scenario is faster by more than its runs' spread.** The broker's instructions per request fall 7-10 % on a
+  retrieve and a `PATCH`; a request's time is mostly MongoDB's and the kernel's, and requests/s do not show it.
+- `retrieve_c50` -2.2 %: both patched runs (23 253 / 23 241) below both 2.5.7 runs (23 637 / 23 903).
+- `batch20delete_c50` and `rare_l20_o500_c50`: the two 2.5.7 runs 18-20 % apart - no reading.
+- The larger store (300 000 entities): filled in 72 s, broker RSS 130 MB, data, storage and indexes the same with
+  both.
+- The driver's own tests (`test-libmongoc`) of what the patches touch - retryable reads and writes, the retry
+  backoff, sessions, transactions, client, cursor, collection, bulk, CRUD, command, cluster, RPC: 909 tests, the
+  same result for each with and without the patches (672 pass, 184 skipped, 53 fail on both against a standalone
+  MongoDB 8.2 - replica-set and TLS-log tests).
+
 ## The HTTP server
 
 ### libmicrohttpd 1.0.10 against 1.0.2
