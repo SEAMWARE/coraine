@@ -329,8 +329,10 @@ Tenant* tenantFromRequest(bool autoCreate)
 // Create Entity, Batch Entity Creation, Create or Update Temporal Evolution of an Entity, Create
 // Subscription, Register Context Source, Create Context Source Registration Subscription - and the
 // creations of the API's other objects: Snapshot, Service Registration, Combined Service Template,
-// Service Execution, EntityMap). Any other operation on a tenant that does not exist is a
-// NonexistentTenant - an upsert too: it is an update as much as a creation.
+// Service Execution, EntityMap) - and Batch Entity Upsert: on a tenant that does not exist yet there
+// is no Entity to update, so every Entity of it is created (as Create or Update Temporal Evolution, an
+// upsert too, is on § 7.8.2's list). Any other operation on a tenant that does not exist - a query, an
+// update, a PATCH, a DELETE - is a NonexistentTenant.
 //
 static bool creates(void)
 {
@@ -338,6 +340,7 @@ static bool creates(void)
   {
     "/ngsi-ld/v1/entities",
     "/ngsi-ld/v1/entityOperations/create",
+    "/ngsi-ld/v1/entityOperations/upsert",
     "/ngsi-ld/v1/temporal/entities",
     "/ngsi-ld/v1/subscriptions",
     "/ngsi-ld/v1/csourceRegistrations",

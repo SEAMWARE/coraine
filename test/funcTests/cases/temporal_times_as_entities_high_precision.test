@@ -1,0 +1,64 @@
+#
+# FILE            temporal_times_as_entities_high_precision.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --high-precision (-hp) in the temporal history: corDB keeps every time to the nanosecond, and its
+# history renders as /entities does - nine digits with -hp, the trailing zeros left out. Its observedAt
+# went to the millisecond whatever the option ('.123' for '.123456789').
+#
+# corDB's history only: timescale's postgres keeps microseconds, so with -hp a time sent with more than
+# six digits has six in /temporal (doc/options.md, --high-precision). --troe corDB named here, on the
+# corDB store - REQUIRE_TROEDB alone would let a run without -troeDb start it on timescale.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+High precision (-hp) in corDB's temporal history - nine digits, as /entities, trailing zeros left out
+
+--TAGS--
+troe temporal datetime
+
+--INIT--
+corDbDrop
+coraineStart --troe corDB --high-precision
+
+--RUN--
+
+n=0
+for t in "2026-01-01T00:00:00.290Z" "2026-01-01T00:00:00.123456Z" "2026-01-01T00:00:00.1234567Z" "2026-01-01T00:00:00.123456789Z" "2026-01-01T00:00:00Z"
+do
+  n=$((n + 1))
+  corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:T:'$n'", "type": "T", "a": { "type": "Property", "value": 1, "observedAt": "'$t'" } }' > /dev/null
+done
+corTroeSettle
+
+echo "01. observedAt sent / in /entities / in /temporal"
+echo "================================================="
+n=0
+for t in "2026-01-01T00:00:00.290Z" "2026-01-01T00:00:00.123456Z" "2026-01-01T00:00:00.1234567Z" "2026-01-01T00:00:00.123456789Z" "2026-01-01T00:00:00Z"
+do
+  n=$((n + 1))
+  e=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:T:$n" | python3 -c 'import json, sys; print(json.load(sys.stdin)["a"]["observedAt"])')
+  h=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/urn:T:$n" | python3 -c 'import json, sys; print(json.load(sys.stdin)["a"][0]["observedAt"])')
+  echo "$t / $e / $h"
+done
+echo
+echo
+
+
+--EXPECT--
+01. observedAt sent / in /entities / in /temporal
+=================================================
+2026-01-01T00:00:00.290Z / 2026-01-01T00:00:00.29Z / 2026-01-01T00:00:00.29Z
+2026-01-01T00:00:00.123456Z / 2026-01-01T00:00:00.123456Z / 2026-01-01T00:00:00.123456Z
+2026-01-01T00:00:00.1234567Z / 2026-01-01T00:00:00.1234567Z / 2026-01-01T00:00:00.1234567Z
+2026-01-01T00:00:00.123456789Z / 2026-01-01T00:00:00.123456789Z / 2026-01-01T00:00:00.123456789Z
+2026-01-01T00:00:00Z / 2026-01-01T00:00:00Z / 2026-01-01T00:00:00Z
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

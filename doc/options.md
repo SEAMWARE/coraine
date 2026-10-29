@@ -257,7 +257,10 @@ Renders the DateTime values `createdAt`, `modifiedAt`, `observedAt` and `expires
 fractional digits (nanoseconds) instead of 6 (microseconds). The broker keeps every timestamp to the
 nanosecond either way; the option changes the rendering only, so it can be turned on or off on an
 existing store. 6 digits is the precision NGSI-LD gives (§ 5.2.2.4). An `observedAt` a client sent
-with 9 digits is answered with 6 without the option and as it was sent with it.
+with 9 digits is answered with 6 without the option and as it was sent with it. Either way the
+fraction's trailing zeros are left out (`.290` is answered as `.29`, `.000` not at all), and the
+temporal API renders its times the same way. The history of `--troe timescale` keeps microseconds
+(postgres' precision): with the option, a time sent with more than 6 digits has 6 there.
 
     coraine -db corDB -hp
     curl 'localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:T:1?options=sysAttrs'

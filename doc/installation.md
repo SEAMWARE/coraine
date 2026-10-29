@@ -1521,6 +1521,9 @@ mongosh --quiet --eval 'db.getMongo().getDBNames()'
 
 Tenants are selected per request with the `NGSILD-Tenant` header. With the `mongoc`
 plugin each tenant is a separate database; with `corDB` each tenant is a separate
-store (and, with `--dbDir`, a directory of its own). No configuration is needed to create one: a write naming an
-unknown tenant creates it, while a read of a tenant that does not exist answers
-**404 NonexistentTenant** rather than an empty result.
+store (and, with `--dbDir`, a directory of its own). No configuration is needed to create one: a request
+that creates something on an unknown tenant creates the tenant too - Create Entity, Batch Create, Batch
+Upsert, Create Temporal Evolution, Create Subscription, the context source registrations and
+subscriptions, and the creations of Snapshots, Service Registrations, Combined Service Templates, Service
+Executions and EntityMaps. Any other request on a tenant that does not exist - a query, an update, a
+PATCH, a DELETE - answers **404 NonexistentTenant** and creates nothing.

@@ -1,0 +1,84 @@
+#
+# FILE            temporal_times_as_entities.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A time reads the same in /entities and in /temporal: to the microsecond (§ 5.2.2.4), the fraction's
+# trailing zeros left out - observedAt, createdAt and modifiedAt alike. The temporal history rendered
+# its own way: timescale's observedAt to the millisecond with every zero kept ('.290' where /entities
+# said '.29'), its createdAt/modifiedAt with all six digits ('.123000'); corDB's history its observedAt
+# to the millisecond ('.123' for '.123456').
+#
+# The values are sent - observedAt - and so compared literally. Runs on corDB's own history too
+# (-troeDb corDB turns --troe timescale into --troe corDB).
+#
+--NAME--
+Times in /temporal as in /entities - microseconds, trailing zeros left out (observedAt .290 is .29 in both)
+
+--TAGS--
+troe timescale temporal datetime
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# One entity per observedAt; the observedAt of attribute a, as /entities and as /temporal answer it
+#
+n=0
+for t in "2026-01-01T00:00:00.290Z" "2026-01-01T00:00:00.29Z" "2026-01-01T00:00:00.123456Z" "2026-01-01T00:00:00.1234567Z" "2026-01-01T00:00:00Z"
+do
+  n=$((n + 1))
+  corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:T:'$n'", "type": "T", "a": { "type": "Property", "value": 1, "observedAt": "'$t'" } }' > /dev/null
+done
+corTroeSettle
+
+echo "01. observedAt sent / in /entities / in /temporal"
+echo "================================================="
+n=0
+for t in "2026-01-01T00:00:00.290Z" "2026-01-01T00:00:00.29Z" "2026-01-01T00:00:00.123456Z" "2026-01-01T00:00:00.1234567Z" "2026-01-01T00:00:00Z"
+do
+  n=$((n + 1))
+  e=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:T:$n" | python3 -c 'import json, sys; print(json.load(sys.stdin)["a"]["observedAt"])')
+  h=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/urn:T:$n" | python3 -c 'import json, sys; print(json.load(sys.stdin)["a"][0]["observedAt"])')
+  echo "$t / $e / $h"
+done
+echo
+echo
+
+
+echo "02. createdAt and modifiedAt - the same in both, the fraction trimmed (no trailing 0)"
+echo "===================================================================================="
+e=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:T:1?options=sysAttrs" | python3 -c 'import json, sys; a = json.load(sys.stdin)["a"]; print(a["createdAt"], a["modifiedAt"])')
+h=$(curl -s "localhost:$CB_PORT/ngsi-ld/v1/temporal/entities/urn:T:1?options=sysAttrs" | python3 -c 'import json, sys; a = json.load(sys.stdin)["a"][0]; print(a["createdAt"], a["modifiedAt"])')
+[ "$e" == "$h" ] && echo "same" || echo "DIFFERENT: /entities '$e', /temporal '$h'"
+echo "$h" | grep -qE '\.[0-9]*0Z' && echo "a trailing 0: '$h'" || echo "no trailing 0"
+echo
+echo
+
+
+--EXPECT--
+01. observedAt sent / in /entities / in /temporal
+=================================================
+2026-01-01T00:00:00.290Z / 2026-01-01T00:00:00.29Z / 2026-01-01T00:00:00.29Z
+2026-01-01T00:00:00.29Z / 2026-01-01T00:00:00.29Z / 2026-01-01T00:00:00.29Z
+2026-01-01T00:00:00.123456Z / 2026-01-01T00:00:00.123456Z / 2026-01-01T00:00:00.123456Z
+2026-01-01T00:00:00.1234567Z / 2026-01-01T00:00:00.123456Z / 2026-01-01T00:00:00.123456Z
+2026-01-01T00:00:00Z / 2026-01-01T00:00:00Z / 2026-01-01T00:00:00Z
+
+
+02. createdAt and modifiedAt - the same in both, the fraction trimmed (no trailing 0)
+====================================================================================
+same
+no trailing 0
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop
