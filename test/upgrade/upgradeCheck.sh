@@ -256,6 +256,8 @@ snapshot()
 #
 declare -A KNOWN
 KNOWN["0.4.0:temporal.V1.sys"]="the entity's modifiedAt in a temporal representation: 0.4.0 rendered its creation time, 0.5.0 its last modification"
+KNOWN["0.6.0:temporal.V1.sys"]="the temporal API's times with the fraction's trailing zeros left out, as /entities renders them (0.6.2): .790690Z is .79069Z"
+KNOWN["0.6.1:temporal.V1.sys"]="${KNOWN["0.6.0:temporal.V1.sys"]}"
 #
 # KNOWN_RAW - the stored documents (mongoc's raw.*) changed ON PURPOSE when --to opens what <from version>
 # wrote: "<from version>" -> why. They are compared with that change taken out (rawKnown), so every other
