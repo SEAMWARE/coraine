@@ -20,9 +20,8 @@
 #   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
 #                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
 #                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
-#   --optimize <o>     speed (the default) or size: what the broker's defaults spend RAM on - size runs a
-#                      worker per CPU whatever the store and one malloc arena, for small hardware at low
-#                      request rates (doc/building-details.md#cor_optimize)
+#   --optimize <o>     speed (the default) or size: what the broker's defaults spend RAM on - size runs one
+#                      malloc arena for the process, for small hardware (doc/building-details.md#cor_optimize)
 #   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua - or none
 #                      (default mqtt,modbus). A bridge the source does not carry, or whose libraries are
 #                      not installed here, stops the build and says which (--list-bridges)

@@ -319,12 +319,11 @@ add_compile_definitions(CORAINE_HTTP_SERVER="${COR_HTTP_SERVER}")
 #
 # COR_OPTIMIZE - what the build spends its RAM on. One or the other, speed the default.
 #
-#   speed  defaults chosen for throughput: a worker pool sized for a store that waits (32 with mongoc),
-#          one malloc arena per thread
-#   size   defaults chosen for RAM, for small hardware at low request rates: a worker per CPU whatever
-#          the store, one malloc arena for the process (doc/building-details.md#cor_optimize)
+#   speed  one malloc arena per thread (glibc's default)
+#   size   one malloc arena for the process, for small hardware (doc/building-details.md#cor_optimize);
+#          MALLOC_ARENA_MAX, when set, still decides
 #
-# Defaults only - every option still overrides them. A choice between two, as COR_HTTP_SERVER, so a
+# The worker pool is the same in both. A choice between two, as COR_HTTP_SERVER, so a
 # 0/1 pair for #if, and the name for --version and GET /build.
 #
 set(COR_OPTIMIZE "speed" CACHE STRING "What the defaults spend RAM on: speed | size")
