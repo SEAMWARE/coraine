@@ -652,14 +652,16 @@ make release COR_OPTIMIZE=size     # RAM before throughput: small hardware, low 
 
 From a package: `coraine-build --optimize size`. One or the other; `coraine --version` prints
 `optimize: speed|size`, and a running broker reports it as `build.optimize` on `GET /build`. A size build
-changes two defaults - every option still overrides them:
+changes one default:
 
 | | speed | size |
 |---|---|---|
-| `--connectionPoolSize 0` | one worker per CPU for a store that never waits, 32 otherwise | one worker per CPU, whatever the store |
 | malloc arenas | glibc's default: one per thread, up to 8 per CPU | one for the process (`MALLOC_ARENA_MAX`, when set, still decides) |
 
-**What they cost.** glibc gives each thread an arena of its own, and an arena keeps the peak of the
+The worker pool (`--connectionPoolSize 0`) is the same in both: one worker per CPU for a store that never
+waits, 32 otherwise.
+
+**What it saves.** glibc gives each thread an arena of its own, and an arena keeps the peak of the
 largest request its thread ran: about 5.5 MB after a 1000-entity batch create. With mongoc and 32 workers
 (each with a libmicrohttpd thread beside it: 69 threads) that is 32 such peaks. The RSS of the broker
 alone - the store is another process - on 4 CPUs (`taskset -c 0-3`), release build, 100 000 entities
@@ -667,24 +669,57 @@ created in batches of 1000, then 100 pages of 1000 entities read:
 
 | mongoc | idle | 1 000 | 10 000 | 100 000 | after the reads |
 |---|---|---|---|---|---|
-| speed | 21 MB | 23 MB | 65 MB | 197 MB | 197 MB |
-| size | 19 MB | 21 MB | 25 MB | 25 MB | 25 MB |
+| speed | 21 MB | 23 MB | 65 MB | 198 MB | 198 MB |
+| size | 21 MB | 22 MB | 27 MB | 27 MB | 28 MB |
+| size, `--connectionPoolSize 4` | 20 MB | 21 MB | 26 MB | 26 MB | 26 MB |
 
 The speed figure levels off rather than growing with the entities: another 100 000 added 1.5 MB. With
-corDB the worker pool is one per CPU in both builds, and the entities are in the broker's own memory:
+corDB the entities are in the broker's own memory:
 
 | corDB | idle | 1 000 | 10 000 | 100 000 | after the reads |
 |---|---|---|---|---|---|
 | speed | 13 MB | 15 MB | 40 MB | 182 MB | 189 MB |
 | size | 13 MB | 15 MB | 32 MB | 173 MB | 175 MB |
 
-Of a size build's 19 MB idle with mongoc, 16 MB is shared libraries: libcrypto and libssl 5 MB, libc 2 MB,
+Of a size build's 21 MB idle with mongoc, 16 MB is shared libraries: libcrypto and libssl 5 MB, libc 2 MB,
 the broker 1.5 MB, libstdc++ 1.5 MB and GEOS 1.1 MB (`COR_WITH_GEOQ=0` removes both), the GnuTLS libraries
 libmicrohttpd links about 3 MB (`COR_HTTP_SERVER=builtin`, or libmicrohttpd built `--disable-https`),
 libmongoc 1 MB and the Kerberos / SASL libraries it links 1.2 MB.
 
-**What size costs:** fewer workers serve fewer waiting requests at once - with mongoc, each request
-holds its worker while MongoDB answers - and one arena is one lock for every thread's malloc.
+**What it costs.** One arena is one lock for every thread's malloc. `test/perf/perfRun.sh`, release build,
+the broker on 4 cores (`PERF_BROKER_CORES=4`), MongoDB 8.2 on the same host; two runs of each build in the
+order speed, size, size, speed, requests per second, the mean of the two:
+
+| | mongoc speed | mongoc size | | corDB speed | corDB size | |
+|---|---|---|---|---|---|---|
+| query_c50 | 19 576 | 19 106 | -2.4 % | 41 566 | 41 380 | -0.4 % |
+| query_l100_c50 | 4 637 | 5 812 | +25.4 % | 9 218 | 9 147 | -0.8 % |
+| retrieve_c50 | 56 108 | 56 460 | +0.6 % | 316 745 | 310 627 | -1.9 % |
+| patch_c50 | 21 038 | 21 044 | 0.0 % | 235 942 | 234 350 | -0.7 % |
+| patch_c1 | 3 529 | 3 632 | +2.9 % | 39 126 | 39 210 | +0.2 % |
+| create_c50 | 49 886 | 48 686 | -2.4 % | 203 090 | 168 364 | -17.1 % |
+| create_c1 | 7 580 | 7 324 | -3.4 % | 32 092 | 32 024 | -0.2 % |
+| merge_c50 | 26 272 | 26 028 | -0.9 % | 136 962 | 136 967 | 0.0 % |
+| delete_c50 | 31 765 | 31 386 | -1.2 % | 275 404 | 269 690 | -2.1 % |
+| batch20_c50 | 1 634 | 1 632 | -0.2 % | 33 087 | 29 965 | -9.4 % |
+| batch20create_c50 | 6 072 | 6 024 | -0.8 % | 31 830 | 30 696 | -3.6 % |
+| batch20delete_c50 | 3 187 | 3 190 | +0.1 % | 89 170 | 61 073 | -31.5 % |
+| patch_subs_c50 | 17 539 | 17 586 | +0.3 % | 70 016 | 64 413 | -8.0 % |
+| patch_manysubs_c50 | 16 836 | 16 822 | -0.1 % | 65 412 | 64 718 | -1.1 % |
+| patch_10subs_c50 | 8 738 | 8 847 | +1.2 % | 9 954 | 10 142 | +1.9 % |
+| big_r1_l20_o1000_c50 | 1 466 | 1 481 | +1.0 % | 29 412 | 29 299 | -0.4 % |
+| big_create_c50 | 47 260 | 46 936 | -0.7 % | 196 640 | 162 808 | -17.2 % |
+
+The two runs of a build differ by up to 8 % (query_c50 and the 20-entity queries on the larger store) and
+mostly by less than 3 %. The mongoc size runs are the size build with the arena only (this pool).
+
+**A worker per CPU too.** With mongoc, `--connectionPoolSize 4` on the 4 CPUs saves another 1.5 MB after
+100 000 entities (the third mongoc row above), and each request at 50 connections then waits for one of 4
+workers while MongoDB answers: query_c50 11 531, retrieve_c50 37 166, patch_c50 12 098, create_c50
+29 609, delete_c50 17 788 (-34 to -46 % against speed); at one connection no difference (patch_c1 3 551,
+create_c1 7 684). The broker-heavy requests gain from fewer threads on the 4 cores: big_r1_l20_o1000_c50
+4 130 (+182 %), rare_l20_o500_c50 6 191 (+87 %), batch20delete_c50 4 806 (+51 %), batch20create_c50 7 976
+(+31 %).
 
 ### The optional runtime dependencies
 

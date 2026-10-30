@@ -5,20 +5,20 @@
 #
 # Copyright 2026 Seamware
 #
-# The worker pool's default follows COR_OPTIMIZE. With mongoc - a store that waits - a speed build runs 32
-# workers, a size build one per CPU. Each worker has an HTTP thread beside it with libmicrohttpd, named
-# MHD-worker, which is what is counted. The build's choice is read from `coraine --version`, so the test
-# runs on either build (the nightly's valgrind matrix has both). One per CPU is nproc: the CPUs the process
-# may run on, as the broker's corCpuCount when no cgroup quota is lower.
+# The worker pool's default is the same in both builds of COR_OPTIMIZE: with mongoc - a store that waits - 32
+# workers. A size build changes the malloc arena only (doc/building-details.md#cor_optimize). Each worker has
+# an HTTP thread beside it with libmicrohttpd, named MHD-worker, which is what is counted. The build's choice
+# is read from `coraine --version` and printed, so a run says which build it tested (the nightly's valgrind
+# matrix has both).
 #
-#   - no --connectionPoolSize: the build's default number of workers
+#   - no --connectionPoolSize: 32, whatever the build and the number of CPUs
 #   - --connectionPoolSize 3: 3, whatever the build
 #
 # REQUIRE_DB: mongoc
 # REQUIRE_HTTPSERVER: mhd
 #
 --NAME--
-COR_OPTIMIZE: the worker pool's default - 32 for speed with mongoc, one per CPU for size
+COR_OPTIMIZE: the worker pool's default with mongoc - 32 in both builds
 
 --TAGS--
 broker memory
@@ -38,14 +38,14 @@ workers() {
   if [ "$n" = "$1" ]; then echo "workers: $2"; else echo "workers: $n, not $1 ($2)"; fi
 }
 
-echo "01. No --connectionPoolSize: the build's default"
-echo "================================================"
+echo "01. No --connectionPoolSize: 32 with mongoc, whatever the build"
+echo "================================================================"
 OPTIMIZE=$(coraine --version | sed -n 's/^optimize: //p')
 case "$OPTIMIZE" in
-  speed) workers 32       "the default of its build" ;;
-  size)  workers $(nproc) "the default of its build" ;;
-  *)     echo "optimize: '$OPTIMIZE' - neither speed nor size" ;;
+  speed|size) echo "optimize: speed or size" ;;
+  *)          echo "optimize: '$OPTIMIZE' - neither speed nor size" ;;
 esac
+workers 32 "32"
 echo
 echo
 
@@ -60,9 +60,10 @@ echo
 
 
 --EXPECT--
-01. No --connectionPoolSize: the build's default
-================================================
-workers: the default of its build
+01. No --connectionPoolSize: 32 with mongoc, whatever the build
+================================================================
+optimize: speed or size
+workers: 32
 
 
 02. --connectionPoolSize 3: three, whatever the build
