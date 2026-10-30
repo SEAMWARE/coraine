@@ -8,7 +8,8 @@
 //
 #include <stdbool.h>                              // bool, true, false
 #include <stdio.h>                                // snprintf, fprintf
-#include <stdlib.h>                               // _exit
+#include <stdlib.h>                               // _exit, getenv
+#include <malloc.h>                               // mallopt, M_ARENA_MAX
 #include <unistd.h>                               // pause, write, _exit
 #include <signal.h>                               // signal, SIGINT, SIGTERM, SIGPIPE, sig_atomic_t
 #include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
@@ -290,7 +291,7 @@ static CorArg kargV[] =
   { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a bridge request waits for the other side: a waiting PATCH (ddsSync) for the service's reply, then 202 - the reply lands when it comes; a write to an action attribute for the goal's accept or reject, then 504 (0: the bridge configuration's syncTimeoutMs, else 200)" },
   { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
   { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)" },
+  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits or a COR_OPTIMIZE=size build; 32 otherwise)" },
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build" },
   { "--httpConnectionMemory", "-hcm",       CorArgInt,    _vp &httpConnectionMemory, CorArgOpt, _vp 12, _vp 4, _vp 1024, "kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
@@ -1743,6 +1744,17 @@ int main(int argC, char* argV[])
   //
   signal(SIGPIPE, SIG_IGN);
 
+#if COR_OPTIMIZE_SIZE
+  //
+  // One malloc arena for the process. glibc gives each thread an arena of its own, and an arena keeps the
+  // peak of the largest request its thread ran: ~5.5 MB after a 1000-entity batch, per thread - up to 32 such
+  // peaks with mongoc's 32 workers (doc/building-details.md#cor_optimize). The threads then share one
+  // arena's lock. MALLOC_ARENA_MAX in the environment still decides, when set. Before any thread starts.
+  //
+  if (getenv("MALLOC_ARENA_MAX") == NULL)
+    mallopt(M_ARENA_MAX, 1);
+#endif
+
   //
   // --version is answered before kargs is initialized and before any plugin is
   // loaded: asking a binary what it is must not depend on a plugin directory
@@ -1782,6 +1794,9 @@ int main(int argC, char* argV[])
     // answers before one has started, which is when the test harness asks.
     //
     printf("httpServer: %s\n", CORAINE_HTTP_SERVER);
+
+    // What the defaults spend RAM on (COR_OPTIMIZE) - a choice of two too, so a line of its own
+    printf("optimize: %s\n", CORAINE_OPTIMIZE);
 
     exit(0);
   }
@@ -2346,8 +2361,11 @@ int main(int argC, char* argV[])
   // them off the CPU in turn: 32 on 8 cores was 74 000 involuntary context switches a second and a p95 of
   // 0.81 ms on a retrieve; 8 was 522 a second, 0.20 ms, and 6 % more requests (doc/history/performance.md).
   //
+  // A size build (COR_OPTIMIZE=size) runs a worker per CPU whatever the store: a worker is a thread, its
+  // stack, and with mongoc an HTTP thread beside it - and a home box's request rate never fills 32.
+  //
   if (poolSize == 0)
-    poolSize = ((inlineDispatchNeverWaits() == true) && (distributed == false)) ? corCpuCount() : 32;
+    poolSize = ((COR_OPTIMIZE_SIZE) || ((inlineDispatchNeverWaits() == true) && (distributed == false))) ? corCpuCount() : 32;
 
   if (corRestPrepare(allServices, totalServices, poolSize) != 0)
     COR_X(1, "corRestPrepare failed");

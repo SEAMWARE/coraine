@@ -20,6 +20,9 @@
 #   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
 #                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
 #                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
+#   --optimize <o>     speed (the default) or size: what the broker's defaults spend RAM on - size runs a
+#                      worker per CPU whatever the store and one malloc arena, for small hardware at low
+#                      request rates (doc/building-details.md#cor_optimize)
 #   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua - or none
 #                      (default mqtt,modbus). A bridge the source does not carry, or whose libraries are
 #                      not installed here, stops the build and says which (--list-bridges)
@@ -65,6 +68,7 @@ MODE=release
 WORKLOAD=
 FEATURES=
 HTTP_SERVER=mhd
+OPTIMIZE=speed
 DIR=
 LIST=0
 LISTB=0
@@ -85,6 +89,8 @@ while [ $# -gt 0 ]; do
     --features=*)     FEATURES=${1#--features=} ;;
     --http-server)    HTTP_SERVER=${2:?--http-server needs mhd or builtin}; shift ;;
     --http-server=*)  HTTP_SERVER=${1#--http-server=} ;;
+    --optimize)       OPTIMIZE=${2:?--optimize needs speed or size}; shift ;;
+    --optimize=*)     OPTIMIZE=${1#--optimize=} ;;
     --list-features)  LIST=1 ;;
     --list-bridges)   LISTB=1 ;;
     --bridges)        BRIDGES=${2:?--bridges needs a list (or none)}; shift ;;
@@ -335,6 +341,7 @@ if [ "$MONGOC" = ON ] && ! pkg-config --exists mongoc2; then
 fi
 
 case "$HTTP_SERVER" in mhd|builtin) ;; *) die "--http-server: '$HTTP_SERVER' - mhd or builtin" ;; esac
+case "$OPTIMIZE" in speed|size) ;; *) die "--optimize: '$OPTIMIZE' - speed or size" ;; esac
 if [ "$HTTP_SERVER" = builtin ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
   die "--http-server builtin: not with --$MODE yet (its training tools are built and tried with libmicrohttpd only)"
 fi
@@ -357,7 +364,7 @@ C=$DIR/coraine
 # builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
 # variable reaches every sub-make.
 #
-MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_WITH_ICU="$ICU" COR_WITH_COR_PROTOCOL="$CORP" COR_WITH_GEOQ="$GEOQ")
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_OPTIMIZE="$OPTIMIZE" COR_WITH_ICU="$ICU" COR_WITH_COR_PROTOCOL="$CORP" COR_WITH_GEOQ="$GEOQ")
 
 #
 # phase - one line per phase, for a front-end to show progress without parsing make's output

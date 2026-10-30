@@ -643,6 +643,49 @@ A distribution's `libmicrohttpd-dev` builds and runs coraine as well; 1.0.4 and
 1.0.5 fixed HTTP request smuggling (CWE-444), so a release before 1.0.5 is not one
 to put behind a gateway.
 
+### `COR_OPTIMIZE`
+
+```console
+make release COR_OPTIMIZE=speed    # the default
+make release COR_OPTIMIZE=size     # RAM before throughput: small hardware, low request rates
+```
+
+From a package: `coraine-build --optimize size`. One or the other; `coraine --version` prints
+`optimize: speed|size`, and a running broker reports it as `build.optimize` on `GET /build`. A size build
+changes two defaults - every option still overrides them:
+
+| | speed | size |
+|---|---|---|
+| `--connectionPoolSize 0` | one worker per CPU for a store that never waits, 32 otherwise | one worker per CPU, whatever the store |
+| malloc arenas | glibc's default: one per thread, up to 8 per CPU | one for the process (`MALLOC_ARENA_MAX`, when set, still decides) |
+
+**What they cost.** glibc gives each thread an arena of its own, and an arena keeps the peak of the
+largest request its thread ran: about 5.5 MB after a 1000-entity batch create. With mongoc and 32 workers
+(each with a libmicrohttpd thread beside it: 69 threads) that is 32 such peaks. The RSS of the broker
+alone - the store is another process - on 4 CPUs (`taskset -c 0-3`), release build, 100 000 entities
+created in batches of 1000, then 100 pages of 1000 entities read:
+
+| mongoc | idle | 1 000 | 10 000 | 100 000 | after the reads |
+|---|---|---|---|---|---|
+| speed | 21 MB | 23 MB | 65 MB | 197 MB | 197 MB |
+| size | 19 MB | 21 MB | 25 MB | 25 MB | 25 MB |
+
+The speed figure levels off rather than growing with the entities: another 100 000 added 1.5 MB. With
+corDB the worker pool is one per CPU in both builds, and the entities are in the broker's own memory:
+
+| corDB | idle | 1 000 | 10 000 | 100 000 | after the reads |
+|---|---|---|---|---|---|
+| speed | 13 MB | 15 MB | 40 MB | 182 MB | 189 MB |
+| size | 13 MB | 15 MB | 32 MB | 173 MB | 175 MB |
+
+Of a size build's 19 MB idle with mongoc, 16 MB is shared libraries: libcrypto and libssl 5 MB, libc 2 MB,
+the broker 1.5 MB, libstdc++ 1.5 MB and GEOS 1.1 MB (`COR_WITH_GEOQ=0` removes both), the GnuTLS libraries
+libmicrohttpd links about 3 MB (`COR_HTTP_SERVER=builtin`, or libmicrohttpd built `--disable-https`),
+libmongoc 1 MB and the Kerberos / SASL libraries it links 1.2 MB.
+
+**What size costs:** fewer workers serve fewer waiting requests at once - with mongoc, each request
+holds its worker while MongoDB answers - and one arena is one lock for every thread's malloc.
+
 ### The optional runtime dependencies
 
 MQTT notifications are the `mqtt.so` bridge plugin: a broker started without

@@ -148,6 +148,17 @@ $(error COR_WITH_GEOQ is 1 or 0, not '$(COR_WITH_GEOQ)')
 endif
 
 #
+# COR_OPTIMIZE - speed | size. What the broker's defaults spend RAM on (CMakeLists.txt, doc/building-details.md):
+# speed (the default) for throughput, size for small hardware at low request rates. The broker's own cmake
+# option for now - nothing in the libs differs yet.
+#
+COR_OPTIMIZE ?= speed
+ifneq ($(filter $(COR_OPTIMIZE),speed size),$(COR_OPTIMIZE))
+$(error COR_OPTIMIZE is speed or size, not '$(COR_OPTIMIZE)')
+endif
+CMAKE_OPTIMIZE = -DCOR_OPTIMIZE=$(COR_OPTIMIZE)
+
+#
 # corHttp only exists in the link when it is the server in use, or a bridge's port is in the build
 # (COR_FEATURE_BRIDGE_HTTP_LISTEN, on unless CMAKE_FEATURES turns it off). SIBLING_LIBS above places it.
 #
@@ -279,7 +290,7 @@ src/app/coraine/coraineBuild.h: FORCE
 	 } > $@
 
 release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 	$(call no_debug_code,$(call RELEASE_FILES,$(BUILD_RELEASE)))
 
@@ -325,14 +336,14 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
 	done
-	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_FEATURES) \
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
 	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
 	cmake --build BUILD_PGO -j$(CPU_COUNT)
 	$(PGO_TRAIN) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
 	done
-	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_FEATURES) \
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
 	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
 	$(call no_debug_code,$(call RELEASE_FILES,BUILD_PGO))
@@ -342,7 +353,7 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided (make install_pgo installs it)"
 
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
@@ -467,7 +478,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	 done
 	@rm -rf $(SIBLING_DIR)/corDB/obj/coverage
 	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=coverage >/dev/null
-	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ)
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE)
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
 # Stage the instrumented plugins in the INSTALLED layout. The harness composes
