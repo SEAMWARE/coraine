@@ -1,0 +1,49 @@
+#
+# FILE            broker_thread_locals_small.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The broker's static thread-locals are small. Every thread of the process has its own copy of them, zeroed
+# when the thread starts - RAM each thread pays whether it uses them or not, request workers and HTTP threads
+# included (with mongoc, 64 of them by default). A big buffer that only some threads need is allocated by
+# those threads, not declared __thread.
+#
+#   - the running broker's TLS segment: under 64 KiB per thread
+#
+--NAME--
+The broker's static thread-locals are under 64 KiB per thread
+
+--TAGS--
+broker memory
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. The TLS segment of the running broker's binary: under 64 KiB"
+echo "================================================================"
+PID=$(cat /tmp/coraine_CB.pid)
+kill -0 $PID 2>/dev/null || { echo "no broker at pid '$PID'" >&2; exit 1; }
+TLS=$(printf "%d" $(readelf -lW /proc/$PID/exe | awk '$1 == "TLS" { print $6 }' | grep . || echo 0))   # MemSiz, hex
+if [ "$TLS" -lt 65536 ]; then
+  echo "under 64 KiB"
+else
+  echo "$TLS bytes per thread"
+fi
+echo
+echo
+
+
+--EXPECT--
+01. The TLS segment of the running broker's binary: under 64 KiB
+================================================================
+under 64 KiB
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
