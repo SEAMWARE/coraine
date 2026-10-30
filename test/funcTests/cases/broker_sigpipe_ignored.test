@@ -1,0 +1,46 @@
+#
+# FILE            broker_sigpipe_ignored.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# SIGPIPE does not end the broker. A write to a socket whose peer has gone (an HTTP client, a WebSocket,
+# a notification receiver, a TLS connection) raises SIGPIPE unless the writer asks otherwise; its default
+# action ends the process. The broker ignores it, so such a write fails with EPIPE where it is made.
+# The signal is sent here directly - a disconnect in the middle of a write is a race a test cannot place.
+#
+#   - SIGPIPE to the serving broker: it is still running and answers
+#
+--NAME--
+SIGPIPE does not end the broker - it is ignored
+
+--TAGS--
+broker signal
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. SIGPIPE to the broker; then GET /ngsi-ld/v1/types - it answers"
+echo "==================================================================="
+PID=$(cat /tmp/coraine_CB.pid)
+kill -0 $PID 2>/dev/null || { echo "no broker at pid '$PID'" >&2; exit 1; }
+kill -PIPE $PID
+sleep 1
+corCurl --url /ngsi-ld/v1/types | head -1
+echo
+echo
+
+
+--EXPECT--
+01. SIGPIPE to the broker; then GET /ngsi-ld/v1/types - it answers
+===================================================================
+HTTP/1.1 200 OK
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
