@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include <stdlib.h>                                   // malloc, free
 #include <string.h>                                   // memset, strlen, strcpy, strcat
 #include <pthread.h>                                  // pthread_once, pthread_key_create, pthread_setspecific
 #include <time.h>                                     // clock_gettime
@@ -72,7 +73,10 @@
 //
 // Generous, because a sample carries whatever the publisher put on the wire and
 // a point cloud is not a temperature. It is a per-thread cost paid once, not
-// per sample.
+// per sample - and only by a thread that handles a sample: it is allocated at
+// the thread's first, not a __thread array. Every thread's static thread-locals
+// are zeroed when the thread starts, so an array here cost every thread of the
+// process 256 KiB of RAM, request workers and HTTP threads included.
 //
 #define BRIDGE_SAMPLE_BUFFER (256 * 1024)
 
@@ -90,10 +94,13 @@
 //
 static pthread_key_t   arenaKey;
 static pthread_once_t  arenaKeyOnce = PTHREAD_ONCE_INIT;
+static __thread char*  sampleBuffer = NULL;           // BRIDGE_SAMPLE_BUFFER bytes, the thread's first sample on
 
 static void bridgeThreadArenaFree(void* kaP)
 {
   corAllocBufferReset((CorAlloc*) kaP, false);
+  free(sampleBuffer);                                 // the destructor runs on the ending thread: its own
+  sampleBuffer = NULL;
 }
 
 static void arenaKeyCreate(void)
@@ -120,11 +127,12 @@ static void arenaKeyCreate(void)
 void bridgeThreadBind(Tenant* tenantP)
 {
   static __thread bool  inited = false;
-  static __thread char  buffer[BRIDGE_SAMPLE_BUFFER];
 
   if (inited == false)
   {
-    corAllocBufferInit(&corRest.kalloc, buffer, sizeof(buffer), 16 * 1024, NULL, "bridge");
+    sampleBuffer = malloc(BRIDGE_SAMPLE_BUFFER);      // NULL: the arena takes 16 KiB blocks from the start
+
+    corAllocBufferInit(&corRest.kalloc, sampleBuffer, (sampleBuffer != NULL)? BRIDGE_SAMPLE_BUFFER : 0, 16 * 1024, NULL, "bridge");
     corRest.corJsonP = corJsonCreate(&corRest.corJson, &corRest.kalloc);
     corRest.kallocP  = &corRest.kalloc;
     inited = true;
