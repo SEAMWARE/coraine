@@ -558,7 +558,7 @@ also the base of `--maxResponseSize`'s default. [Memory budget](installation.md#
 
 ### `--connectionPoolSize`
 
-`-cps` · `CORAINE_CONNECTIONPOOLSIZE` · Int · default: `0` (the CPUs the process may run on, for a store that never waits or a COR_OPTIMIZE=size build; 32 otherwise)
+`-cps` · `CORAINE_CONNECTIONPOOLSIZE` · Int · default: `0` (the CPUs the process may run on, for a store that never waits; 32 otherwise)
 · values: 0-200 · plugin: core
 
 The number of worker threads that run requests. With libmicrohttpd it is also the number of the
@@ -569,8 +569,7 @@ connections per worker and at least 1024.
 holds its worker for the wait, so a store that waits gets 32. A store that never waits (`corDB` or
 `ramDB`, with `--troe none` or `corDB`, and no `--distributed`) gets one worker per CPU the process may
 run on (its CPU affinity and cgroup quota, not the host's count): more workers than CPUs only take
-turns on them. A `COR_OPTIMIZE=size` build gets one per CPU whatever the store - each worker is a thread
-that keeps the malloc peak of its largest request ([COR_OPTIMIZE](building-details.md#cor_optimize)).
+turns on them. The same in a `COR_OPTIMIZE=size` build ([COR_OPTIMIZE](building-details.md#cor_optimize)).
 `/admin/config` shows the number in force.
 
     coraine -db corDB -cps 4
@@ -2327,11 +2326,11 @@ libmicrohttpd only)`). Another value: `coraine-build: --http-server: '<s>' - mhd
 no short form · no environment variable · String · default: `speed`
 · values: `speed`, `size`; `--optimize=<o>` too · tool: coraine-build
 
-What the broker's defaults spend RAM on. `size` is for small hardware at low request rates: a worker per
-CPU whatever the store (`--connectionPoolSize`; 32 with mongoc otherwise) and one malloc arena for the
-process - with mongoc, 197 MB after 100 000 entities created in batches of 1000 against 25 MB, on 4 CPUs.
-Defaults only: every option still overrides them. Another value: `coraine-build: --optimize: '<o>' - speed
-or size` ([COR_OPTIMIZE](building-details.md#cor_optimize)).
+What the broker's defaults spend RAM on. `size` is for small hardware: one malloc arena for the process -
+with mongoc, 198 MB after 100 000 entities created in batches of 1000 against 27 MB, on 4 CPUs, for 0-3 %
+of the requests; with corDB 182 MB against 173 MB, for up to 17 % of the creates. `MALLOC_ARENA_MAX`, when
+set, still decides. Another value: `coraine-build: --optimize: '<o>' - speed or size`
+([COR_OPTIMIZE](building-details.md#cor_optimize)).
 
     coraine-build --optimize size --http-server builtin --source ~/git /tmp/cb
 

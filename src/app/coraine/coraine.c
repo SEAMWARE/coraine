@@ -291,7 +291,7 @@ static CorArg kargV[] =
   { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a bridge request waits for the other side: a waiting PATCH (ddsSync) for the service's reply, then 202 - the reply lands when it comes; a write to an action attribute for the goal's accept or reject, then 504 (0: the bridge configuration's syncTimeoutMs, else 200)" },
   { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp -1,   _vp -1, _vp 200,   "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker (-1: a quarter of the workers, at least 1)" },
   { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
-  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits or a COR_OPTIMIZE=size build; 32 otherwise)" },
+  { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)" },
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build" },
   { "--httpConnectionMemory", "-hcm",       CorArgInt,    _vp &httpConnectionMemory, CorArgOpt, _vp 12, _vp 4, _vp 1024, "kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
@@ -2361,11 +2361,12 @@ int main(int argC, char* argV[])
   // them off the CPU in turn: 32 on 8 cores was 74 000 involuntary context switches a second and a p95 of
   // 0.81 ms on a retrieve; 8 was 522 a second, 0.20 ms, and 6 % more requests (doc/history/performance.md).
   //
-  // A size build (COR_OPTIMIZE=size) runs a worker per CPU whatever the store: a worker is a thread, its
-  // stack, and with mongoc an HTTP thread beside it - and a home box's request rate never fills 32.
+  // A size build (COR_OPTIMIZE=size) keeps the same pool: its RAM is the malloc arena, not the workers -
+  // with mongoc on 4 CPUs a worker per CPU saved another 1.5 MB after 100 000 entities and cost 34-46 % of
+  // the requests at 50 connections (doc/building-details.md#cor_optimize).
   //
   if (poolSize == 0)
-    poolSize = ((COR_OPTIMIZE_SIZE) || ((inlineDispatchNeverWaits() == true) && (distributed == false))) ? corCpuCount() : 32;
+    poolSize = ((inlineDispatchNeverWaits() == true) && (distributed == false)) ? corCpuCount() : 32;
 
   //
   // The requests that may wait for a bridge service at once: a quarter of the workers, at least one - the rest

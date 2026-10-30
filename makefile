@@ -153,7 +153,7 @@ endif
 # option for now - nothing in the libs differs yet.
 #
 COR_OPTIMIZE ?= speed
-ifneq ($(filter $(COR_OPTIMIZE),speed size),$(COR_OPTIMIZE))
+ifneq ($(words $(filter $(COR_OPTIMIZE),speed size)),1)
 $(error COR_OPTIMIZE is speed or size, not '$(COR_OPTIMIZE)')
 endif
 CMAKE_OPTIMIZE = -DCOR_OPTIMIZE=$(COR_OPTIMIZE)
