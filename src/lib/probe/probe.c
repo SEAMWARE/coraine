@@ -9,6 +9,7 @@
 // Probes - see probe.h
 //
 #include <stdatomic.h>                             // atomic_*
+#include <stdbool.h>                               // false
 #include <stddef.h>                                // NULL
 
 #include "probe/probe.h"                           // Own interface

@@ -144,13 +144,13 @@ echo
 
 echo "06c. Throttled subscription SubTh on T: the coalesced flush (the tick) carries NGSILD-Tenant t1 + NGSILD-Snapshot urn:T"
 echo "======================================================================================================================="
-corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"id":"urn:SubTh","type":"Subscription","entities":[{"type":"Bus"}],"throttling":1,"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}' | head -1
+corCurl --url /ngsi-ld/v1/subscriptions -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"id":"urn:SubTh","type":"Subscription","entities":[{"type":"Bus"}],"throttling":5,"notification":{"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/notify"}}}' | head -1
 corCurl --url /ngsi-ld/v1/entities -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"id":"urn:B1","type":"Bus","speed":{"type":"Property","value":1}}' | head -1
 for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
 for v in 2 3; do
   corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs -X PATCH -H 'NGSILD-Tenant: t1' -H 'NGSILD-Snapshot: urn:T' --payload '{"speed":{"type":"Property","value":'$v'}}' | head -1
 done
-for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
+for i in $(seq 1 60); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
 ftClientSettle 300
 ftClientDump | notifications
 echo

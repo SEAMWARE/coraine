@@ -32,9 +32,10 @@ coraineStart
 
 #
 # throttleRound <tenant header or ""> - entity V1, a subscription with throttling 1. speed 1:
-# the first notification (wait for it). Then speed 2 and 3 at once - inside the window after
+# the first notification (wait for it). Then speed 2 and 3 at once - inside the 5 s window after
 # that notification: they are coalesced into ONE notification with the latest state (3), sent
-# when the window has passed. Waits up to 6 s for it.
+# when the window has passed. Waits up to 12 s for it. The window is 5 s, not 1, so a slow broker
+# (valgrind) still gets the two PATCHes in before it closes.
 #
 throttleRound() {
   local h=("$@")
@@ -44,7 +45,7 @@ throttleRound() {
     "type": "Subscription",
     "entities": [{"type": "Vehicle"}],
     "watchedAttributes": ["speed"],
-    "throttling": 1,
+    "throttling": 5,
     "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
   }' | head -1
   corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs "${h[@]}" -X PATCH --payload '{"speed": {"type": "Property", "value": 1}}' | head -1
@@ -52,7 +53,7 @@ throttleRound() {
   for v in 2 3; do
     corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs "${h[@]}" -X PATCH --payload '{"speed": {"type": "Property", "value": '$v'}}' | head -1
   done
-  for i in $(seq 1 30); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
+  for i in $(seq 1 60); do [ "$(ftClientCount)" -ge 2 ] && break; sleep 0.2; done
   ftClientSettle
   ftClientDump > /tmp/th.$$
   echo "notifications: $(grep -c '"subscriptionId"' /tmp/th.$$)"
