@@ -30,7 +30,7 @@
 # with the `container:` image in .github/workflows/ci.yml - the same image,
 # used for the two things the stack is for.
 #
-ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-10-29-6dba3e1
+ARG CI_IMAGE=quay.io/seamware/coraine-ci:2026-10-30-717882e
 
 #
 # The Ubuntu every stage but the DDS one is FROM. Upstream's name here, for a build anywhere; CI's
