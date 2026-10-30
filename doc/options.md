@@ -1017,14 +1017,15 @@ wins over the file. `GET /admin/config` shows the value in use: `200` by default
 
 ### `--ddsSyncWaitMax`
 
-`-ddsSyncWaitMax` · `CORAINE_DDSSYNCWAITMAX` · Int · default: `8`
-· values: 0-200 · plugin: core
+`-ddsSyncWaitMax` · `CORAINE_DDSSYNCWAITMAX` · Int · default: `-1` (a quarter of the workers, at least 1)
+· values: -1-200 · plugin: core
 
 The most requests that wait for a service's reply at the same time. A waiting request holds one of
-the worker threads (`--connectionPoolSize`, 32 by default), so a slow or absent DDS network could
-otherwise take every worker and stop the broker answering. When every slot is taken, the next
-request calls the service without waiting and answers `202`. `0`: no request ever waits. The default
-of 8 is a quarter of the default 32 workers.
+the worker threads (`--connectionPoolSize`), so a slow or absent DDS network could otherwise take every
+worker and stop the broker answering. When every slot is taken, the next request calls the service
+without waiting and answers `202`. `0`: no request ever waits. The default, `-1`, is a quarter of the
+workers, at least one: 8 of the 32 a store that waits gets, 1 of a 4-CPU corDB broker's 4.
+`/admin/config` shows the number in force.
 
     coraine --database corDB --bridges dds --ddsSync --ddsSyncWaitMax 16
 

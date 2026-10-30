@@ -64,16 +64,17 @@ bool bridgeSyncDefault   = false;
 // a waited-for call answered in 2.0 ms at the median and 5.6 ms at worst with 8
 // in parallel. 200 ms is some 40 times that - room for a network hop and a
 // service that works a little - and a request that waits longer is answered
-// 202 anyway, its reply landing when it comes. 8 waiters is a quarter of the
-// default 32 workers: at 3 ms a call that is some 2500 waited-for requests a
-// second, and a DDS side that answers nothing can tie up 8 workers, never 32.
+// 202 anyway, its reply landing when it comes. The waiters are a quarter of the
+// workers (main sets it from the pool, -1 until then): 8 of a waiting store's 32,
+// at 3 ms a call some 2500 waited-for requests a second - and a DDS side that
+// answers nothing ties up a quarter of the workers, never all of them.
 //
 // bridgeSyncTimeoutMs is 0 until settled: --ddsSyncTimeout if given, else the
 // bridge configuration's syncTimeoutMs (dds.ngsild.syncTimeoutMs, as Orion-LD
 // reads it), else BRIDGE_SYNC_TIMEOUT_DEFAULT - bridgeSyncTimeoutSettle.
 //
 int  bridgeSyncTimeoutMs = 0;
-int  bridgeSyncWaitMax   = 8;
+int  bridgeSyncWaitMax   = -1;
 
 
 

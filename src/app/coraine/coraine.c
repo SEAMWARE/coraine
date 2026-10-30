@@ -289,7 +289,7 @@ static CorArg kargV[] =
   { "--bridgeConfig",       "-brc",         CorArgString, _vp &bridgeConfig, CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge configuration file (Channels, and each bridge's own settings); default $SEAMWARE_ETC_DIR/bridges.json if it exists; not read without --bridges" },
   { "--ddsSync",            "-ddsSync",     CorArgBool,   _vp &bridgeSyncDefault,   CorArgOpt, _vp false, _vp false, _vp true, "a one-attribute PATCH of a service attribute (any bridge's) waits for the service's reply by default (?ddsSync=false opts out); default: it does not wait (?ddsSync=true opts in)" },
   { "--ddsSyncTimeout",     "-ddsSyncTimeout", CorArgInt, _vp &bridgeSyncTimeoutMs, CorArgOpt, _vp 0, _vp 0, _vp 600000, "how long, in milliseconds, a bridge request waits for the other side: a waiting PATCH (ddsSync) for the service's reply, then 202 - the reply lands when it comes; a write to an action attribute for the goal's accept or reject, then 504 (0: the bridge configuration's syncTimeoutMs, else 200)" },
-  { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp 8,    _vp 0, _vp 200,    "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker" },
+  { "--ddsSyncWaitMax",     "-ddsSyncWaitMax", CorArgInt, _vp &bridgeSyncWaitMax,   CorArgOpt, _vp -1,   _vp -1, _vp 200,   "at most this many requests wait for a service at once - the rest send without waiting (202), so a slow DDS network cannot take every worker (-1: a quarter of the workers, at least 1)" },
   { "--pretty-print",       "-pp",          CorArgUInt,   _vp &prettySpaces, CorArgOpt, _vp 0,     _vp 0, _vp 16,   "default JSON indentation (0=compact)" },
   { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits or a COR_OPTIMIZE=size build; 32 otherwise)" },
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build" },
@@ -2366,6 +2366,13 @@ int main(int argC, char* argV[])
   //
   if (poolSize == 0)
     poolSize = ((COR_OPTIMIZE_SIZE) || ((inlineDispatchNeverWaits() == true) && (distributed == false))) ? corCpuCount() : 32;
+
+  //
+  // The requests that may wait for a bridge service at once: a quarter of the workers, at least one - the rest
+  // are kept for everything else, whatever the pool (8 of the 32 a waiting store gets, 1 of 4)
+  //
+  if (bridgeSyncWaitMax == -1)
+    bridgeSyncWaitMax = (poolSize / 4 > 0) ? poolSize / 4 : 1;
 
   if (corRestPrepare(allServices, totalServices, poolSize) != 0)
     COR_X(1, "corRestPrepare failed");
