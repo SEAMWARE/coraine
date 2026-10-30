@@ -384,11 +384,19 @@ jobs:
     # arrived with were a use-after-the-connection-moved-on and a deadlock, which
     # is precisely what this pairing is for.
     #
-    name: valgrind ${{ matrix.httpServer }} ${{ matrix.shard.name }}
+    #
+    # ...and with COR_OPTIMIZE: a size build (a worker per CPU with mongoc, one malloc arena) is a default
+    # nothing on a pull request runs, so the suite is run on one here - with libmicrohttpd, where the worker
+    # count shows (an HTTP thread per worker).
+    #
+    name: valgrind ${{ matrix.httpServer }}${{ matrix.optimize == 'size' && ' size' || '' }} ${{ matrix.shard.name }}
     strategy:
       fail-fast: false
       matrix:
         httpServer: [mhd, builtin]
+        optimize: [speed, size]
+        exclude:
+          - { httpServer: builtin, optimize: size }
         shard:
           - { name: '1-227',   from: 1,   to: 227 }
           - { name: '228-470', from: 228, to: 470 }
@@ -444,11 +452,11 @@ jobs:
       # other. Getting it onto only one side would link a broker against a
       # corRest compiled the other way, and nothing would report it.
       #
-      - name: Build and install coraine - ${{ matrix.httpServer }}
+      - name: Build and install coraine - ${{ matrix.httpServer }}, ${{ matrix.optimize }}
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
-          make di COR_HTTP_SERVER=${{ matrix.httpServer }}
+          make di COR_HTTP_SERVER=${{ matrix.httpServer }} COR_OPTIMIZE=${{ matrix.optimize }}
           coraine --version
       #
       # The set is initiated here rather than in the image: a member is addressed by
@@ -457,7 +465,7 @@ jobs:
       - name: Initiate the mongo replica set
         run: stack/coraine/.github/scripts/mongo-rs-init.sh
 
-      - name: Suite under valgrind - ${{ matrix.httpServer }}, tests ${{ matrix.shard.name }}
+      - name: Suite under valgrind - ${{ matrix.httpServer }}, ${{ matrix.optimize }}, tests ${{ matrix.shard.name }}
         working-directory: stack/coraine
         run: |
           # An empty --toIx is corTest's "to the end" (toIx=0), which is what the
@@ -488,7 +496,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: valgrind-${{ matrix.httpServer }}-${{ matrix.shard.name }}
+          name: valgrind-${{ matrix.httpServer }}-${{ matrix.optimize }}-${{ matrix.shard.name }}
           path: |
             stack/coraine/test/funcTests/cases/*.out
             stack/coraine/test/funcTests/cases/*.log
@@ -558,11 +566,11 @@ jobs:
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
-      - name: Build and install coraine - ${{ matrix.httpServer }}
+      - name: Build and install coraine - ${{ matrix.httpServer }}, ${{ matrix.optimize }}
         working-directory: stack/coraine
         run: |
           mkdir -p /opt/seamware/plugins /opt/seamware/etc
-          make di COR_HTTP_SERVER=${{ matrix.httpServer }}
+          make di COR_HTTP_SERVER=${{ matrix.httpServer }} COR_OPTIMIZE=${{ matrix.optimize }}
           coraine --version
 
       - name: Clone the corrected ETSI suite

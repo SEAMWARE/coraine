@@ -108,6 +108,7 @@ bool getBuild(void)
   // present; what varies is WHICH ONE, and a boolean cannot say that.
   //
   corTreeChildAdd(buildP, corTreeString(corRest.kallocP, "httpServer", CORAINE_HTTP_SERVER));
+  corTreeChildAdd(buildP, corTreeString(corRest.kallocP, "optimize", CORAINE_OPTIMIZE));   // speed | size, the same kind of choice
   corTreeChildAdd(body, buildP);
 
   //

@@ -316,6 +316,30 @@ message(STATUS "HTTP server: ${COR_HTTP_SERVER}")
 # Reported by GET /build, so a running broker can say which one it is.
 add_compile_definitions(CORAINE_HTTP_SERVER="${COR_HTTP_SERVER}")
 
+#
+# COR_OPTIMIZE - what the build spends its RAM on. One or the other, speed the default.
+#
+#   speed  defaults chosen for throughput: a worker pool sized for a store that waits (32 with mongoc),
+#          one malloc arena per thread
+#   size   defaults chosen for RAM, for small hardware at low request rates: a worker per CPU whatever
+#          the store, one malloc arena for the process (doc/building-details.md#cor_optimize)
+#
+# Defaults only - every option still overrides them. A choice between two, as COR_HTTP_SERVER, so a
+# 0/1 pair for #if, and the name for --version and GET /build.
+#
+set(COR_OPTIMIZE "speed" CACHE STRING "What the defaults spend RAM on: speed | size")
+set_property(CACHE COR_OPTIMIZE PROPERTY STRINGS speed size)
+
+if (COR_OPTIMIZE STREQUAL "speed")
+  add_compile_definitions(COR_OPTIMIZE_SPEED=1 COR_OPTIMIZE_SIZE=0)
+elseif (COR_OPTIMIZE STREQUAL "size")
+  add_compile_definitions(COR_OPTIMIZE_SPEED=0 COR_OPTIMIZE_SIZE=1)
+else()
+  message(FATAL_ERROR "COR_OPTIMIZE must be 'speed' or 'size', not '${COR_OPTIMIZE}'")
+endif()
+message(STATUS "Optimized for: ${COR_OPTIMIZE}")
+add_compile_definitions(CORAINE_OPTIMIZE="${COR_OPTIMIZE}")
+
 set(COR_DYNAMIC_LIBS ssl crypto pthread dl m)
 
 # The one library the builtin server exists to remove. Linked only when it is

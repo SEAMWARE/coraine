@@ -49,6 +49,19 @@ for s in "${switches[@]}"; do
   fi
 done
 
+#
+# COR_OPTIMIZE=size - not a COR_FEATURE_* switch but a choice of two, turned from its default (speed) here too
+#
+if cmake -S "$TOP" -B "$DIR/OPTIMIZE_SIZE" -DCMAKE_BUILD_TYPE=Release -DCOR_FEATURE_ICU_COLLATION=OFF -DCOR_OPTIMIZE=size > "$DIR/OPTIMIZE_SIZE.log" 2>&1 \
+   && cmake --build "$DIR/OPTIMIZE_SIZE" -j"$JOBS" >> "$DIR/OPTIMIZE_SIZE.log" 2>&1 \
+   && "$DIR/OPTIMIZE_SIZE/src/app/coraine/coraine" --version | grep -qx "optimize: size"; then
+  echo "  COR_OPTIMIZE=size: builds"
+else
+  echo "  COR_OPTIMIZE=size: FAILED - $DIR/OPTIMIZE_SIZE.log"
+  grep -m5 -E "error|undefined reference" "$DIR/OPTIMIZE_SIZE.log" | sed 's/^/      /'
+  failed+=("COR_OPTIMIZE=size")
+fi
+
 if [ ${#failed[@]} -gt 0 ]; then
   echo "every-switch.sh: ${#failed[@]} of ${#switches[@]} do not build: ${failed[*]}"
   exit 1

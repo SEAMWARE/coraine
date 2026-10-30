@@ -31,11 +31,11 @@
 #     values are a property of the build and this test has to pass against a
 #     reduced one; the build-specific values are asserted where they mean
 #     something, in registrations_not_in_this_build.test.
-#   - gitSha, builtAt, compiler, build type and the HTTP server are REGEXed:
-#     five facts about the machine, the moment and the build switches, not
-#     about the code. httpServer in particular has to stay a pattern - it is a
-#     two-valued choice, and pinning one of them would make this test fail on
-#     the other build rather than report it.
+#   - gitSha, builtAt, compiler, build type, the HTTP server and optimize are
+#     REGEXed: six facts about the machine, the moment and the build switches,
+#     not about the code. httpServer and optimize in particular have to stay
+#     patterns - each is a two-valued choice, and pinning one of them would make
+#     this test fail on the other build rather than report it.
 #   - the plugin `directory` is REGEXed down to its last component, for the same
 #     reason: it says where THIS RUN was pointed, not what the code does. The
 #     nightly's coverage job points it at the instrumented tree it measures and
@@ -95,6 +95,7 @@ Content-Length: REGEX([0-9]+)
     "compiler": "REGEX(.+)",
     "gitSha": "REGEX([0-9a-f]+)",
     "httpServer": "REGEX([a-z]+)",
+    "optimize": "REGEX(speed|size)",
     "type": "REGEX([A-Za-z]+)"
   },
   "features": {
@@ -203,6 +204,7 @@ Content-Length: REGEX([0-9]+)
     "compiler": "REGEX(.+)",
     "gitSha": "REGEX([0-9a-f]+)",
     "httpServer": "REGEX([a-z]+)",
+    "optimize": "REGEX(speed|size)",
     "type": "REGEX([A-Za-z]+)"
   },
   "features": {
