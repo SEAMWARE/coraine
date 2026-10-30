@@ -24,10 +24,10 @@
 #include <stdlib.h>                                  // malloc, realloc, free
 #include <string.h>                                  // memcpy, strlen, strstr, strncmp
 #include <strings.h>                                 // strncasecmp
-#include <sys/socket.h>                              // shutdown, setsockopt
+#include <sys/socket.h>                              // shutdown, setsockopt, send, MSG_NOSIGNAL
 #include <sys/time.h>                                // struct timeval
 #include <time.h>                                    // nanosleep
-#include <unistd.h>                                  // read, write
+#include <unistd.h>                                  // read
 
 #include <openssl/evp.h>                             // EVP_EncodeBlock
 #include <openssl/sha.h>                             // SHA1
@@ -103,7 +103,7 @@ static bool writeAll(int fd, const uint8_t* buf, uint64_t n)
 
   while (done < n)
   {
-    ssize_t w = write(fd, &buf[done], n - done);
+    ssize_t w = send(fd, &buf[done], n - done, MSG_NOSIGNAL);   // a peer gone: EPIPE, not SIGPIPE
 
     if ((w < 0) && (errno == EINTR))
       continue;

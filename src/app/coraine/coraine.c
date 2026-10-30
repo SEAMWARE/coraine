@@ -10,7 +10,7 @@
 #include <stdio.h>                                // snprintf, fprintf
 #include <stdlib.h>                               // _exit
 #include <unistd.h>                               // pause, write, _exit
-#include <signal.h>                               // signal, SIGINT, SIGTERM, sig_atomic_t
+#include <signal.h>                               // signal, SIGINT, SIGTERM, SIGPIPE, sig_atomic_t
 #include <semaphore.h>                            // sem_t, sem_init, sem_post, sem_wait
 #include <string.h>                               // strcmp, memcpy, strpbrk, strerror
 #include <errno.h>                                // errno
@@ -1735,6 +1735,13 @@ int main(int argC, char* argV[])
   progName = (progName != NULL) ? progName + 1 : argV[0];
 
   crashReportInstall(argC, argV);
+
+  //
+  // SIGPIPE ignored: a write to a socket whose peer has gone (an HTTP client, a WebSocket, a notification
+  // receiver, a TLS connection through OpenSSL) fails with EPIPE, handled where it is made - the signal's
+  // default action would end the broker. Before any thread or plugin starts, so every one inherits it.
+  //
+  signal(SIGPIPE, SIG_IGN);
 
   //
   // --version is answered before kargs is initialized and before any plugin is
