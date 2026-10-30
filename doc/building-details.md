@@ -711,7 +711,7 @@ order speed, size, size, speed, requests per second, the mean of the two:
 | big_create_c50 | 47 260 | 46 936 | -0.7 % | 196 640 | 162 808 | -17.2 % |
 
 The two runs of a build differ by up to 8 % (query_c50 and the 20-entity queries on the larger store) and
-mostly by less than 3 %. The mongoc size runs are the size build with the arena only (this pool).
+mostly by less than 3 %.
 
 **A worker per CPU too.** With mongoc, `--connectionPoolSize 4` on the 4 CPUs saves another 1.5 MB after
 100 000 entities (the third mongoc row above), and each request at 50 connections then waits for one of 4
