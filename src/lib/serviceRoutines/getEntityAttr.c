@@ -91,34 +91,40 @@ bool getEntityAttr(void)
   }
 
   //
-  // datasetId filter — storage format keys each instance by dsKey (or
-  // "@none" for the default). Remove instances not matching.
+  // TS 104-175 § 10.4.4.4: the instances of the datasetIds asked for - and when none is asked for, the default
+  // instance only; an Attribute without one is not found. Storage keys each instance by its datasetId, "@none"
+  // for the default.
   //
-  if (corNgsild.datasetIdV != NULL)
+  static char* defaultOnlyV[] = { (char*) "@none", NULL };
+  char**       datasetIdV     = (corNgsild.datasetIdV != NULL) ? corNgsild.datasetIdV : defaultOnlyV;
+  CorNode*     instP          = attrWrapperP->value.head;
+
+  while (instP != NULL)
   {
-    CorNode* instP = attrWrapperP->value.head;
-    while (instP != NULL)
+    CorNode* nextP = instP->next;
+    bool    keep  = false;
+    for (int i = 0; datasetIdV[i] != NULL; i++)
     {
-      CorNode* nextP = instP->next;
-      bool    keep  = false;
-      for (int i = 0; corNgsild.datasetIdV[i] != NULL; i++)
+      if (instP->name != NULL && strcmp(instP->name, datasetIdV[i]) == 0)
       {
-        if (instP->name != NULL && strcmp(instP->name, corNgsild.datasetIdV[i]) == 0)
-        {
-          keep = true;
-          break;
-        }
+        keep = true;
+        break;
       }
-      if (!keep)
-        corTreeChildRemove(attrWrapperP, instP);
-      instP = nextP;
     }
-    if (attrWrapperP->value.head == NULL)
-    {
+    if (!keep)
+      corTreeChildRemove(attrWrapperP, instP);
+    instP = nextP;
+  }
+
+  if (attrWrapperP->value.head == NULL)
+  {
+    if (corNgsild.datasetIdV != NULL)
       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
               "no matching datasetId for attribute '%s' in entity '%s'", attrWild, entityId);
-      return true;
-    }
+    else
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+              "attribute '%s' in entity '%s' has no default instance", attrWild, entityId);
+    return true;
   }
 
   //

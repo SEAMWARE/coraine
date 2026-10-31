@@ -1,0 +1,183 @@
+#
+# FILE            entity_attr_default_instance.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.4.4.4 (Retrieve Attribute Value - GET entities/{id}/attrs/{attr} and .../value): an error of
+# type ResourceNotFound is raised if the target Entity does not contain the target Attribute "as a default
+# instance in case no datasetId is present; as an instance with the specified datasetId if present". So
+# without ?datasetId the answer is the default instance alone - an Attribute that has only datasetId
+# instances is not found - and with it, the instance of that datasetId.
+#
+--NAME--
+Retrieve Attribute Value: the default instance without ?datasetId, 404 when there is none
+
+--TAGS--
+entity attr datasetId
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 - speed: two datasetId instances, no default; temp: a default and a datasetId instance"
+echo "===================================================================================================="
+payload='{
+  "id": "urn:ngsi-ld:E1",
+  "type": "T",
+  "speed": [
+    {"type": "Property", "value": 55, "datasetId": "urn:ngsi-ld:Dataset:A"},
+    {"type": "Property", "value": 54, "datasetId": "urn:ngsi-ld:Dataset:B"}
+  ],
+  "temp": [
+    {"type": "Property", "value": 20},
+    {"type": "Property", "value": 21, "datasetId": "urn:ngsi-ld:Dataset:A"}
+  ]
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. GET attrs/speed - no default instance: 404"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/speed
+echo
+echo
+
+
+echo "03. GET attrs/speed/value - no default instance: 404"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/speed/value
+echo
+echo
+
+
+echo "04. GET attrs/speed?datasetId=urn:ngsi-ld:Dataset:B - that instance"
+echo "==================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/speed?datasetId=urn:ngsi-ld:Dataset:B'
+echo
+echo
+
+
+echo "05. GET attrs/speed/value?datasetId=urn:ngsi-ld:Dataset:B - 54"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/speed/value?datasetId=urn:ngsi-ld:Dataset:B'
+echo
+echo
+
+
+echo "06. GET attrs/temp - the default instance alone, not the array"
+echo "=============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp
+echo
+echo
+
+
+echo "07. GET attrs/temp/value - the default instance's 20"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temp/value
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 - speed: two datasetId instances, no default; temp: a default and a datasetId instance
+====================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. GET attrs/speed - no default instance: 404
+==============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "attribute 'speed' in entity 'urn:ngsi-ld:E1' has no default instance",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+03. GET attrs/speed/value - no default instance: 404
+====================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "attribute 'speed' in entity 'urn:ngsi-ld:E1' has no default instance",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. GET attrs/speed?datasetId=urn:ngsi-ld:Dataset:B - that instance
+===================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 80
+
+{
+  "datasetId": "urn:ngsi-ld:Dataset:B",
+  "type": "Property",
+  "value": 54
+}
+
+
+
+05. GET attrs/speed/value?datasetId=urn:ngsi-ld:Dataset:B - 54
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 2
+
+54
+
+
+06. GET attrs/temp - the default instance alone, not the array
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 40
+
+{
+  "type": "Property",
+  "value": 20
+}
+
+
+
+07. GET attrs/temp/value - the default instance's 20
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 2
+
+20
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
