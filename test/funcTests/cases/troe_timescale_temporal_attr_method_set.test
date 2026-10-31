@@ -75,11 +75,11 @@ Content-Length: 0
 HTTP/1.1 405 Method Not Allowed
 Date: REGEX(.*)
 Content-Type: application/json
-Allow: DELETE, HEAD, OPTIONS
-Content-Length: 232
+Allow: DELETE, OPTIONS
+Content-Length: 226
 
 {
-  "detail": "GET /ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed — supported methods: DELETE, HEAD, OPTIONS",
+  "detail": "GET /ngsi-ld/v1/temporal/entities/urn:V1/attrs/speed — supported methods: DELETE, OPTIONS",
   "status": 405,
   "title": "Method Not Allowed",
   "type": "https://uri.etsi.org/ngsi-ld/errors/MethodNotAllowed"
