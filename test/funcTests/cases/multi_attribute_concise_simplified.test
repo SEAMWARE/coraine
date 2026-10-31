@@ -83,11 +83,13 @@ echo
 echo
 
 
-echo "04. The query and single-attribute paths render it the same way"
-echo "==============================================================="
+echo "04. The query path renders every instance; the single-attribute path, without datasetId, the default one (TS 104-175 10.4.4), with it the one named"
+echo "======================================================================================================================================="
 corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&format=concise'
 echo
 corCurl --url /ngsi-ld/v1/entities/urn:MA:1/attrs/speed --urlParams 'format=simplified'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:MA:1/attrs/speed --urlParams 'format=simplified&datasetId=urn:ds:1'
 echo
 echo
 
@@ -245,8 +247,8 @@ Content-Length: 524
 
 
 
-04. The query and single-attribute paths render it the same way
-===============================================================
+04. The query path renders every instance; the single-attribute path, without datasetId, the default one (TS 104-175 10.4.4), with it the one named
+=======================================================================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -303,15 +305,17 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 61
+Content-Length: 4
 
-{
-  "dataset": {
-    "@none": 54.5,
-    "urn:ds:1": 55
-  }
-}
+54.5
 
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 2
+
+55
 
 
 05. Concise is LOSSLESS - feeding step 02's output back reproduces the same Entity
