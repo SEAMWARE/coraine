@@ -6,7 +6,7 @@
 # Copyright 2026 Seamware
 #
 --NAME--
-HEAD requests (auto-generated from GET, no body, correct Content-Length)
+HEAD requests (auto-generated from GET): 204 and no body on the NGSI-LD API, the GET's status elsewhere
 
 --TAGS--
 head
@@ -17,11 +17,16 @@ coraineStart
 
 --RUN--
 
+# TS 104-176 § 5: a HEAD request functions as the GET request would and omits the body, and the response
+# code 204 No Content is used on success - and a 204 has no Content-Length. An error keeps the GET's status.
+# The broker's own endpoints are not the NGSI-LD API: a HEAD there answers what HTTP says, the GET's status
+# and its Content-Length.
 #
 # 01. Create entity for HEAD tests
-# 02. HEAD /entities/{id} - 200, correct Content-Length, no body
-# 03. HEAD /entities?type=T - 200, correct Content-Length, no body
+# 02. HEAD /entities/{id} - 204, no Content-Length, no body
+# 03. HEAD /entities?type=T - 204, no Content-Length, no body
 # 04. HEAD /nonexistent - 404, no body
+# 05. HEAD /version - not the NGSI-LD API: 200 and the GET's Content-Length, no body
 #
 
 echo "01. Create entity for HEAD tests"
@@ -39,15 +44,15 @@ echo
 echo
 
 
-echo "02. HEAD /entities/{id} - 200, correct Content-Length, no body"
-echo "=============================================================="
+echo "02. HEAD /entities/{id} - 204, no Content-Length, no body"
+echo "========================================================="
 curl -s --head http://localhost:$CB_PORT/ngsi-ld/v1/entities/urn:head:E1 | tr -d '\r' | grep -v "^$"
 echo
 echo
 
 
-echo "03. HEAD /entities?type=T - 200, correct Content-Length, no body"
-echo "================================================================"
+echo "03. HEAD /entities?type=T - 204, no Content-Length, no body"
+echo "==========================================================="
 curl -s --head "http://localhost:$CB_PORT/ngsi-ld/v1/entities?type=T" | tr -d '\r' | grep -v "^$"
 echo
 echo
@@ -56,6 +61,18 @@ echo
 echo "04. HEAD /nonexistent - 404, no body"
 echo "===================================="
 curl -s --head http://localhost:$CB_PORT/nonexistent | tr -d '\r' | grep -v "^$"
+echo
+echo
+
+
+echo "05. HEAD /version - not the NGSI-LD API: 200 and the GET's Content-Length, no body"
+echo "=================================================================================="
+getLength=$(curl -s http://localhost:$CB_PORT/version | wc -c)
+curl -s --head http://localhost:$CB_PORT/version | tr -d '\r' | grep -v "^$" > /tmp/head_request.version
+head -1 /tmp/head_request.version
+headLength=$(sed -n 's/^Content-Length: //p' /tmp/head_request.version)
+if [ "$headLength" = "$getLength" ]; then echo "Content-Length: the GET's"; else echo "Content-Length: $headLength, the GET has $getLength"; fi
+rm -f /tmp/head_request.version
 echo
 echo
 
@@ -71,22 +88,20 @@ Content-Length: 0
 
 
 
-02. HEAD /entities/{id} - 200, correct Content-Length, no body
-==============================================================
-HTTP/1.1 200 OK
+02. HEAD /entities/{id} - 204, no Content-Length, no body
+=========================================================
+HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 100
 
 
-03. HEAD /entities?type=T - 200, correct Content-Length, no body
-================================================================
-HTTP/1.1 200 OK
+03. HEAD /entities?type=T - 204, no Content-Length, no body
+===========================================================
+HTTP/1.1 204 No Content
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 120
 
 
 04. HEAD /nonexistent - 404, no body
@@ -95,6 +110,12 @@ HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: 172
+
+
+05. HEAD /version - not the NGSI-LD API: 200 and the GET's Content-Length, no body
+==================================================================================
+HTTP/1.1 200 OK
+Content-Length: the GET's
 
 
 --TEARDOWN--

@@ -54,3 +54,18 @@
    fun:dbStart
    fun:main
 }
+
+# libpq's OpenSSL BIO method, made once by the first TLS-capable connection (PQconnectdb from the timescale
+# plugin's start) and never freed. libpq 18 with OpenSSL 3.5 (Ubuntu 26.04) reports it as definitely lost;
+# the frames between BIO_meth_new and troeStart are libpq's, without symbols. One block per process, not
+# per connection.
+{
+   libpq-openssl-bio-method-once
+   Memcheck:Leak
+   match-leak-kinds: definite,indirect
+   fun:malloc
+   ...
+   fun:BIO_meth_new
+   ...
+   fun:troeStart
+}
