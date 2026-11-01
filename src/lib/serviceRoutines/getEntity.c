@@ -41,6 +41,7 @@
 #include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
 #include "corNgsild/LdRegCache.h"                     // LdRegCache, LdRegCacheItem, LdRegMode
 #include "corNgsild/ldRegCache.h"                     // ldRegCacheMatchForRetrieve
+#include "corNgsild/ldEntityMatch.h"                   // ldEntityMatchType
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
@@ -937,6 +938,14 @@ bool getEntity(void)
   if (r != DB_OK)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error retrieving entity '%s'", entityId);
+    return true;
+  }
+
+  // § 10.4.2.4: the entity is found only "where specified type" matches - a ?type that names none of its types
+  // is a not-found, like an unknown id
+  if ((corNgsild.typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(entityP, "type"), corNgsild.typeExpr))
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
     return true;
   }
 

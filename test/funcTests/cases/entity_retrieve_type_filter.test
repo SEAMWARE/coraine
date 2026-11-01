@@ -1,0 +1,334 @@
+#
+# FILE            entity_retrieve_type_filter.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.4.2.4 (Retrieve Entity) and § 10.4.4.4 (Retrieve Attribute Value): ResourceNotFound when there
+# is no entity "whose id (URI), and where specified type, is equivalent". So the URL parameter type narrows the
+# local entity too: a type that names none of the entity's types is a 404 on GET entities/{id},
+# .../attrs/{attrId} and .../attrs/{attrId}/value, and an entity with several types matches on any of them
+# (type=A;B: on all of them).
+#
+--NAME--
+Retrieve Entity / Attribute / Attribute value: ?type narrows the local entity
+
+--TAGS--
+entity retrieve type attr
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create B1, of type Building"
+echo "==============================="
+payload='{"id": "urn:ngsi-ld:B1", "type": "Building", "name": {"type": "Property", "value": "b1"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create M1, of the two types Building and Shop"
+echo "================================================="
+payload='{"id": "urn:ngsi-ld:M1", "type": ["Building", "Shop"], "name": {"type": "Property", "value": "m1"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET B1?type=Building - its type: 200"
+echo "========================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1?type=Building&options=keyValues'
+echo
+echo
+
+
+echo "04. GET B1?type=Vehicle - not its type: 404"
+echo "==========================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1?type=Vehicle'
+echo
+echo
+
+
+echo "05. GET B1?type=Vehicle,Building - one of the two is its type: 200"
+echo "=================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1?type=Vehicle,Building&options=keyValues'
+echo
+echo
+
+
+echo "06. GET B1/attrs/name?type=Building: 200"
+echo "========================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1/attrs/name?type=Building'
+echo
+echo
+
+
+echo "07. GET B1/attrs/name?type=Vehicle: 404"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1/attrs/name?type=Vehicle'
+echo
+echo
+
+
+echo "08. GET B1/attrs/name/value?type=Building: 200"
+echo "=============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1/attrs/name/value?type=Building'
+echo
+echo
+
+
+echo "09. GET B1/attrs/name/value?type=Vehicle: 404"
+echo "============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:B1/attrs/name/value?type=Vehicle'
+echo
+echo
+
+
+echo "10. GET M1?type=Shop - one of its two types: 200"
+echo "================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:M1?type=Shop&options=keyValues'
+echo
+echo
+
+
+echo "11. GET M1?type=Building;Shop - both its types: 200"
+echo "==================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:M1?type=Building;Shop&options=keyValues'
+echo
+echo
+
+
+echo "12. GET M1?type=Shop;Vehicle - Vehicle is not one of its types: 404"
+echo "==================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:M1?type=Shop;Vehicle'
+echo
+echo
+
+
+echo "13. GET M1/attrs/name?type=Vehicle: 404"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:M1/attrs/name?type=Vehicle'
+echo
+echo
+
+
+echo "14. GET M1/attrs/name/value?type=Shop: 200"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:M1/attrs/name/value?type=Shop'
+echo
+echo
+
+
+--EXPECT--
+01. Create B1, of type Building
+===============================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:B1
+Content-Length: 0
+
+
+
+
+02. Create M1, of the two types Building and Shop
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:M1
+Content-Length: 0
+
+
+
+
+03. GET B1?type=Building - its type: 200
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 67
+
+{
+  "id": "urn:ngsi-ld:B1",
+  "name": "b1",
+  "type": "Building"
+}
+
+
+
+04. GET B1?type=Vehicle - not its type: 404
+===========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:ngsi-ld:B1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. GET B1?type=Vehicle,Building - one of the two is its type: 200
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 67
+
+{
+  "id": "urn:ngsi-ld:B1",
+  "name": "b1",
+  "type": "Building"
+}
+
+
+
+06. GET B1/attrs/name?type=Building: 200
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 42
+
+{
+  "type": "Property",
+  "value": "b1"
+}
+
+
+
+07. GET B1/attrs/name?type=Vehicle: 404
+=======================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:ngsi-ld:B1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. GET B1/attrs/name/value?type=Building: 200
+==============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 4
+
+"b1"
+
+
+09. GET B1/attrs/name/value?type=Vehicle: 404
+=============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:ngsi-ld:B1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. GET M1?type=Shop - one of its two types: 200
+================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "id": "urn:ngsi-ld:M1",
+  "name": "m1",
+  "type": [
+    "Building",
+    "Shop"
+  ]
+}
+
+
+
+11. GET M1?type=Building;Shop - both its types: 200
+===================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "id": "urn:ngsi-ld:M1",
+  "name": "m1",
+  "type": [
+    "Building",
+    "Shop"
+  ]
+}
+
+
+
+12. GET M1?type=Shop;Vehicle - Vehicle is not one of its types: 404
+===================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:ngsi-ld:M1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+13. GET M1/attrs/name?type=Vehicle: 404
+=======================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:ngsi-ld:M1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+14. GET M1/attrs/name/value?type=Shop: 200
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 4
+
+"m1"
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
