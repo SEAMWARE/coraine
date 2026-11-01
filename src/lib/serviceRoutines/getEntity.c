@@ -538,6 +538,10 @@ static void ensureEntityId(CorNode* treeP, const char* entityId)
 // type are forwarded to, instead of every registration covering the id.
 // Auxiliary is matched by id regardless of type (it only ever fills gaps).
 //
+// `typeExpr` (the request's ?type, or NULL) narrows the local copy: a local
+// entity with none of the requested types contributes nothing (§ 10.4.2.4,
+// "where specified type"), as a local query with that type would not see it.
+//
 // `*matchedP` is set true when at least one registration matched: the
 // caller uses it to tell "no distributed handling, fall through to a plain
 // local read" (false) from "distributed result is authoritative" (true).
@@ -551,7 +555,7 @@ static void ensureEntityId(CorNode* treeP, const char* entityId)
 // (retrieveEntity → 502) or merely a missed link (join → leave unfollowed).
 // DistRetrieveErr + this prototype live in getEntity.h.
 //
-CorNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
+CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* typeExpr, Tenant* tP,
                                bool wholeForward, bool* matchedP, DistRetrieveErr* errP)
 {
   if (matchedP != NULL) *matchedP = false;
@@ -600,6 +604,10 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
   // registered sources may still hold the Entity, and expiresAt "only applies
   // to the local storage". Queued for deletion once the response is out.
   if (dbExpiredEntityIs(tP, destP))
+    destP = NULL;
+
+  // § 10.4.2.4: a local copy of another type is not the requested entity - only the sources may contribute
+  if ((destP != NULL) && (typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(destP, "type"), typeExpr))
     destP = NULL;
 
   int64_t nowNs = nowNanoseconds();
@@ -878,7 +886,7 @@ bool getEntity(void)
     // Request-driven retrieve: scope the reg match by the request's type
     // (NULL = no type filter), and let buildInfoPickParam honour the
     // request projection for the forward pick (wholeForward = false).
-    CorNode*         destP   = distributedRetrieveOne(entityId, corNgsild.typeV, tP, false, &matched, &err);
+    CorNode*         destP   = distributedRetrieveOne(entityId, corNgsild.typeV, corNgsild.typeExpr, tP, false, &matched, &err);
 
     if (matched)
     {
@@ -905,7 +913,8 @@ bool getEntity(void)
         return true;
       }
 
-      if (destP == NULL)
+      // § 10.4.2.4: the assembled entity must carry a requested type - an auxiliary source is matched by id only
+      if ((destP == NULL) || ((corNgsild.typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(destP, "type"), corNgsild.typeExpr)))
       {
         ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
                 "entity '%s' not found", entityId);
