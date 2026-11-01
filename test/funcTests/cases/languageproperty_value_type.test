@@ -1,0 +1,265 @@
+#
+# FILE            languageproperty_value_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.6.4.6: the valueType of a LanguageProperty "shall be equal to langString" (rdf:langString
+# expanded - the core context maps langString to it). Any other valueType is a BadRequestData (§ 8.2.3), on
+# create and on an update alike. A Property's valueType stays free; a Relationship takes none.
+#
+--NAME--
+LanguageProperty: valueType langString only, 400 on any other
+
+--TAGS--
+entity attr valueType LanguageProperty validation
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create E1 - a LanguageProperty with valueType langString: 201"
+echo "================================================================="
+payload='{"id": "urn:ngsi-ld:E1", "type": "T", "L1": {"type": "LanguageProperty", "languageMap": {"en": "hi", "es": "hola"}, "valueType": "langString"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "02. Create E2 - valueType as the full IRI of rdf:langString: 201"
+echo "================================================================"
+payload='{"id": "urn:ngsi-ld:E2", "type": "T", "L1": {"type": "LanguageProperty", "languageMap": {"en": "hi"}, "valueType": "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. GET E1 - the valueType rendered compacted, langString"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "04. GET E2 - its valueType compacted too, langString"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E2
+echo
+echo
+
+
+echo "05. Create E3 - a LanguageProperty with valueType String: 400"
+echo "============================================================="
+payload='{"id": "urn:ngsi-ld:E3", "type": "T", "L1": {"type": "LanguageProperty", "languageMap": {"en": "hi"}, "valueType": "String"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "06. GET E3 - not created: 404"
+echo "============================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E3
+echo
+echo
+
+
+echo "07. PATCH E1/attrs - L1 replaced by a LanguageProperty with valueType Text: 400"
+echo "==============================================================================="
+payload='{"L1": {"type": "LanguageProperty", "languageMap": {"en": "bye"}, "valueType": "Text"}}'
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs -X PATCH --payload "$payload"
+echo
+echo
+
+
+echo "08. GET E1 - L1 unchanged"
+echo "========================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+echo
+echo
+
+
+echo "09. Create E4 - a Property with valueType String is fine: 201"
+echo "============================================================="
+payload='{"id": "urn:ngsi-ld:E4", "type": "T", "P1": {"type": "Property", "value": "x", "valueType": "String"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "10. Create E5 - a Relationship with a valueType: still 400"
+echo "=========================================================="
+payload='{"id": "urn:ngsi-ld:E5", "type": "T", "R1": {"type": "Relationship", "object": "urn:ngsi-ld:E1", "valueType": "langString"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Create E1 - a LanguageProperty with valueType langString: 201
+=================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E1
+Content-Length: 0
+
+
+
+
+02. Create E2 - valueType as the full IRI of rdf:langString: 201
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E2
+Content-Length: 0
+
+
+
+
+03. GET E1 - the valueType rendered compacted, langString
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 186
+
+{
+  "L1": {
+    "languageMap": {
+      "en": "hi",
+      "es": "hola"
+    },
+    "type": "LanguageProperty",
+    "valueType": "langString"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+04. GET E2 - its valueType compacted too, langString
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 166
+
+{
+  "L1": {
+    "languageMap": {
+      "en": "hi"
+    },
+    "type": "LanguageProperty",
+    "valueType": "langString"
+  },
+  "id": "urn:ngsi-ld:E2",
+  "type": "T"
+}
+
+
+
+05. Create E3 - a LanguageProperty with valueType String: 400
+=============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 308
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/L1': the 'valueType' of a LanguageProperty must be langString, not 'https://uri.etsi.org/ngsi-ld/default-context/String'",
+  "status": 400,
+  "title": "Invalid valueType",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. GET E3 - not created: 404
+=============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 159
+
+{
+  "detail": "entity 'urn:ngsi-ld:E3' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. PATCH E1/attrs - L1 replaced by a LanguageProperty with valueType Text: 400
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 306
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/L1': the 'valueType' of a LanguageProperty must be langString, not 'https://uri.etsi.org/ngsi-ld/default-context/Text'",
+  "status": 400,
+  "title": "Invalid valueType",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. GET E1 - L1 unchanged
+=========================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 186
+
+{
+  "L1": {
+    "languageMap": {
+      "en": "hi",
+      "es": "hola"
+    },
+    "type": "LanguageProperty",
+    "valueType": "langString"
+  },
+  "id": "urn:ngsi-ld:E1",
+  "type": "T"
+}
+
+
+
+09. Create E4 - a Property with valueType String is fine: 201
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:ngsi-ld:E4
+Content-Length: 0
+
+
+
+
+10. Create E5 - a Relationship with a valueType: still 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 261
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/R1' of type Relationship has a forbidden NGSI-LD term: 'valueType'",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
