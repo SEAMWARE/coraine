@@ -1,0 +1,306 @@
+#
+# FILE            entity_retrieve_type_distributed.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+
+--NAME--
+Retrieve Entity with ?type and matching registrations - a local copy of another type is not merged (TS 104-175 § 10.4.2.4)
+
+--TAGS--
+retrieve distops inclusive auxiliary registration
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--RUN--
+#
+# § 10.4.2.4: the Entity is retrieved "where specified type" matches. With a registration matching the request,
+# the local copy is merged with the sources' - only when the local copy has a requested type, and the assembled
+# Entity must have one (an auxiliary registration is matched by id only).
+#
+# 01. Register CB->CP1 inclusive for urn:E1 of type Vehicle
+# 02. Create urn:E1 of type Building on CB, with name
+# 03. Create urn:E1 of type Vehicle on CP1, with speed
+# 04. GET urn:E1?type=Vehicle on CB - only CP1's Vehicle, the local Building is not merged in
+# 05. GET urn:E1?type=Building on CB - no registration serves Building: the local Building
+# 06. Register CB->CP1 auxiliary for urn:E2 of type Building
+# 07. Create urn:E2 of type Building on CB, with name
+# 08. Create urn:E2 of type Building on CP1, with color
+# 09. GET urn:E2?type=Vehicle on CB - no source has a Vehicle: 404
+# 10. GET urn:E2?type=Building on CB - local name, auxiliary color
+#
+
+
+echo "01. Register CB->CP1 inclusive for urn:E1 of type Vehicle"
+echo "========================================================="
+payload='{
+  "id": "urn:CSR:inclusive",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:E1",
+          "type": "Vehicle"
+        }
+      ]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Create urn:E1 of type Building on CB, with name"
+echo "==================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Building",
+  "name": {
+    "type": "Property",
+    "value": "local building"
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "03. Create urn:E1 of type Vehicle on CP1, with speed"
+echo "===================================================="
+payload='{
+  "id": "urn:E1",
+  "type": "Vehicle",
+  "speed": {
+    "type": "Property",
+    "value": "fast"
+  }
+}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "04. GET urn:E1?type=Vehicle on CB - only CP1's Vehicle, the local Building is not merged in"
+echo "==========================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'type=Vehicle&options=keyValues'
+echo
+echo
+
+
+echo "05. GET urn:E1?type=Building on CB - no registration serves Building: the local Building"
+echo "========================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1 --urlParams 'type=Building&options=keyValues'
+echo
+echo
+
+
+echo "06. Register CB->CP1 auxiliary for urn:E2 of type Building"
+echo "=========================================================="
+payload='{
+  "id": "urn:CSR:auxiliary",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "auxiliary",
+  "information": [
+    {
+      "entities": [
+        {
+          "id": "urn:E2",
+          "type": "Building"
+        }
+      ]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "07. Create urn:E2 of type Building on CB, with name"
+echo "==================================================="
+payload='{
+  "id": "urn:E2",
+  "type": "Building",
+  "name": {
+    "type": "Property",
+    "value": "local building"
+  }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "08. Create urn:E2 of type Building on CP1, with color"
+echo "====================================================="
+payload='{
+  "id": "urn:E2",
+  "type": "Building",
+  "color": {
+    "type": "Property",
+    "value": "red"
+  }
+}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+echo "09. GET urn:E2?type=Vehicle on CB - no source has a Vehicle: 404"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E2 --urlParams 'type=Vehicle&options=keyValues'
+echo
+echo
+
+
+echo "10. GET urn:E2?type=Building on CB - local name, auxiliary color"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E2 --urlParams 'type=Building&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Register CB->CP1 inclusive for urn:E1 of type Vehicle
+=========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:inclusive
+Content-Length: 0
+
+
+
+
+02. Create urn:E1 of type Building on CB, with name
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+03. Create urn:E1 of type Vehicle on CP1, with speed
+====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+04. GET urn:E1?type=Vehicle on CB - only CP1's Vehicle, the local Building is not merged in
+===========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 61
+
+{
+  "id": "urn:E1",
+  "speed": "fast",
+  "type": "Vehicle"
+}
+
+
+
+05. GET urn:E1?type=Building on CB - no registration serves Building: the local Building
+========================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 71
+
+{
+  "id": "urn:E1",
+  "name": "local building",
+  "type": "Building"
+}
+
+
+
+06. Register CB->CP1 auxiliary for urn:E2 of type Building
+==========================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:auxiliary
+Content-Length: 0
+
+
+
+
+07. Create urn:E2 of type Building on CB, with name
+===================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+
+08. Create urn:E2 of type Building on CP1, with color
+=====================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E2
+Content-Length: 0
+
+
+
+
+09. GET urn:E2?type=Vehicle on CB - no source has a Vehicle: 404
+================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:E2' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. GET urn:E2?type=Building on CB - local name, auxiliary color
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 89
+
+{
+  "color": "red",
+  "id": "urn:E2",
+  "name": "local building",
+  "type": "Building"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
