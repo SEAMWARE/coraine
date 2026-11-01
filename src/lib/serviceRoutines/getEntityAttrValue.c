@@ -37,6 +37,7 @@
 #include "corNgsild/ldEntityToApi.h"                  // ldEntityToApi
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
 #include "corNgsild/ldRender.h"                       // ldAttrValueNode
+#include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchType
 #include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
@@ -84,6 +85,14 @@ bool getEntityAttrValue(void)
   {
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error",
             "database error retrieving entity '%s'", entityId);
+    return true;
+  }
+
+  // § 10.4.4.4: the entity is found only "where specified type" matches - a ?type that names none of its types
+  // is a not-found, like an unknown id
+  if ((corNgsild.typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(entityP, "type"), corNgsild.typeExpr))
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
     return true;
   }
 

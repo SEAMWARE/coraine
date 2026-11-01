@@ -14,6 +14,7 @@
 
 #include "corTree/CorNode.h"                       // CorNode
 #include "db/Tenant.h"                             // Tenant
+#include "corNgsild/LdTypeExpr.h"                  // LdTypeExpr
 
 
 
@@ -48,7 +49,7 @@ typedef struct DistRetrieveErr
 // (local + type-matched registrations, merged per § 4.5.5.3). See the
 // implementation in getEntity.c for the full contract.
 //
-extern CorNode* distributedRetrieveOne(const char* entityId, char** typeV, Tenant* tP,
+extern CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* typeExpr, Tenant* tP,
                                       bool wholeForward, bool* matchedP, DistRetrieveErr* errP);
 
 #endif  // GET_ENTITY_H
