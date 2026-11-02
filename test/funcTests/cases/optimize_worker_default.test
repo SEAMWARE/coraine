@@ -32,9 +32,19 @@ coraineStart
 #
 # workers - the broker's MHD-worker threads, against the number given
 #
+# The broker answers before libmicrohttpd has started all of its threads - under valgrind 6, 16 or 30 of
+# the 32 were there when the first request was served. So the count is read until it is the number given,
+# for at most 30 seconds, and what is reported is the pool, not how far its start has come.
+#
 workers() {
   local pid=$(cat /tmp/coraine_CB.pid)
-  local n=$(cat /proc/$pid/task/*/comm 2>/dev/null | grep -cx "MHD-worker")
+  local n
+  for i in $(seq 1 300)
+  do
+    n=$(cat /proc/$pid/task/*/comm 2>/dev/null | grep -cx "MHD-worker")
+    [ "$n" = "$1" ] && break
+    sleep 0.1
+  done
   if [ "$n" = "$1" ]; then echo "workers: $2"; else echo "workers: $n, not $1 ($2)"; fi
 }
 
