@@ -13,19 +13,21 @@
 #   § 5.3.2.3 Normalized-to-Concise, step 1: "In the multi-attribute case (see
 #   clause 8.5), this becomes a series of values (an array of JSON objects) and
 #   the operation shall be run on each element of the array."
-#   -> every instance compacts exactly like a single-instance Attribute would:
-#      `type` goes (step 2), and an instance left holding only `value` collapses
-#      to the bare value (step 3). `datasetId` is a defined member of the type,
-#      so it stays (step 4).
+#   -> every instance compacts like a single-instance Attribute would: `type`
+#      goes (step 2); `datasetId` is a defined member of the type, so it stays
+#      (step 4). But an instance left holding only `value` does NOT collapse to
+#      the bare value (step 3 is for a lone Attribute): the array stays all
+#      objects - [ { "value": 55, "datasetId": "urn:ds:1" }, { "value": 54.5 } ],
+#      never a bare value beside objects. Decided in the ETSI test-suite group
+#      on MR !304 (018_23_10), 2026-11-03.
 #
 #   § 5.3.2.4 "Multi-Attribute Representation" (+ annex C.2.2.4.2): simplified is
 #   NOT the bare value but a `dataset` map keyed by datasetId, the default
 #   instance under the JSON-LD keyword "@none".
 #
 # The concise half is checked as a ROUND TRIP, because concise is defined as
-# lossless: what the broker prints has to be something the broker accepts, and
-# step 3's bare-value instance is exactly the shape the input side used to
-# refuse with "each instance must be a JSON object".
+# lossless: what the broker prints has to be something the broker accepts. (A
+# bare value inside the array - no longer printed - is still accepted on input.)
 #
 # Finally the same entity is fetched AND notified in both formats: there used to
 # be two independent copies of these renderers (GET vs notification) and they
@@ -69,7 +71,7 @@ echo
 echo
 
 
-echo "02. concise - every instance compacts: type gone, a value-only instance becomes the bare value"
+echo "02. concise - every instance compacts: type gone, a value-only instance stays { \"value\": ... }"
 echo "=============================================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:MA:1 --urlParams 'format=concise'
 echo
@@ -96,10 +98,9 @@ echo
 
 echo "05. Concise is LOSSLESS - feeding step 02's output back reproduces the same Entity"
 echo "=================================================================================="
-# The bare-value instance ("54.5") is the shape the input side used to refuse.
 payload='{ "id": "urn:MA:2", "type": "T",
   "single": "one",
-  "speed":  [ { "value": 55, "datasetId": "urn:ds:1" }, 54.5 ],
+  "speed":  [ { "value": 55, "datasetId": "urn:ds:1" }, { "value": 54.5 } ],
   "held":   [ { "object": "urn:o:1", "datasetId": "urn:ds:1" }, { "object": "urn:o:2" } ] }'
 corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
 corCurl --url /ngsi-ld/v1/entities/urn:MA:2
@@ -146,13 +147,13 @@ ftClientStop
 HTTP/1.1 201 Created
 
 
-02. concise - every instance compacts: type gone, a value-only instance becomes the bare value
+02. concise - every instance compacts: type gone, a value-only instance stays { "value": ... }
 ==============================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 553
+Content-Length: 599
 
 {
   "greet": [
@@ -184,7 +185,9 @@ Content-Length: 553
       "datasetId": "urn:ds:1",
       "value": 55
     },
-    54.5
+    {
+      "value": 54.5
+    }
   ],
   "type": "T",
   "withSub": [
@@ -193,7 +196,9 @@ Content-Length: 553
       "note": "n",
       "value": 1
     },
-    2
+    {
+      "value": 2
+    }
   ]
 }
 
@@ -253,7 +258,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 641
+Content-Length: 695
 
 [
   {
@@ -286,7 +291,9 @@ Content-Length: 641
         "datasetId": "urn:ds:1",
         "value": 55
       },
-      54.5
+      {
+        "value": 54.5
+      }
     ],
     "type": "T",
     "withSub": [
@@ -295,7 +302,9 @@ Content-Length: 641
         "note": "n",
         "value": 1
       },
-      2
+      {
+        "value": 2
+      }
     ]
   }
 ]
@@ -403,7 +412,9 @@ HTTP/1.1 204 No Content
               "datasetId": "urn:ds:1",
               "value": 55
             },
-            54.5
+            {
+              "value": 54.5
+            }
           ],
           "type": "T",
           "withSub": [
@@ -412,7 +423,9 @@ HTTP/1.1 204 No Content
               "note": "n",
               "value": 1
             },
-            2
+            {
+              "value": 2
+            }
           ]
         }
       ],
