@@ -50,7 +50,7 @@ options, and its options are also documented with the plugin.
 Each plugin's entries are also in the plugin's own doc, copied from here by `tools/pluginOptions.sh` - an
 entry is changed here, and CI fails while a copy differs: mongoc's
 [README](https://github.com/SEAMWARE/coraine/blob/main/src/plugins/currentState/mongoc/README.md), corDB's
-[README](https://github.com/SEAMWARE/corDB/blob/main/README.md#options) (written, not checked - another
+[README](https://github.com/SEAMWARE-cor/corDB/blob/main/README.md#options) (written, not checked - another
 repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/src/plugins/temporal/timescale/README.md), oidc's and fdsc's in
 [Authorization](authorization.md) (§ 8.1, § 3.1).
 
@@ -73,7 +73,7 @@ default; `--logTo` and `--logDir` put the log in a file instead, or as well.
 ### `--usage`
 
 `-u` · no environment variable · Bool · default: `false` (off)
-· values: a switch · plugin: core (the option library, [corArgs](https://github.com/SEAMWARE/corArgs))
+· values: a switch · plugin: core (the option library, [corArgs](https://github.com/SEAMWARE-cor/corArgs))
 
 Prints every option, one per line as `[--long/-short <description>]`, and exits with 0. A Bool option
 shows its description in `( )`, an option with a value in `< >`. The list includes the options of the
@@ -108,7 +108,7 @@ default value (`-` for none) - the default, not the value given on the same comm
 
 Prints three lines and exits with 0: the program and its version, `features:` with every
 compile-time feature of this binary as `NAME=1` (in the build) or `NAME=0` (left out), and
-`httpServer:` with the HTTP server it was built with (`mhd` - libmicrohttpd, or `builtin` - [corHttp](https://github.com/SEAMWARE/corHttp)).
+`httpServer:` with the HTTP server it was built with (`mhd` - libmicrohttpd, or `builtin` - [corHttp](https://github.com/SEAMWARE-cor/corHttp)).
 It is answered before any plugin is loaded and before any other option is read, so it works on an
 installation with a broken or missing plugin directory, and nothing else on the command line is
 checked.
@@ -148,10 +148,10 @@ belongs to the code that writes it:
 
 | Levels | Code | Defined in |
 |---|---|---|
-| 50-66 | the JSON parser and tree ([corJson](https://github.com/SEAMWARE/corJson), [corTree](https://github.com/SEAMWARE/corTree)) | `corJsonTraceLevels.h`, `corTreeTraceLevels.h` |
-| 100-199 | the REST layer ([corRest](https://github.com/SEAMWARE/corRest)) and the JSON-LD library ([corJsonld](https://github.com/SEAMWARE/corJsonld), 150 on) | `corRestTraceLevels.h`, `corLdTraceLevels.h` |
-| 200-240 | the NGSI-LD library ([corNgsild](https://github.com/SEAMWARE/corNgsild)): validation (200-210), forwarding (220-226), registration matching (227), notifications (230-235), transient entities (240) | `ldTraceLevels.h` |
-| 300-303 | the allocator ([corAlloc](https://github.com/SEAMWARE/corAlloc)) | `CorAllocTraceLevel.h` |
+| 50-66 | the JSON parser and tree ([corJson](https://github.com/SEAMWARE-cor/corJson), [corTree](https://github.com/SEAMWARE-cor/corTree)) | `corJsonTraceLevels.h`, `corTreeTraceLevels.h` |
+| 100-199 | the REST layer ([corRest](https://github.com/SEAMWARE-cor/corRest)) and the JSON-LD library ([corJsonld](https://github.com/SEAMWARE-cor/corJsonld), 150 on) | `corRestTraceLevels.h`, `corLdTraceLevels.h` |
+| 200-240 | the NGSI-LD library ([corNgsild](https://github.com/SEAMWARE-cor/corNgsild)): validation (200-210), forwarding (220-226), registration matching (227), notifications (230-235), transient entities (240) | `ldTraceLevels.h` |
+| 300-303 | the allocator ([corAlloc](https://github.com/SEAMWARE-cor/corAlloc)) | `CorAllocTraceLevel.h` |
 | 400-404 | the broker: 400 forwarded requests, 401 cache sync between instances (`--high-availability`), 402 bridges, 403 Service Execution, 404 the SQL of a TRoE entity selector | `src/app/coraine/coraineTraceLevels.h` |
 
 Traces exist in a debug build only. A release build has them compiled out: the option is accepted,
@@ -939,8 +939,8 @@ each one a plugin. The options here load them, name their configuration file, an
 calls a service on the other side waits for its reply. The configuration file itself is documented
 with each bridge: [DDS and ROS 2](dds.md), [The MQTT bridge](mqtt-bridge.md),
 [The Modbus bridge](modbus-bridge.md), and the bridge repositories
-([corDdsBridge](https://github.com/SEAMWARE/corDdsBridge), [corMqttBridge](https://github.com/SEAMWARE/corMqttBridge),
-[corModbusBridge](https://github.com/SEAMWARE/corModbusBridge), [corCkanBridge](https://github.com/SEAMWARE/corCkanBridge)).
+([corDdsBridge](https://github.com/SEAMWARE-cor/corDdsBridge), [corMqttBridge](https://github.com/SEAMWARE-cor/corMqttBridge),
+[corModbusBridge](https://github.com/SEAMWARE-cor/corModbusBridge), [corCkanBridge](https://github.com/SEAMWARE-cor/corCkanBridge)).
 
 ### `--bridges`
 
@@ -1314,8 +1314,8 @@ store keeps the history. The plugin lives in the corDB library, which also build
 (`--database ramDB`): the same store without the disk, whose only options are `--dbLockPrefer` and
 `--dbValueIndexes` - the disk options are unknown options there, and `--troe corDB` is refused.
 
-Also documented in: corDB's [README](https://github.com/SEAMWARE/corDB#readme) and
-[persistence design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md);
+Also documented in: corDB's [README](https://github.com/SEAMWARE-cor/corDB#readme) and
+[persistence design](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md);
 [corDB on disk](installation.md#cordb-on-disk) and its cost in [Performance](performance.md#cordb-on-disk-what-persistence-costs).
 
 ### `--dbDir`
@@ -1414,7 +1414,7 @@ thread; the open segment, which writes append to, never. With it a segment rolls
 store with the option or without it, and a start with it compresses the finished segments a run without it
 left. libzstd (`libzstd.so.1`) is loaded only then; missing, the start is refused: `corDB: --dbCompress needs
 libzstd.so.1 (zstd) - not found`. Given without `--dbDir` it stops the start: `corDB: --dbCompress without --dbDir - the store is in RAM only, there is no disk for it to act on`. On disk, 100 000 Entities: 74 MB plain, 1.4 MB
-compressed ([persistence § 6a](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md#6a---dbcompress)).
+compressed ([persistence § 6a](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md#6a---dbcompress)).
 
     coraine --database corDB --dbDir /var/lib/coraine --dbCompress
 
@@ -1443,7 +1443,7 @@ after every start; a change of the declarations (the admin API) builds every ind
 expanded names, and the start refused for a short name (`corDB: --dbValueIndexes: 'speed' is not an IRI -
 ...`) are as for mongoc's option of the same name. Needs a build with `COR_FEATURE_DB_INDEXES` (on by
 default). [Declared indexes](installation.md#declared-indexes),
-[corDB's README](https://github.com/SEAMWARE/corDB#queries-by-value---declared-indexes).
+[corDB's README](https://github.com/SEAMWARE-cor/corDB#queries-by-value---declared-indexes).
 
     coraine --database corDB --dbValueIndexes https://example.org/speed
 

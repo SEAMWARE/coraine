@@ -88,7 +88,7 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: libs }
+        with: { repository: SEAMWARE-cor/corLibs, path: libs }
       - id: r
         run: |
           sha=$(git rev-parse HEAD)
@@ -240,7 +240,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       #
       # The campaign's own tools from THIS workflow's commit, not from the ref under test: a release
       # branch cut before a tool existed is still checked with it
@@ -360,7 +360,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       #
       # The campaign's own tools from THIS workflow's commit, not from the ref under test: a release
       # branch cut before a tool existed is still checked with it
@@ -464,7 +464,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ needs.resolve.outputs.sha }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       #
       # The campaign's own tools from THIS workflow's commit, not from the ref under test: a release
       # branch cut before a tool existed is still checked with it

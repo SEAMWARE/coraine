@@ -100,7 +100,7 @@ A persistent `corDB` (`--dbDir`) then syncs every tenant's log and cuts it to it
 every acknowledged write is on the disk - and writes a snapshot per tenant. The snapshot only makes the
 next start faster: it loads the snapshot instead of replaying the log. A broker killed during its
 snapshots (`terminationGracePeriodSeconds` over, then SIGKILL) has lost nothing; it replays the log on
-the next start ([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md),
+the next start ([corDB's persistence](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md),
 § 5a). Give it a grace period long enough for the snapshot of the store it holds when the start time
 matters.
 

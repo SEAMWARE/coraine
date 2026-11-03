@@ -3,14 +3,14 @@
 > **Built:** the bridge family this rests on - DDS ([DDS and ROS 2](dds.md)), MQTT topics as Channels
 > ([The MQTT bridge](mqtt-bridge.md)), Modbus TCP registers ([The Modbus bridge](modbus-bridge.md)).
 > **Device protocols as bridge plugins:** OPC UA —
-> [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge) (`coraine-build --bridges opcua`); the
+> [corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge) (`coraine-build --bridges opcua`); the
 > FIWARE IoT Agents' protocols, prototypes not released —
-> [corIotaLwm2mBridge](https://github.com/SEAMWARE/corIotaLwm2mBridge) (LwM2M over CoAP),
-> [corIotaLoraBridge](https://github.com/SEAMWARE/corIotaLoraBridge) (LoRaWAN: TTN v3, ChirpStack v4),
-> [corIotaSigfoxBridge](https://github.com/SEAMWARE/corIotaSigfoxBridge),
-> [corIotaUlBridge](https://github.com/SEAMWARE/corIotaUlBridge) (UltraLight 2.0, over MQTT and HTTP),
-> [corIotaJsonBridge](https://github.com/SEAMWARE/corIotaJsonBridge) (JSON),
-> [corIotaIsoxmlBridge](https://github.com/SEAMWARE/corIotaIsoxmlBridge) (ISOXML).
+> [corIotaLwm2mBridge](https://github.com/SEAMWARE-cor/corIotaLwm2mBridge) (LwM2M over CoAP),
+> [corIotaLoraBridge](https://github.com/SEAMWARE-cor/corIotaLoraBridge) (LoRaWAN: TTN v3, ChirpStack v4),
+> [corIotaSigfoxBridge](https://github.com/SEAMWARE-cor/corIotaSigfoxBridge),
+> [corIotaUlBridge](https://github.com/SEAMWARE-cor/corIotaUlBridge) (UltraLight 2.0, over MQTT and HTTP),
+> [corIotaJsonBridge](https://github.com/SEAMWARE-cor/corIotaJsonBridge) (JSON),
+> [corIotaIsoxmlBridge](https://github.com/SEAMWARE-cor/corIotaIsoxmlBridge) (ISOXML).
 >
 > **Not built:** the *cor-agent* edge build, and a registration whose endpoint names a bridge (a value
 > read on demand). Tracked from the [roadmap](roadmap.md).
@@ -195,7 +195,7 @@ attribute stays a state change that an outbound Channel carries
 
 ## Order
 
-After the binary IPC protocol and [corDB](https://github.com/SEAMWARE/corDB), and after the per-feature conditional
+After the binary IPC protocol and [corDB](https://github.com/SEAMWARE-cor/corDB), and after the per-feature conditional
 compilation that makes a small build possible at all. The bridge family lands
 first with DDS; the device protocols are more plugins on the same contract, which
 is the point of doing DDS first.

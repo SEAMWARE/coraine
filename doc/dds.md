@@ -29,7 +29,7 @@ places it deliberately does it differently. This page says what, in short.
   while answers at once. The list is flat: `?from` is answered `404`, and
   `?depth` is not used. [c³](https://github.com/SEAMWARE/c3)'s **Discover** starts a broker for a few seconds and
   makes this one call; the answer's shape is in
-  [the bridge's README](https://github.com/SEAMWARE/corDdsBridge#inventory).
+  [the bridge's README](https://github.com/SEAMWARE-cor/corDdsBridge#inventory).
 - **Pre-population.** Every configured attribute exists from startup - its
   entity is created if it is not there yet - with the value `"uninitialized"`
   until the first sample.

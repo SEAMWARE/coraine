@@ -5,8 +5,8 @@ in what shape, how the broker reaches the AAS server, and what is not decided ye
 engineers; no source code is needed to follow it.
 
 **Status: a prototype.** The broker's half - the AssetChannel, the mapping of a model into entities -
-is built, and has two sources: the OPC UA bridge ([corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge))
-and the AAS bridge, `aas.so` ([corAasBridge](https://github.com/SEAMWARE/corAasBridge), not released). The
+is built, and has two sources: the OPC UA bridge ([corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge))
+and the AAS bridge, `aas.so` ([corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge), not released). The
 examples below are what the mapping makes of an AAS; they are worked out by hand. The design in full is
 [asset-channels.md](asset-channels.md); the bridge's configuration is in corAasBridge's README.
 

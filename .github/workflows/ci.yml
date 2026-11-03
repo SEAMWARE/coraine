@@ -342,7 +342,7 @@ jobs:
       - name: Check out corLibs
         uses: actions/checkout@v4
         with:
-          repository: SEAMWARE/corLibs
+          repository: SEAMWARE-cor/corLibs
           path: stack/corLibs
 
       - name: Clone and build the dependency stack

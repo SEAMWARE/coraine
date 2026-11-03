@@ -18,7 +18,7 @@ builds the whole lib stack. It works wherever you put it - the layout is derived
 from the umbrella's own location, not from a fixed path.
 
 ```sh
-git clone git@github.com:SEAMWARE/corLibs.git
+git clone git@github.com:SEAMWARE-cor/corLibs.git
 ./corLibs/bootstrap.sh
 ```
 
@@ -37,8 +37,8 @@ system libraries. The repos must sit as **siblings** under one parent (default
 
 ## Dependency stack
 
-- **Cor-Libs**: [corBase](https://github.com/SEAMWARE/corBase), [corLog](https://github.com/SEAMWARE/corLog), [corAlloc](https://github.com/SEAMWARE/corAlloc), [corArgs](https://github.com/SEAMWARE/corArgs), [corHash](https://github.com/SEAMWARE/corHash), [corTree](https://github.com/SEAMWARE/corTree), [corJson](https://github.com/SEAMWARE/corJson), [corProm](https://github.com/SEAMWARE/corProm), [corRest](https://github.com/SEAMWARE/corRest), [corNgsild](https://github.com/SEAMWARE/corNgsild), [corJsonld](https://github.com/SEAMWARE/corJsonld), [corPlugin](https://github.com/SEAMWARE/corPlugin)
-- **umbrella / test runner**: [corLibs](https://github.com/SEAMWARE/corLibs), [corTest](https://github.com/SEAMWARE/corTest)
+- **Cor-Libs**: [corBase](https://github.com/SEAMWARE-cor/corBase), [corLog](https://github.com/SEAMWARE-cor/corLog), [corAlloc](https://github.com/SEAMWARE-cor/corAlloc), [corArgs](https://github.com/SEAMWARE-cor/corArgs), [corHash](https://github.com/SEAMWARE-cor/corHash), [corTree](https://github.com/SEAMWARE-cor/corTree), [corJson](https://github.com/SEAMWARE-cor/corJson), [corProm](https://github.com/SEAMWARE-cor/corProm), [corRest](https://github.com/SEAMWARE-cor/corRest), [corNgsild](https://github.com/SEAMWARE-cor/corNgsild), [corJsonld](https://github.com/SEAMWARE-cor/corJsonld), [corPlugin](https://github.com/SEAMWARE-cor/corPlugin)
+- **umbrella / test runner**: [corLibs](https://github.com/SEAMWARE-cor/corLibs), [corTest](https://github.com/SEAMWARE-cor/corTest)
 
 `make` auto-rebuilds `corRest`/`corNgsild`/`corJsonld` (the broker's `libs` target);
 the other libs must already be built (the umbrella or bootstrap handles
@@ -50,7 +50,7 @@ that).
 |------|---------|
 | HTTP server | `libmicrohttpd-dev` |
 | TLS | `libssl-dev` |
-| MQTT bridge plugin, `mqtt.so` ([corMqttBridge](https://github.com/SEAMWARE/corMqttBridge)) | `libmosquitto-dev` |
+| MQTT bridge plugin, `mqtt.so` ([corMqttBridge](https://github.com/SEAMWARE-cor/corMqttBridge)) | `libmosquitto-dev` |
 | Geo queries | `libgeos-dev` |
 | MongoDB driver (mongoc plugin) | mongo-c **v2** (`mongoc2.pc` via pkg-config) |
 | TimescaleDB plugin | `libpq-dev` |
@@ -65,7 +65,7 @@ that).
 |--------|--------|
 | `make` / `make release` | Release build (`BUILD_RELEASE/`) |
 | `make debug` | Debug build (`BUILD_DEBUG/`) |
-| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `curl` and `wrk` (and [corLibs](https://github.com/SEAMWARE/corLibs)' `corRequest`, `corTestClient`); +1-10 % per core ([performance](performance.md)) |
+| `make pgo` | Profile-guided release build (`BUILD_PGO/`): instrumented, trained on `test/perf/pgoTrain.sh`, rebuilt - ~6 min, needs `curl` and `wrk` (and [corLibs](https://github.com/SEAMWARE-cor/corLibs)' `corRequest`, `corTestClient`); +1-10 % per core ([performance](performance.md)) |
 | `make install_pgo` | install the `make pgo` / `make tune` build (`BUILD_PGO/`) as `make install` does, with the profile-guided `corDB.so` |
 | `make tune WORKLOAD=<file.json>` | `make pgo` trained on your workload, then the allocator and `--dbLockPrefer` measured on it; the result in `tune-result.json` - needs what `make pgo` needs and `python3` ([Extreme performance](extreme-performance.md)) |
 | `make i` / `make di` | release/debug **+ install** |
@@ -90,7 +90,7 @@ changes that broker's code under it - it dies of SIGSEGV within seconds.)
 | | |
 |---|---|
 | `cmake -DCOR_FEATURE_<X>=OFF` | compile a feature out - not every flag does what it says; [the details](building-details.md#compiling-out-what-you-dont-need) list the state of each |
-| `cmake -DCOR_HTTP_SERVER=mhd\|builtin` | the HTTP server: libmicrohttpd (the default) or [corHttp](https://github.com/SEAMWARE/corHttp), with no external HTTP dependency ([details](building-details.md#choosing-the-http-server)) |
+| `cmake -DCOR_HTTP_SERVER=mhd\|builtin` | the HTTP server: libmicrohttpd (the default) or [corHttp](https://github.com/SEAMWARE-cor/corHttp), with no external HTTP dependency ([details](building-details.md#choosing-the-http-server)) |
 | `make release COR_OPTIMIZE=speed\|size` | what the defaults spend RAM on: throughput (the default), or RAM for small hardware - one malloc arena ([details](building-details.md#cor_optimize)) |
 | `make di CMAKE_FEATURES=... BUILD_DEBUG=<dir>` | a reduced tree in a directory of its own, beside the ordinary one |
 

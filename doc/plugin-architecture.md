@@ -36,7 +36,7 @@ There are **six** kinds of plugin:
 
 - **Communication protocols** — the transport over which the broker speaks to
   clients and to other brokers. **REST/HTTP** and **`cor://`**, the binary protocol
-  (`--corPort`; [The cor format and cor://](cor-protocol.md)), are built into [corRest](https://github.com/SEAMWARE/corRest).
+  (`--corPort`; [The cor format and cor://](cor-protocol.md)), are built into [corRest](https://github.com/SEAMWARE-cor/corRest).
   **Transport plugins** carry the API over another protocol: loaded via `--transports`;
   resolves to `<base>/transport/<name>.so`; register symbol `transportRegister`; fills a
   `TransportDriver` (`src/lib/plugin/TransportDriver.h`). Up to `TRANSPORTS_MAX = 4`.
@@ -48,13 +48,13 @@ There are **six** kinds of plugin:
   Loaded via `--bridges` / `-br`; resolves to `<base>/bridge/<name>.so`;
   register symbol `bridgeRegister`; fills a `BridgeDriver`. **Any number** active
   (comma-separated, up to `BRIDGES_MAX = 8`). Bundled: `loopback`. External, each
-  in its own repo and built by the [corLibs](https://github.com/SEAMWARE/corLibs) umbrella:
-  [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge),
-  [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge) and
-  [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge). Beside them, built only when
+  in its own repo and built by the [corLibs](https://github.com/SEAMWARE-cor/corLibs) umbrella:
+  [`corDdsBridge`](https://github.com/SEAMWARE-cor/corDdsBridge),
+  [`corModbusBridge`](https://github.com/SEAMWARE-cor/corModbusBridge) and
+  [`corMqttBridge`](https://github.com/SEAMWARE-cor/corMqttBridge). Beside them, built only when
   `coraine-build --bridges` names them:
-  [`corCkanBridge`](https://github.com/SEAMWARE/corCkanBridge) and
-  [`corOpcuaBridge`](https://github.com/SEAMWARE/corOpcuaBridge) (open62541).
+  [`corCkanBridge`](https://github.com/SEAMWARE-cor/corCkanBridge) and
+  [`corOpcuaBridge`](https://github.com/SEAMWARE-cor/corOpcuaBridge) (open62541).
 
   ⭐ This is a *different axis* from the communication protocols above, and the
   two are easy to confuse. A communication protocol is how a **client reaches
@@ -62,7 +62,7 @@ There are **six** kinds of plugin:
   and neither replaces the other.
 
   The contract lives in its own library,
-  [`corBridge`](https://github.com/SEAMWARE/corBridge), rather than here —
+  [`corBridge`](https://github.com/SEAMWARE-cor/corBridge), rather than here —
   `corPlugin` is the precedent: one is the *mechanism* for loading a `.so`, the
   other the *contract* one kind of `.so` must satisfy.
 
@@ -94,7 +94,7 @@ outbound through `BridgeDriver::publish`.
   declaring mangled symbols reaches from C. It is C++, compiled separately, and
   the broker — still `PROJECT(coraine C)` — `dlopen`s it and never sees a C++
   token.
-- calls arrive on **threads the broker did not create**. Handing a [corAlloc](https://github.com/SEAMWARE/corAlloc) buffer
+- calls arrive on **threads the broker did not create**. Handing a [corAlloc](https://github.com/SEAMWARE-cor/corAlloc) buffer
   across that line would be a bug the day it was written.
 
 ⭐ There is also no loop, and not because of a guard: an arriving sample is
@@ -169,7 +169,7 @@ and `corPluginOpen` uses `RTLD_NOW`, so a plugin `.so` resolves `corLog`, `corAl
 That holds for bridge plugins too. A bridge calls the broker's NGSI-LD side only
 through the `BridgeBroker` slots, and may use the Cor-Libs directly: the loopback,
 MQTT, Modbus and DDS bridges log with the `COR_*` macros and parse their
-configuration with [corJson](https://github.com/SEAMWARE/corJson) and [corTree](https://github.com/SEAMWARE/corTree), in a corAlloc buffer of their own.
+configuration with [corJson](https://github.com/SEAMWARE-cor/corJson) and [corTree](https://github.com/SEAMWARE-cor/corTree), in a corAlloc buffer of their own.
 `BridgeBroker::logFunction` is for forwarding a transport library's own log sink.
 
 A plugin's contract version (`BRIDGE_ABI_VERSION`, `TRANSPORT_ABI_VERSION`) covers
@@ -343,7 +343,7 @@ the headers — read these before writing a plugin:
 | **corDB** | DB | In-process; GEOS geo-filtering, per-tenant isolation. In RAM, or on disk with `--dbDir` (a log and snapshots). With `--troe corDB`, its temporal history too. |
 | **ramDB** | DB | corDB in RAM only: no disk options, no `--troe corDB` - the fastest store, for pub/sub where a restart may start empty. |
 | **none** | TRoE | No-op. Temporal disabled. The default (`--troe none`). |
-| **corDB** | TRoE | The temporal history inside the corDB store - `--troe corDB` takes it from the corDB current-state plugin and needs `--database corDB`; on disk with `--dbDir`. See [corDB's TRoE](https://github.com/SEAMWARE/corDB/blob/main/doc/troe.md). |
+| **corDB** | TRoE | The temporal history inside the corDB store - `--troe corDB` takes it from the corDB current-state plugin and needs `--database corDB`; on disk with `--dbDir`. See [corDB's TRoE](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/troe.md). |
 | **ramDB** | TRoE | A ring of the broker's TRoE events in RAM - the most recent N, nothing on disk, shown by `/admin/troe/dump` (the `admin` API plugin). Dev/test today: the functests assert the broker's TRoE event contract through it. |
 | **timescale** | TRoE | TimescaleDB/Postgres-backed history (hypertables). |
 | **admin** | API | `/admin/health`, `/admin/version`, `/admin/log` (GET/PUT/POST/PATCH/DELETE for verbose/info/traceLevels), `/admin/tenants`, `/admin/plugins`, `/admin/bridges/{bridge}/inventory` (what a bridge's source can carry, bridge ABI 14), `/admin/config` (every option, a secret masked), `/admin/probes` (what the code decided, for the functional tests). |
@@ -351,16 +351,16 @@ the headers — read these before writing a plugin:
 | **oidc** | Auth | An OpenID provider's access tokens (Keycloak, ...; RS256/ES256 against its JWK Set) and two roles in them, one reading, one writing - decided per request, no policies. libcrypto. See [Authorization](authorization.md). |
 | **ws** | Transport | WebSocket, upgraded from `GET /ngsi-ld/v1/ws` on the HTTP port (`--transports ws`). See [WebSocket](websocket.md). |
 | **loopback** | Bridge | Not a transport: it hands back what it is given, **from a thread of its own**, which is the one property of a real bridge the broker has to survive. It makes an arriving value testable with no transport, publisher or network, and it is the reference a new bridge is written against — every entry point, one page, libc and pthreads. |
-| **modbus** | Bridge | Modbus TCP registers and coils ↔ entity attributes: polled in, attribute writes out. Lives in [`corModbusBridge`](https://github.com/SEAMWARE/corModbusBridge), libc only, ships in the ordinary image, loaded only on `--bridges modbus`. See [The Modbus bridge](modbus-bridge.md). |
-| **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Its Channels map MQTT topics to attributes, both ways. See [The MQTT bridge](mqtt-bridge.md). Lives in [`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge); the broker itself does not link libmosquitto. |
-| **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three; an image that carries it and never loads it costs that disk space and nothing else. |
-| **ckan** | Bridge | An open data portal's datasets (CKAN's API), discovered and read into entities through DataChannels. Lives in [`corCkanBridge`](https://github.com/SEAMWARE/corCkanBridge), no library, built by `coraine-build --bridges ckan`. |
-| **opcua** | Bridge | An OPC UA server, through open62541: its Variables as Channels (monitored in, Writes out), its Objects as AssetChannels - a model browsed into a graph of entities. Sign / SignAndEncrypt with certificates and a trust list, a user and password. Lives in [`corOpcuaBridge`](https://github.com/SEAMWARE/corOpcuaBridge), built by `coraine-build --bridges opcua`. |
+| **modbus** | Bridge | Modbus TCP registers and coils ↔ entity attributes: polled in, attribute writes out. Lives in [`corModbusBridge`](https://github.com/SEAMWARE-cor/corModbusBridge), libc only, ships in the ordinary image, loaded only on `--bridges modbus`. See [The Modbus bridge](modbus-bridge.md). |
+| **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Its Channels map MQTT topics to attributes, both ways. See [The MQTT bridge](mqtt-bridge.md). Lives in [`corMqttBridge`](https://github.com/SEAMWARE-cor/corMqttBridge); the broker itself does not link libmosquitto. |
+| **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE-cor/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three; an image that carries it and never loads it costs that disk space and nothing else. |
+| **ckan** | Bridge | An open data portal's datasets (CKAN's API), discovered and read into entities through DataChannels. Lives in [`corCkanBridge`](https://github.com/SEAMWARE-cor/corCkanBridge), no library, built by `coraine-build --bridges ckan`. |
+| **opcua** | Bridge | An OPC UA server, through open62541: its Variables as Channels (monitored in, Writes out), its Objects as AssetChannels - a model browsed into a graph of entities. Sign / SignAndEncrypt with certificates and a trust list, a user and password. Lives in [`corOpcuaBridge`](https://github.com/SEAMWARE-cor/corOpcuaBridge), built by `coraine-build --bridges opcua`. |
 
 ## Writing a new plugin (sketch)
 
 A DB plugin is one `.so` exporting `void dbRegister(DbDriver*)`. Minimal shape,
-mirroring `corDbRegister.c` in [corDB](https://github.com/SEAMWARE/corDB) - a DB plugin in a
+mirroring `corDbRegister.c` in [corDB](https://github.com/SEAMWARE-cor/corDB) - a DB plugin in a
 repository of its own, built against this repo's `src/lib/db/DbDriver.h`:
 
 ```c

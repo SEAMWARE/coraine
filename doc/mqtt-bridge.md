@@ -1,6 +1,6 @@
 # The MQTT bridge
 
-`mqtt.so`, from [corMqttBridge](https://github.com/SEAMWARE/corMqttBridge), loaded with
+`mqtt.so`, from [corMqttBridge](https://github.com/SEAMWARE-cor/corMqttBridge), loaded with
 `--bridges mqtt`. It does two separate things.
 
 ## 1. Notifications to `mqtt://` and `mqtts://`

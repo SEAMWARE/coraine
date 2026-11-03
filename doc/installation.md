@@ -41,7 +41,7 @@ The dependency stack is a set of sibling repositories. The `corLibs` umbrella cl
 and builds all of them at their pinned versions:
 
 ```sh
-git clone git@github.com:SEAMWARE/corLibs.git
+git clone git@github.com:SEAMWARE-cor/corLibs.git
 ./corLibs/bootstrap.sh
 cd coraine
 make i          # release build + install
@@ -183,7 +183,7 @@ not given. A `--bridgeConfig` of your own replaces it.
 `description`, `group` (its group in `CMakeLists.txt`), `requires`: the switches it is turned off
 without - each one of them - and a build setting as `NAME=value` (`HTTP_SERVER=mhd`), and `requiresAny`: the
 switches it is turned off without all of - one is enough (`CHANNEL_WRITE_BACK`: `DATA_CHANNELS` or `ASSET_CHANNELS`). `--http-server builtin` builds the
-broker with [corHttp](https://github.com/SEAMWARE/corHttp), the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
+broker with [corHttp](https://github.com/SEAMWARE-cor/corHttp), the built-in HTTP server, instead of libmicrohttpd: no external HTTP library, and
 the switches that need libmicrohttpd off (`POLICY_API`); not with `--pgo` or `--tune` yet. While it builds, coraine-build
 prints one line per phase - `coraine-build: phase build|tools|train|install|bridges|check|done` - for a
 front-end to follow.
@@ -219,7 +219,7 @@ way - `coraine-build` runs `make -C <dir>/corMqttBridge` with `COR_LIBS ?= ..`, 
 include path - and are the templates for a bridge built outside coraine; `coraine/src/plugins/bridge/loopback`
 is the reference for every entry point. A plugin built from the tarball of version X matches the
 `coraine` package of version X, which was built from that same tarball. A plugin that calls Cor-Lib
-functions (`COR_E`, [corJson](https://github.com/SEAMWARE/corJson), [corTree](https://github.com/SEAMWARE/corTree), ...) depends on that match; one that uses only the slots of its
+functions (`COR_E`, [corJson](https://github.com/SEAMWARE-cor/corJson), [corTree](https://github.com/SEAMWARE-cor/corTree), ...) depends on that match; one that uses only the slots of its
 contract struct depends on the contract's ABI version alone.
 
 The packages are made by the scripts in `packaging/deb/` (`source.sh`, `build.sh`, `test-install.sh`,
@@ -478,7 +478,7 @@ start - each one is named (`corDB: --dbSync without --dbDir - the store is in RA
 for it to act on`). As `ramDB` refuses `--dbDir`, an option it does not have.
 
 What it costs: [Performance](performance.md), "corDB on disk". How it works:
-[corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md).
+[corDB's persistence](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md).
 
 ### ramDB - corDB in RAM only
 
@@ -914,7 +914,7 @@ start builds it again. A change of the declarations builds every index again. Th
 are documents of the default tenant's store (collection `dbIndexes`), on disk with `--dbDir`. `GET`'s figures
 per tenant: `built`, `entries` (values), `bytes`, `accesses` (the `q` terms it served) and `updates` (the writes
 that changed it: an entity with the attribute created or deleted, its values changed), since it was built.
-More: corDB's [README](https://github.com/SEAMWARE/corDB#queries-by-value---declared-indexes).
+More: corDB's [README](https://github.com/SEAMWARE-cor/corDB#queries-by-value---declared-indexes).
 
 #### TimescaleDB (the history)
 

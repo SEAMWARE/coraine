@@ -10,7 +10,7 @@ Each idea: one line, then what there is to say about it, and where more lives.
 
 ### corDB persistence - cheaper writes
 
-corDB persists with `--dbDir` (a log and snapshots - [corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md));
+corDB persists with `--dbDir` (a log and snapshots - [corDB's design](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md));
 what it costs is in [Performance](performance.md), "corDB on disk": nothing on reads, 6-24 % on
 writes that change the store, more while the store grows fast. A PATCH or merge already logs only the
 attributes it touched (`ATTRS_PUT`); what is left is a cheaper encode of a record - the per-request cost
@@ -41,7 +41,7 @@ A maintenance tool (a general broker shell is for later), part of corDB's own re
 leaves this one: `stats`, `backup` (consistent while the broker runs - a snapshot,
 then hard links), `compact`, `purge` by type or `q`, `drop` a tenant, `index add/drop/list`, and on a
 stopped broker's files `verify`, `dump`, `export`/`import`. Live data goes through the broker (cor://
-to the `admin` plugin); files only when no broker runs. Design: [corDB's design](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md) § 10.
+to the `admin` plugin); files only when no broker runs. Design: [corDB's design](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md) § 10.
 
 ### corDB indexes
 
@@ -57,7 +57,7 @@ declaration kept with the tenant's data, rebuilt at load, measured before it sta
 corDB as a process of its own, beside the brokers, for high availability: already connected to every
 broker of the group, it is what haaux needs (below). One codebase, built as the in-broker plugin (the
 default) or the server, with a remote-corDB plugin as the broker's client of it; backups of current
-state and history. (corDB already is a repository of its own, SEAMWARE/corDB.)
+state and history. (corDB already is a repository of its own, SEAMWARE-cor/corDB.)
 
 ### A smaller CorNode
 
@@ -92,7 +92,7 @@ Kafka, on the Bridge/Channel seam that carries DDS, MQTT, Modbus, OPC UA and CKA
 binding across the brokers that support it. The protocol names the endpoint and the endpoint decides
 the transport; HTTP stays inline rather than a plugin, because it is also the NGSI-LD API.
 
-OPC UA is a bridge of its own ([corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge)); the
+OPC UA is a bridge of its own ([corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge)); the
 notifications to consumers that cannot be HTTP servers - behind NAT, a firewall, a browser - go over
 the WebSocket transport ([WebSocket](websocket.md)) and Server-Sent Events ([Server-Sent Events](sse.md)),
 not a bridge.
@@ -200,7 +200,7 @@ TC DATA face-to-face in Athens; not implemented. The drafts are not public.
 
 § 7.6.2.1 makes ICU "root" collation the default order for `orderBy` on strings, and libicu costs
 three shared libraries and 39.2 MiB - `libicudata` alone is 31.6 MiB, nine times the broker, for a
-table. An MVP of root collation in [corNgsild](https://github.com/SEAMWARE/corNgsild): UTF-8 to code points, a primary/secondary/tertiary
+table. An MVP of root collation in [corNgsild](https://github.com/SEAMWARE-cor/corNgsild): UTF-8 to code points, a primary/secondary/tertiary
 weight table for the Latin ranges real deployments use, the category order (punctuation < digits <
 letters) the current ASCII approximation gets wrong; locale tailorings added on demand, one at a
 time. ICU stays behind `COR_FEATURE_ICU_COLLATION=ON`. `orderby_collation_locale.test` is the
@@ -317,7 +317,7 @@ not reach the code they name - [Building from source, in detail](building-detail
 
 ### Release libraries, all of them
 
-`make release` builds [corRest](https://github.com/SEAMWARE/corRest), [corJsonld](https://github.com/SEAMWARE/corJsonld) and corNgsild as release; the libraries under them come in
+`make release` builds [corRest](https://github.com/SEAMWARE-cor/corRest), [corJsonld](https://github.com/SEAMWARE-cor/corJsonld) and corNgsild as release; the libraries under them come in
 as the last build, usually debug. Each needs an archive per flavour first (`doc/performance.md`).
 
 ### Embedded deployment

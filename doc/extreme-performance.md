@@ -19,7 +19,7 @@ The published image (and `make pgo`):
 | memory allocator | glibc's `malloc` | the C library |
 | corDB's store lock | `--dbLockPrefer reads` - readers first when readers and writers both wait | glibc's rwlock default |
 | HTTP server | libmicrohttpd, `--connectionPoolSize` the cores (corDB in RAM) or 32 | [building details](building-details.md) |
-| corDB on disk | `--dbSync interval` (every 100 ms), a snapshot every 64 MiB of log | [corDB's README](https://github.com/SEAMWARE/corDB) |
+| corDB on disk | `--dbSync interval` (every 100 ms), a snapshot every 64 MiB of log | [corDB's README](https://github.com/SEAMWARE-cor/corDB) |
 
 `make tune` changes the first three - the ones that are a property of the WORKLOAD, not of the
 deployment. The last two are the deployment's (how durable a write must be, how many cores there are)
