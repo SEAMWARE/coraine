@@ -37,7 +37,7 @@
 
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
-#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_NGSILD_NULL
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT, LD_VOCAB_NGSILD_NULL
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
@@ -63,6 +63,7 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/deleteEntityAttr.h"        // Own interface
+#include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
 
 
@@ -125,7 +126,7 @@ static bool applyLocalDelete(CorNode* entityP, const char* attrIri)
   if (attrP == NULL)
     return false;
 
-  if (corNgsild.deleteAll || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
+  if (corNgsild.deleteAll)
   {
     corTreeChildRemove(entityP, attrP);
     return true;
@@ -169,21 +170,10 @@ bool deleteEntityAttr(void)
   if (attrIri == NULL) attrIri = attrWild;
 
   //
-  // § 10.2.7.4: "If the target Attribute is scope, remove the scope Attribute
-  // from the target Entity." No error — "scope" is a legitimate delete target.
+  // id, type and scope are Entity members, not Attributes - refused (attrPathEntityMember.c).
   //
-  // id and type are not. They are mandatory Entity members (§ 5.2.4), never Attributes, so no
-  // Attribute by that name can be deleted and the request is refused outright — § 10.2.7.4's
-  // first bullet, "the target Attribute name is not a valid name". A 404 would be the wrong
-  // answer: it reads as "this Entity happens not to carry it", which invites a retry.
-  //
-  if ((strcmp(attrWild, "id")   == 0) || (strcmp(attrWild, "@id")   == 0) ||
-      (strcmp(attrWild, "type") == 0) || (strcmp(attrWild, "@type") == 0))
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Attribute name",
-            "'%s' is a mandatory Entity member, not an Attribute - it cannot be deleted", attrWild);
+  if (attrPathEntityMember(attrWild, attrIri, "deleted") == true)
     return true;
-  }
 
   //
   // createdAt and modifiedAt are the broker's own (§ 5.2.4: "system generated"). A client cannot
@@ -448,14 +438,12 @@ bool deleteEntityAttr(void)
               // them all at once, and a single anonymous marker would hide
               // which instances went away.
               //
-              // Scope is not a dataset-keyed wrapper, so it keeps the plain
-              // "@none" key, as does any snapshot that is not an object.
+              // A snapshot that is not an object keeps the plain "@none" key.
               CorNode* dsKeys = corTreeArray(corRest.kallocP, "datasetIds");
               if (!corNgsild.deleteAll)
                 corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL,
                                             (corNgsild.datasetId != NULL) ? corNgsild.datasetId : "@none"));
-              else if ((preSnapshot != NULL) && (preSnapshot->type == CorObject) &&
-                       (strcmp(attrIri, LD_VOCAB_SCOPE) != 0))
+              else if ((preSnapshot != NULL) && (preSnapshot->type == CorObject))
               {
                 for (CorNode* instP = preSnapshot->value.head; instP != NULL; instP = instP->next)
                   corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL, instP->name));

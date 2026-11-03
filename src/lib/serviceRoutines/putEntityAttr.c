@@ -43,7 +43,6 @@
 #include "corNgsild/LdNormalizeInput.h"               // ldNormalizeInput
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
-#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
@@ -69,6 +68,7 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/putEntityAttr.h"           // Own interface
+#include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
 
 
@@ -145,16 +145,10 @@ bool putEntityAttr(void)
   const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
 
-  //
-  // § 5.6.19.4: "If the target Attribute is scope, then an error of type
-  // BadRequestData shall be raised."
-  //
-  if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
-            "scope cannot be replaced via Replace Attribute");
+  if (attrPathEntityMember(attrWild, attrIri, "replaced") == true)
     return true;
-  }
+
+
 
   CorNode* ctxNodeP = corTreeLookup(bodyP, "@context");
   if (ctxNodeP != NULL) corTreeChildRemove(bodyP, ctxNodeP);

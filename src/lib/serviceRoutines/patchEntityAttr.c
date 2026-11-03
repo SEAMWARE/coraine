@@ -34,6 +34,7 @@
 #include "corJsonld/corLdInit.h"                     // CORLD_CORE_CONTEXT_URL
 #include "corJsonld/corLdExpand.h"                     // corLdExpand
 #include "corJsonld/corLdCompactTree.h"                // corLdCompactTreeWith
+#include "corNgsild/LdNormalizeInput.h"               // ldNormalizeInput
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
@@ -43,7 +44,6 @@
 #include "corNgsild/ldAttrTypeDetect.h"               // ldAttrTypeDetect
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
-#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
@@ -69,6 +69,7 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/patchEntityAttr.h"         // Own interface
+#include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
 
 
@@ -146,16 +147,10 @@ bool patchEntityAttr(void)
   const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
 
-  //
-  // § 5.6.4.4: "If the target Attribute is scope, then an error of type
-  // BadRequestData shall be raised."
-  //
-  if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
-            "scope cannot be modified via Partial Attribute Update");
+  if (attrPathEntityMember(attrWild, attrIri, "modified") == true)
     return true;
-  }
+
+
 
   //
   // @context (if in body, as for application/ld+json) was used by the
@@ -185,6 +180,17 @@ bool patchEntityAttr(void)
   CorNode* attrCopy  = bodyP;
   ldNodeRename(attrCopy, (char*) attrIri);
   corTreeChildAdd(entityFrag, attrCopy);
+
+  //
+  // § 5.4.2 - the fragment may be concise: a sub-attribute "note": "x" is a Property. The request hook skips
+  // ldNormalizeInput for every /attrs/{attrId} route (the top level is an Attribute there, not an Entity) -
+  // wrapped, it is the tree ldNormalizeInput expects, as in Replace Attribute. Without it a concise
+  // sub-attribute was stored raw ("note": "x") and came back so in a normalized GET, where Merge Entity and
+  // Update Attributes stored { "type": "Property", "value": "x" }. mergeMode, as for Merge Entity: an object
+  // with no type and no value key is a partial fragment of the existing instance, not a new Property.
+  //
+  if (ldNormalizeInput(entityFrag, &corRest.kalloc, true, false) == false)
+    return true;
 
   //
   // Validate as a Merge Entity fragment (permits partial, allows null-markers).

@@ -322,12 +322,12 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 183
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "scope cannot be modified via Partial Attribute Update",
+  "detail": "'scope' is an Entity member, not an Attribute - it cannot be modified through .../attrs/scope",
   "status": 400,
-  "title": "Immutable Field",
+  "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -338,12 +338,12 @@ Content-Length: 183
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 176
+Content-Length: REGEX(\d+)
 
 {
-  "detail": "scope cannot be replaced via Replace Attribute",
+  "detail": "'scope' is an Entity member, not an Attribute - it cannot be replaced through .../attrs/scope",
   "status": 400,
-  "title": "Immutable Field",
+  "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
