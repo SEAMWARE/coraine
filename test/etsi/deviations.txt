@@ -1,0 +1,18 @@
+#
+# deviations.txt - ETSI test purposes coraine fails ON PURPOSE.
+#
+# One line per test purpose: its id (the first word of the robot test name), then
+# why. etsiFailed.py leaves a listed test out of the failures, so it neither
+# triggers the rerun nor fails the job; etsiSummary.py names every listed test in
+# the summary - as a deviation when it fails, and as "passes now - remove the
+# line" when it does not. Listed, never hidden.
+#
+# DELETE .../attrs/scope answers 400: scope is an Entity member, not an Attribute,
+# and no .../attrs/{attrName} route touches id, type or scope (#544). The spec
+# (§10.2.7.4) allows that DELETE; coraine refuses it deliberately. Scope is
+# removed with a merge (PATCH /entities/{id}) setting "scope" to "urn:ngsi-ld:null".
+# 020_19_01 and 020_20_01 delete scope that way first, then read its history.
+#
+013_04     DELETE .../attrs/scope refused (400) - scope is an Entity member (#544)
+020_19_01  deletes scope with DELETE .../attrs/scope first - refused (#544)
+020_20_01  deletes scope with DELETE .../attrs/scope first - refused (#544)
