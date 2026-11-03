@@ -50,7 +50,7 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
 
       #
       # The version comes from the tag, and must agree with the source. A tag
@@ -300,7 +300,7 @@ jobs:
         with:
           app-id: ${{ secrets.CI_APP_ID }}
           private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
-          owner: SEAMWARE
+          owner: SEAMWARE-cor
           repositories: ${{ steps.repos.outputs.list }}
 
       #
@@ -345,11 +345,11 @@ jobs:
               fail=1
               return
             fi
-            if gh api "repos/SEAMWARE/$repo/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
+            if gh api "repos/SEAMWARE-cor/$repo/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
               echo "  $repo: v$VERSION already exists, leaving it alone"
               return
             fi
-            if gh api -X POST "repos/SEAMWARE/$repo/git/refs" \
+            if gh api -X POST "repos/SEAMWARE-cor/$repo/git/refs" \
                  -f ref="refs/tags/v$VERSION" -f sha="$sha" >/dev/null; then
               echo "  $repo: v$VERSION -> $sha"
             else

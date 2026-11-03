@@ -171,7 +171,7 @@ last 100 ms - MongoDB's default. Orion-LD 1.15.0-next, its release build (`-O3`)
 `--dbDir` makes corDB survive a restart: every write appends its effect to a log - memory-mapped, so
 the record is in the kernel's page cache before the response - synced every 100 ms (`--dbSync
 interval`, the default), with snapshots as the log grows
-([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)).
+([corDB's persistence](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md)).
 `test/perf/perfRun.sh corDB`, PGO release, one tenant, the log on an NVMe disk (ext4), AMD Ryzen 9
 8940HX (32 threads, nothing pinned), 2026-10-05 - requests/s, against the same broker without
 `--dbDir`:
@@ -238,7 +238,7 @@ userland proxy on every database round trip. Now `--network host`.
 What changed between the tables below and today's:
 
 - **The mapped log** costs a write 0-8.5 % (batch update the most), a read nothing - corDB's
-  [persistence history](https://github.com/SEAMWARE/corDB/blob/main/doc/history/persistence.md) has
+  [persistence history](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/history/persistence.md) has
   the table, and the page preparation (`MADV_POPULATE_*`) tried and dropped.
 - **The host network** gave Orion-LD + MongoDB + PostgreSQL 4-7 % on writes (create 4 656 → 4 991,
   PATCH 5 100 → 5 374, `DELETE` 8 813 → 9 457); its reads within the noise.
@@ -319,7 +319,7 @@ AMD Ryzen 9 8940HX, 2026-10-04. coraine a PGO release, corDB on disk with `--dbD
 
 `--dbDir` makes corDB survive a restart: every write appends its effect to a log,
 synced every 100 ms (`--dbSync interval`, the default), with snapshots as the log
-grows ([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)).
+grows ([corDB's persistence](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md)).
 `test/perf/perfRun.sh corDB`, PGO release, one tenant, the log on an NVMe disk
 (ext4), AMD Ryzen 9 8940HX (32 threads, nothing pinned), 2026-10-04 - requests/s,
 against the same broker without `--dbDir`:

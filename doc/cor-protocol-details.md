@@ -30,9 +30,9 @@ evolvable without breaking old readers.
   format   one encoded tree per message / record                              (§ 3, § 4)
 ```
 
-**The codec lives in [corTree](https://github.com/SEAMWARE/corTree) and knows nothing about NGSI-LD.** It serialises any tree. What it
-cannot know - which names are core terms, which objects are attributes - is supplied by [corNgsild](https://github.com/SEAMWARE/corNgsild)
-through callbacks, the same way [corJson](https://github.com/SEAMWARE/corJson) takes its term-intern callback. The same codec could carry
+**The codec lives in [corTree](https://github.com/SEAMWARE-cor/corTree) and knows nothing about NGSI-LD.** It serialises any tree. What it
+cannot know - which names are core terms, which objects are attributes - is supplied by [corNgsild](https://github.com/SEAMWARE-cor/corNgsild)
+through callbacks, the same way [corJson](https://github.com/SEAMWARE-cor/corJson) takes its term-intern callback. The same codec could carry
 any JSON.
 
 ## 3. Layer 1 - a node on the wire
@@ -367,7 +367,7 @@ both halves of the API:
   so it goes into the same service routines an HTTP request does, without a JSON parse, and the
   response goes back as a tree
 
-**v1 lives in [corRest](https://github.com/SEAMWARE/corRest)**, beside the HTTP server and client it mirrors, which already own request
+**v1 lives in [corRest](https://github.com/SEAMWARE-cor/corRest)**, beside the HTTP server and client it mirrors, which already own request
 dispatch and forwarding I/O. The communication-protocol plugin axis (a `.so`, `--protocols`) can
 be cut out of it once a second protocol shows what that seam has to be - designing it from one
 example would guess.
@@ -388,7 +388,7 @@ so a connection that dies under running requests is freed by whichever lets go l
 **Client.** One connection a peer, per thread, shared by every request of the thread:
 
 - the **write turn** - one frame at a time is encoded and written; a coroutine that finds the turn
-  taken parks until it is its turn ([corBase](https://github.com/SEAMWARE/corBase) `corCoLoopPark/Wake`)
+  taken parks until it is its turn ([corBase](https://github.com/SEAMWARE-cor/corBase) `corCoLoopPark/Wake`)
 - the **read turn** - the first request that waits and finds no reader reads the connection; it
   decodes every frame as it comes into the memory of the call it belongs to, wakes that call's
   coroutine, and hands the turn on when its own response is in
@@ -408,7 +408,7 @@ of one second each, answered in one) are the functests.
 
 Built: the codec (corTree) with its NGSI-LD callbacks (corNgsild); cor:// in corRest - a listener
 (`--corPort`) and a client - with multiplexing (§ 5.3); forwarding over it; the corDB log and snapshot,
-whose record bodies are cor trees ([corDB's persistence](https://github.com/SEAMWARE/corDB/blob/main/doc/persistence.md)).
+whose record bodies are cor trees ([corDB's persistence](https://github.com/SEAMWARE-cor/corDB/blob/main/doc/persistence.md)).
 Not yet: packed numeric arrays and timestamps as integers (§ 4.9, § 4.10). Functests: `cor_forwarding_chain`, `cor_api_direct`, the two of § 5.3;
 the whole suite runs with every request over cor:// as well (`COR_TRANSPORT=cor`, `doc/testing.md`).
 

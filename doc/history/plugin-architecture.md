@@ -12,5 +12,5 @@ an image that carries it and never loads it costs that and nothing else.
 ## MQTT out of the broker
 
 MQTT moved into the `mqtt` bridge plugin, in
-[`corMqttBridge`](https://github.com/SEAMWARE/corMqttBridge); the broker itself no longer
+[`corMqttBridge`](https://github.com/SEAMWARE-cor/corMqttBridge); the broker itself no longer
 links libmosquitto.

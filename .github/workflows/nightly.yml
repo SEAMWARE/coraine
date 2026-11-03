@@ -140,7 +140,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
 
@@ -275,7 +275,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
         run: ./bootstrap.sh
@@ -431,7 +431,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
 
@@ -551,7 +551,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
       - name: Forward localhost:7080 to the @context server
         run: socat TCP-LISTEN:7080,fork,reuseaddr TCP:context-server:8080 &
 
@@ -767,7 +767,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: stack/coraine, ref: '${{ inputs.ref }}' }
       - uses: actions/checkout@v4
-        with: { repository: SEAMWARE/corLibs, path: stack/corLibs }
+        with: { repository: SEAMWARE-cor/corLibs, path: stack/corLibs }
 
       - name: Clone and build the dependency stack
         working-directory: stack/corLibs
@@ -877,7 +877,7 @@ jobs:
       - name: Check out corLibs
         uses: actions/checkout@v4
         with:
-          repository: SEAMWARE/corLibs
+          repository: SEAMWARE-cor/corLibs
           path: stack/corLibs
 
       #
@@ -990,7 +990,7 @@ jobs:
       - name: Check out corLibs
         uses: actions/checkout@v4
         with:
-          repository: SEAMWARE/corLibs
+          repository: SEAMWARE-cor/corLibs
           path: stack/corLibs
 
       - name: Clone the dependency stack
@@ -1056,7 +1056,7 @@ jobs:
       - name: Check out corLibs
         uses: actions/checkout@v4
         with:
-          repository: SEAMWARE/corLibs
+          repository: SEAMWARE-cor/corLibs
           path: stack/corLibs
 
       - name: The build and test environment (what the CI image holds, minus DDS)

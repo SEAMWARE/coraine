@@ -1,6 +1,6 @@
 # AssetChannels - a source model as a graph of entities
 
-**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE/corOpcuaBridge). Not built: operations as services (§ 4).
+**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge). Not built: operations as services (§ 4).
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an
@@ -244,5 +244,5 @@ Decided (KZ, 2026-10-17):
    mapping vocabulary - `COR_FEATURE_ASSET_CHANNELS`, sized before it becomes a declared switch.
 4. The OPC UA bridge, its own repository, on the bridge ABI as it is: the model and its values as the node
    tree (§ 3.3). The client library is to choose.
-5. AAS, the second source, its own repository ([corAasBridge](https://github.com/SEAMWARE/corAasBridge)): [aas.md](aas.md), written for AAS engineers.
+5. AAS, the second source, its own repository ([corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge)): [aas.md](aas.md), written for AAS engineers.
 6. Operations and methods as services (§ 4).

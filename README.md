@@ -395,8 +395,8 @@ repository, which is where to read them offline or alongside a checkout:
 | ↳ [DDS and ROS 2](doc/dds.md) | what coraine does with DDS, and where it differs from Orion-LD |
 | ↳ [MQTT](doc/mqtt-bridge.md) | MQTT topics as Channels, and notifications to MQTT |
 | ↳ [Modbus](doc/modbus-bridge.md) | Modbus TCP registers as Channels |
-| ↳ [OPC UA](https://github.com/SEAMWARE/corOpcuaBridge) | OPC UA Variables as attributes, Methods as Service Executions, the server's node tree as the bridge's inventory (`--bridges opcua`) |
-| ↳ [CKAN](https://github.com/SEAMWARE/corCkanBridge) | a CKAN portal's DataStore resources read into entities, as DataChannels (`--bridges ckan`) |
+| ↳ [OPC UA](https://github.com/SEAMWARE-cor/corOpcuaBridge) | OPC UA Variables as attributes, Methods as Service Executions, the server's node tree as the bridge's inventory (`--bridges opcua`) |
+| ↳ [CKAN](https://github.com/SEAMWARE-cor/corCkanBridge) | a CKAN portal's DataStore resources read into entities, as DataChannels (`--bridges ckan`) |
 | ↳ [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
 | ↳ [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
 | **Running it** | |
@@ -476,7 +476,7 @@ carry — how to build and test, and what a good bug report contains. Participat
 governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 C style for the whole stack is one document:
-[`STYLE_GUIDE.md`](https://github.com/SEAMWARE/corLibs/blob/main/STYLE_GUIDE.md) in
+[`STYLE_GUIDE.md`](https://github.com/SEAMWARE-cor/corLibs/blob/main/STYLE_GUIDE.md) in
 the `corLibs` umbrella.
 
 The roadmap and the backlog are one page, [`doc/roadmap.md`](doc/roadmap.md): what is next, what is not
