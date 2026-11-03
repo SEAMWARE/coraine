@@ -800,26 +800,41 @@ jobs:
           touch history/perf.jsonl
           echo "recorded runs so far: $(wc -l < history/perf.jsonl)"
 
+      #
+      # Which machine this is. GitHub hands out different CPU models under one label, and the
+      # comparison below is only against runs on the same model - the log has to say which one.
+      #
       - name: Measure
         working-directory: stack/coraine
         run: |
+          lscpu | grep -E '^(Model name|CPU\(s\)|Thread\(s\) per core|CPU max MHz|L3 cache):' || true
           for db in corDB mongoc; do
             out=$(test/perf/perfRun.sh $db)
             echo "$db: $out"
             echo "$out" > /tmp/perf-$db.json
           done
 
+      #
+      # A WARNING, never a red job (KZ 2026-11-03). The 0.6.2 campaign went red here with no code
+      # change and every number faster than the green run before it: GitHub gave it another CPU.
+      # What a shared runner measures is a hint; a slowdown it flags is run again locally, on one
+      # fixed machine, and that run decides (doc/testing.md, "Performance in CI").
+      #
       - name: Compare with history
         id: compare
         working-directory: stack/coraine
         run: |
-          status=0
+          echo "Runner: $(lscpu | sed -n 's/^Model name: *//p'), $(nproc) CPUs" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          slower=""
           for db in corDB mongoc; do
             python3 test/perf/perfCompare.py "$GITHUB_WORKSPACE/history/perf.jsonl" "$(cat /tmp/perf-$db.json)" \
-              >> "$GITHUB_STEP_SUMMARY" || status=1
+              >> "$GITHUB_STEP_SUMMARY" || slower="$slower $db"
             echo >> "$GITHUB_STEP_SUMMARY"
           done
-          exit $status
+          if [ -n "$slower" ]; then
+            echo "::warning title=Performance::a metric collapsed on$slower against this CPU's history - confirm locally before believing it (doc/testing.md, Performance in CI)"
+          fi
 
       #
       # Not from a call that publishes nothing (prerelease.yml): the history is main's nightly
