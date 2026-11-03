@@ -8,7 +8,8 @@
 # § 5.3.2.3 Normalized-to-Concise Compaction, step 2: the "type" of an Attribute is removed - for a
 # GeoProperty too, whose type the Concise-to-Normalized Expansion infers from a "value" holding a
 # GeoJSON geometry. A GeoProperty that does not collapse to the bare geometry - a datasetId (ETSI
-# 018_23_11), an observedAt, a sub-attribute - is { "value": <geometry>, ... } in concise, no "type".
+# 018_23_11), an observedAt, a sub-attribute, an instance of a multi-attribute (the default one too:
+# ETSI MR !304, 018_23_10) - is { "value": <geometry>, ... } in concise, no "type".
 # The concise output, sent back, is a GeoProperty again. A concise value of the GeoJSON shape ("type" +
 # "coordinates") with a misspelled geometry is a GeoProperty with a bad geometry - a 400 - not a Property.
 # So is an object whose "type" names a GeoJSON geometry, whatever its other members: { "type": "Point",
@@ -146,7 +147,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 605
+Content-Length: 640
 
 {
   "id": "urn:ngsi-ld:T:E1",
@@ -172,11 +173,13 @@ Content-Length: 605
   },
   "location": [
     {
-      "coordinates": [
-        1,
-        2
-      ],
-      "type": "Point"
+      "value": {
+        "coordinates": [
+          1,
+          2
+        ],
+        "type": "Point"
+      }
     },
     {
       "datasetId": "urn:ngsi-ld:ds:gps",
