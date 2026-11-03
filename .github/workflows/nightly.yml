@@ -566,9 +566,20 @@ jobs:
           coraine --version
 
       - name: Clone the corrected ETSI suite
+        #
+        # forge.etsi.org has bad minutes (2026-11-02: HTTP 525 on the clone, both ETSI jobs red without a
+        # test run) - five tries, a minute apart.
+        #
         run: |
-          git clone --depth 1 --branch integration/all-fixes \
-            https://forge.etsi.org/rep/cim/ngsi-ld-test-suite.git etsi-suite
+          for try in 1 2 3 4 5
+          do
+            git clone --depth 1 --branch integration/all-fixes \
+              https://forge.etsi.org/rep/cim/ngsi-ld-test-suite.git etsi-suite && break
+            rm -rf etsi-suite
+            [ $try = 5 ] && exit 1
+            echo "clone failed (try $try of 5) - again in 60 s"
+            sleep 60
+          done
           cd etsi-suite && git log --oneline -1
 
       - name: The suite's @context from the context server, not forge
