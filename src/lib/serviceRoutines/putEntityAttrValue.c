@@ -34,7 +34,7 @@
 #include "corJsonld/corLdInit.h"                       // corLdCoreContext
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
-#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
 #include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
@@ -106,13 +106,6 @@ bool putEntityAttrValue(void)
     return true;
 
 
-  // § 10.2.6.4 — scope cannot be set this way.
-  if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
-            "scope cannot be modified via Set Attribute Value");
-    return true;
-  }
 
   //
   // The target Attribute must already exist (value-only cannot create it, and

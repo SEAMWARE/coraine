@@ -44,7 +44,6 @@
 #include "corNgsild/ldAttrTypeDetect.h"               // ldAttrTypeDetect
 #include "corNgsild/ldApiEntityToDbModel.h"           // ldApiEntityToDbModel
 #include "corNgsild/ldEntityMerge.h"                  // LdMergeReport
-#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
@@ -152,16 +151,6 @@ bool patchEntityAttr(void)
     return true;
 
 
-  //
-  // § 5.6.4.4: "If the target Attribute is scope, then an error of type
-  // BadRequestData shall be raised."
-  //
-  if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Immutable Field",
-            "scope cannot be modified via Partial Attribute Update");
-    return true;
-  }
 
   //
   // @context (if in body, as for application/ld+json) was used by the

@@ -15,11 +15,11 @@
 
 // -----------------------------------------------------------------------------
 //
-// attrPathEntityMember - the {attrId} of a .../attrs/{attrId} route names an Entity member (id, type), not an
+// attrPathEntityMember - the {attrId} of a .../attrs/{attrId} route names an Entity member (id, type, scope), not an
 // Attribute: the request is refused (400 BadRequestData, the answer rendered) and true returned
 //
 // attrWild is the name as the URL path has it, attrIri as the request's @context expands it (an alias of
-// @id or @type in a user @context is caught there). 'operation' says what was refused - "modified",
+// @id or @type, or a term for ngsi-ld:scope, in a user @context is caught there). 'operation' says what was refused - "modified",
 // "replaced", "deleted" - for the error's detail.
 //
 extern bool attrPathEntityMember(const char* attrWild, const char* attrIri, const char* operation);

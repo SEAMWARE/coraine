@@ -5,17 +5,17 @@
 #
 # Copyright 2026 Seamware
 #
-# id and type are mandatory Entity members (§ 5.2.4), never Attributes: .../attrs/{attrId} with either names
-# no Attribute, and Partial Attribute Update (PATCH), Replace Attribute (PUT) and Set Attribute Value (PUT
-# .../value) refuse it - "the target Attribute name is not a valid name", BadRequestData - as Delete
-# Attribute does (entity_member_delete_and_null). Before: PATCH and PUT took the fragment for the Entity's
-# new id or type and refused it only because an object is neither (a 400 for the wrong reason), and PUT
-# .../value answered 404, as if this Entity merely lacked the Attribute.
+# id, type and scope are Entity members (§ 5.2.4), never Attributes: .../attrs/{attrId} with any of them
+# names no Attribute, and Partial Attribute Update (PATCH), Replace Attribute (PUT), Set Attribute Value (PUT
+# .../value) and Delete Attribute (DELETE) refuse it - BadRequestData. Before: PATCH and PUT took the fragment
+# for the Entity's new id or type and refused it only because an object is neither (a 400 for the wrong
+# reason), PUT .../value answered 404, and DELETE .../attrs/scope removed the scope (§ 10.2.7.4 - coraine
+# departs from it: the scope is changed through the Entity only).
 #
-# A term of the request's @context that expands to @id or @type is the same: "identifier": "@id".
+# A term of the request's @context that expands to @id, @type or ngsi-ld:scope is the same: "identifier": "@id".
 #
 --NAME--
-.../attrs/{id,type} - PATCH, PUT and PUT .../value refuse an Entity member as the target Attribute; an alias of @id too
+.../attrs/{id,type,scope} - PATCH, PUT, PUT .../value and DELETE refuse an Entity member as the target Attribute; an alias too
 
 --TAGS--
 entity update attribute
@@ -75,7 +75,29 @@ echo
 echo
 
 
-echo "08. PATCH and PUT /attrs/identifier, the request's @context saying \"identifier\": \"@id\" -> 400"
+echo "08. PATCH, PUT, PUT .../value on /attrs/scope -> 400"
+echo "===================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/scope --payload '{ "value": "/b" }'
+echo
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:E1/attrs/scope --payload '{ "type": "Property", "value": "/b" }'
+echo
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:E1/attrs/scope/value --payload '"/b"'
+echo
+echo
+
+
+echo "09. DELETE /attrs/id, /attrs/type, /attrs/scope -> 400"
+echo "======================================================"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/id
+echo
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/type
+echo
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
+echo
+echo
+
+
+echo "10. PATCH and PUT /attrs/identifier, the request's @context saying \"identifier\": \"@id\" -> 400"
 echo "=============================================================================================="
 corCurl -X PATCH --in jsonld --url /ngsi-ld/v1/entities/urn:E1/attrs/identifier \
         --payload '{ "value": "urn:E2", "@context": [ { "identifier": "@id" }, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ] }'
@@ -86,7 +108,15 @@ echo
 echo
 
 
-echo "09. The Entity is untouched by every refusal"
+echo "11. PATCH /attrs/sc, the request's @context saying \"sc\": \"https://uri.etsi.org/ngsi-ld/scope\" -> 400"
+echo "===================================================================================================="
+corCurl -X PATCH --in jsonld --url /ngsi-ld/v1/entities/urn:E1/attrs/sc \
+        --payload '{ "value": "/b", "@context": [ { "sc": "https://uri.etsi.org/ngsi-ld/scope" }, "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld" ] }'
+echo
+echo
+
+
+echo "12. The Entity is untouched by every refusal"
 echo "============================================"
 corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
 echo
@@ -109,10 +139,10 @@ HTTP/1.1 201 Created
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 212
+Content-Length: 224
 
 {
-  "detail": "'id' is a mandatory Entity member, not an Attribute - it cannot be modified",
+  "detail": "'id' is an Entity member, not an Attribute - it cannot be modified through .../attrs/id",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -125,10 +155,10 @@ Content-Length: 212
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 214
+Content-Length: 228
 
 {
-  "detail": "'type' is a mandatory Entity member, not an Attribute - it cannot be modified",
+  "detail": "'type' is an Entity member, not an Attribute - it cannot be modified through .../attrs/type",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -141,10 +171,10 @@ Content-Length: 214
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 212
+Content-Length: 224
 
 {
-  "detail": "'id' is a mandatory Entity member, not an Attribute - it cannot be replaced",
+  "detail": "'id' is an Entity member, not an Attribute - it cannot be replaced through .../attrs/id",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -157,10 +187,10 @@ Content-Length: 212
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 214
+Content-Length: 228
 
 {
-  "detail": "'type' is a mandatory Entity member, not an Attribute - it cannot be replaced",
+  "detail": "'type' is an Entity member, not an Attribute - it cannot be replaced through .../attrs/type",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -173,10 +203,10 @@ Content-Length: 214
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 212
+Content-Length: 224
 
 {
-  "detail": "'id' is a mandatory Entity member, not an Attribute - it cannot be modified",
+  "detail": "'id' is an Entity member, not an Attribute - it cannot be modified through .../attrs/id",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -189,10 +219,10 @@ Content-Length: 212
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 214
+Content-Length: 228
 
 {
-  "detail": "'type' is a mandatory Entity member, not an Attribute - it cannot be modified",
+  "detail": "'type' is an Entity member, not an Attribute - it cannot be modified through .../attrs/type",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -200,15 +230,99 @@ Content-Length: 214
 
 
 
-08. PATCH and PUT /attrs/identifier, the request's @context saying "identifier": "@id" -> 400
+08. PATCH, PUT, PUT .../value on /attrs/scope -> 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "'scope' is an Entity member, not an Attribute - it cannot be modified through .../attrs/scope",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "'scope' is an Entity member, not an Attribute - it cannot be replaced through .../attrs/scope",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 230
+
+{
+  "detail": "'scope' is an Entity member, not an Attribute - it cannot be modified through .../attrs/scope",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. DELETE /attrs/id, /attrs/type, /attrs/scope -> 400
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 223
+
+{
+  "detail": "'id' is an Entity member, not an Attribute - it cannot be deleted through .../attrs/id",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 227
+
+{
+  "detail": "'type' is an Entity member, not an Attribute - it cannot be deleted through .../attrs/type",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 229
+
+{
+  "detail": "'scope' is an Entity member, not an Attribute - it cannot be deleted through .../attrs/scope",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. PATCH and PUT /attrs/identifier, the request's @context saying "identifier": "@id" -> 400
 ==============================================================================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 220
+Content-Length: 240
 
 {
-  "detail": "'identifier' is a mandatory Entity member, not an Attribute - it cannot be modified",
+  "detail": "'identifier' is an Entity member, not an Attribute - it cannot be modified through .../attrs/identifier",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -218,10 +332,10 @@ Content-Length: 220
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 220
+Content-Length: 240
 
 {
-  "detail": "'identifier' is a mandatory Entity member, not an Attribute - it cannot be replaced",
+  "detail": "'identifier' is an Entity member, not an Attribute - it cannot be replaced through .../attrs/identifier",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -229,7 +343,23 @@ Content-Length: 220
 
 
 
-09. The Entity is untouched by every refusal
+11. PATCH /attrs/sc, the request's @context saying "sc": "https://uri.etsi.org/ngsi-ld/scope" -> 400
+====================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "'sc' is an Entity member, not an Attribute - it cannot be modified through .../attrs/sc",
+  "status": 400,
+  "title": "Invalid Attribute name",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. The Entity is untouched by every refusal
 ============================================
 
 {
