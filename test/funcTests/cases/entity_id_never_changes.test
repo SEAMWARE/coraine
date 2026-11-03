@@ -1,0 +1,321 @@
+#
+# FILE            entity_id_never_changes.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# An Entity's id never changes, whatever the route: a body "id" other than the URL's in Update Attributes
+# (PATCH .../attrs), Append Attributes (POST .../attrs), Merge Entity (PATCH /entities/{id}), Replace Entity
+# (PUT /entities/{id}) and the batch updates is refused, and no Entity of the body's id appears. The .../attrs/id
+# routes are attrs_path_entity_members.
+#
+# "id" cannot name a sub-attribute either: JSON-LD reads it as @id, the node's identifier - a sub-attribute
+# named "id" was accepted and stored before. Refused in Partial Attribute Update, Replace Attribute, Append
+# Attributes, Create Entity, and one level deeper.
+#
+# A concise sub-attribute in Partial Attribute Update ("note": "x") is a Property, as in Merge Entity - it was
+# stored raw before, a bare string where a Property belongs.
+#
+--NAME--
+The Entity id never changes - a body id in every update route, a sub-attribute named id, a concise sub-attribute in PATCH .../attrs/{attrId}
+
+--TAGS--
+entity update attribute
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create urn:E1 - type T, attribute p"
+echo "======================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E1", "type": "T", "p": { "type": "Property", "value": 1 } }' | head -1
+echo
+echo
+
+
+echo "02. Update Attributes with id urn:E2 in the body -> 400"
+echo "======================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "id": "urn:E2", "p": { "type": "Property", "value": 2 } }'
+echo
+echo
+
+
+echo "03. Append Attributes with id urn:E2 in the body -> 400"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "id": "urn:E2", "q": { "type": "Property", "value": 2 } }'
+echo
+echo
+
+
+echo "04. Merge Entity with id urn:E2 in the body -> 400"
+echo "=================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "id": "urn:E2", "p": 2 }'
+echo
+echo
+
+
+echo "05. Replace Entity with id urn:E2 in the body -> 400"
+echo "===================================================="
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "id": "urn:E2", "type": "T", "p": { "type": "Property", "value": 2 } }'
+echo
+echo
+
+
+echo "06. Batch update and batch merge of urn:E2 - not found, urn:E1 untouched"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/update --payload '[ { "id": "urn:E2", "type": "T", "p": { "type": "Property", "value": 2 } } ]'
+echo
+corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[ { "id": "urn:E2", "type": "T", "p": 2 } ]'
+echo
+echo
+
+
+echo "07. GET urn:E2 -> 404, GET urn:E1 - as created"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E2 | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+echo
+echo
+
+
+echo "08. A sub-attribute named id - PATCH /attrs/p, PUT /attrs/p, POST /attrs -> 400"
+echo "================================================================================"
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/p --payload '{ "value": 3, "id": { "type": "Property", "value": "urn:E2" } }'
+echo
+corCurl -X PUT --url /ngsi-ld/v1/entities/urn:E1/attrs/p --payload '{ "type": "Property", "value": 3, "id": { "type": "Property", "value": "urn:E2" } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{ "q": { "type": "Property", "value": 3, "id": { "type": "Property", "value": "urn:E2" } } }'
+echo
+echo
+
+
+echo "09. A sub-attribute named id - Create Entity, and one level deeper -> 400; urn:E3 not created"
+echo "============================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E3", "type": "T", "q": { "type": "Property", "value": 3, "id": { "type": "Property", "value": "x" } } }'
+echo
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E3", "type": "T", "q": { "type": "Property", "value": 3, "s": { "type": "Property", "value": 4, "id": { "type": "Property", "value": "x" } } } }'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:E3 | head -1
+echo
+echo
+
+
+echo "10. PATCH /attrs/p with a concise sub-attribute, \"note\": \"x\" - stored as a Property"
+echo "===================================================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/p --payload '{ "value": 4, "note": "x" }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -v '^Date\|^Content-Length\|^Link\|^HTTP\|^Content-Type'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create urn:E1 - type T, attribute p
+=======================================
+HTTP/1.1 201 Created
+
+
+02. Update Attributes with id urn:E2 in the body -> 400
+=======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "Entity 'id' in body ('urn:E2') does not match URL ('urn:E1')",
+  "status": 400,
+  "title": "Entity Id Mismatch",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Append Attributes with id urn:E2 in the body -> 400
+=======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "Entity 'id' in body ('urn:E2') does not match URL ('urn:E1')",
+  "status": 400,
+  "title": "Entity Id Mismatch",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. Merge Entity with id urn:E2 in the body -> 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "Entity 'id' in body ('urn:E2') does not match URL ('urn:E1')",
+  "status": 400,
+  "title": "Entity Id Mismatch",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. Replace Entity with id urn:E2 in the body -> 400
+====================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 194
+
+{
+  "detail": "entity id in payload ('urn:E2') does not match URL ('urn:E1')",
+  "status": 400,
+  "title": "Entity Id Mismatch",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. Batch update and batch merge of urn:E2 - not found, urn:E1 untouched
+========================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 117
+
+{
+  "entityId": "urn:E2",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 117
+
+{
+  "entityId": "urn:E2",
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. GET urn:E2 -> 404, GET urn:E1 - as created
+==============================================
+HTTP/1.1 404 Not Found
+
+{
+  "id": "urn:E1",
+  "p": {
+    "type": "Property",
+    "value": 1
+  },
+  "type": "T"
+}
+
+
+
+08. A sub-attribute named id - PATCH /attrs/p, PUT /attrs/p, POST /attrs -> 400
+================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 293
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p' has a member 'id' - id is the Entity's identifier (JSON-LD @id), it cannot name a sub-attribute",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 293
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/p' has a member 'id' - id is the Entity's identifier (JSON-LD @id), it cannot name a sub-attribute",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "Attribute 'q' has a member 'id' - id is the Entity's identifier (JSON-LD @id), it cannot name a sub-attribute",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+09. A sub-attribute named id - Create Entity, and one level deeper -> 400; urn:E3 not created
+=============================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "Attribute 'q' has a member 'id' - id is the Entity's identifier (JSON-LD @id), it cannot name a sub-attribute",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 293
+
+{
+  "detail": "Attribute 'https://uri.etsi.org/ngsi-ld/default-context/s' has a member 'id' - id is the Entity's identifier (JSON-LD @id), it cannot name a sub-attribute",
+  "status": 400,
+  "title": "Invalid Attribute Member",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 404 Not Found
+
+
+10. PATCH /attrs/p with a concise sub-attribute, "note": "x" - stored as a Property
+====================================================================================
+HTTP/1.1 204 No Content
+
+{
+  "id": "urn:E1",
+  "p": {
+    "note": {
+      "type": "Property",
+      "value": "x"
+    },
+    "type": "Property",
+    "value": 4
+  },
+  "type": "T"
+}
+
+
+

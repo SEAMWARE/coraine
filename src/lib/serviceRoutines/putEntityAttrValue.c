@@ -45,6 +45,7 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/putEntityAttrValue.h"      // Own interface
+#include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
 
 
@@ -100,6 +101,10 @@ bool putEntityAttrValue(void)
   CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
   const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
+
+  if (attrPathEntityMember(attrWild, attrIri, "modified") == true)
+    return true;
+
 
   // § 10.2.6.4 — scope cannot be set this way.
   if (strcmp(attrWild, "scope") == 0 || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)

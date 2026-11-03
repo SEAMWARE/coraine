@@ -69,6 +69,7 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/putEntityAttr.h"           // Own interface
+#include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
 
 
@@ -144,6 +145,10 @@ bool putEntityAttr(void)
   CorLdContext* ctxP    = (corNgsild.contextP != NULL) ? corNgsild.contextP : corLdCoreContext();
   const char*  attrIri = corLdExpand(ctxP, attrWild, &corRest.kalloc, NULL, NULL);
   if (attrIri == NULL) attrIri = attrWild;
+
+  if (attrPathEntityMember(attrWild, attrIri, "replaced") == true)
+    return true;
+
 
   //
   // § 5.6.19.4: "If the target Attribute is scope, then an error of type

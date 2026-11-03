@@ -63,6 +63,7 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/deleteEntityAttr.h"        // Own interface
+#include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
 
 
@@ -172,18 +173,11 @@ bool deleteEntityAttr(void)
   // § 10.2.7.4: "If the target Attribute is scope, remove the scope Attribute
   // from the target Entity." No error — "scope" is a legitimate delete target.
   //
-  // id and type are not. They are mandatory Entity members (§ 5.2.4), never Attributes, so no
-  // Attribute by that name can be deleted and the request is refused outright — § 10.2.7.4's
-  // first bullet, "the target Attribute name is not a valid name". A 404 would be the wrong
-  // answer: it reads as "this Entity happens not to carry it", which invites a retry.
+  // id and type are not: mandatory Entity members, never Attributes - § 10.2.7.4's first bullet,
+  // "the target Attribute name is not a valid name" (attrPathEntityMember.c).
   //
-  if ((strcmp(attrWild, "id")   == 0) || (strcmp(attrWild, "@id")   == 0) ||
-      (strcmp(attrWild, "type") == 0) || (strcmp(attrWild, "@type") == 0))
-  {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Attribute name",
-            "'%s' is a mandatory Entity member, not an Attribute - it cannot be deleted", attrWild);
+  if (attrPathEntityMember(attrWild, attrIri, "deleted") == true)
     return true;
-  }
 
   //
   // createdAt and modifiedAt are the broker's own (§ 5.2.4: "system generated"). A client cannot
