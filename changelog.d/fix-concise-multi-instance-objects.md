@@ -1,4 +1,4 @@
-### Changed behaviour
+### Fixed
 
 - A multi-attribute in concise format (`options=concise` - entities, queries, a single attribute,
   notifications) is an array of objects only: the default instance with nothing but its value is
