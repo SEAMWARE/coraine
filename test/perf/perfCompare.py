@@ -9,7 +9,9 @@
 # warnings.
 #
 # Reads:  history file (one JSON object per line), today's JSON on argv
-# Writes: a markdown summary on stdout; exit 1 only on a collapse
+# Writes: a markdown summary on stdout; exit 1 only on a collapse - which the workflow turns into
+#         a WARNING, never a red job: a regression is confirmed or dismissed by a local run on one
+#         fixed machine (doc/testing.md, "Performance in CI")
 #
 # Copyright 2026 Seamware
 # SPDX-License-Identifier: Apache-2.0
@@ -151,7 +153,8 @@ for m, now, ref, change, delta in rows:
 print()
 if worst <= -FAIL_PCT:
     print(f"**A metric collapsed by {abs(worst):.0f}%** against the median of the last {WINDOW} runs. "
-          "That is past what runner noise explains.")
+          "A runner of the same CPU model can still be that much slower (2026-11-03: -66 % with no code "
+          "change) - run it locally to tell a regression from the runner.")
 elif worst <= -WARN_PCT:
     print(f"Slower by {abs(worst):.0f}% against the median of the last {WINDOW} runs — worth a look, "
           "though a shared runner can move this much on its own.")

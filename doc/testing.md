@@ -254,6 +254,26 @@ what the script wrote. It measures no throughput and compares none.
 
 corDB runs with `--dbDir` (the durable configuration); both run with `--troe none`.
 
+## Performance in CI
+
+The nightly's `performance` job (also in the pre-release campaign) builds the broker as the image is
+built (`make pgo`), runs `test/perf/perfRun.sh` on corDB and mongoc, and compares every metric with the
+median of the last 5 recorded runs **on the same CPU model** (`test/perf/perfCompare.py`). The runner's
+CPU model is in the job log and the job summary.
+
+It **warns, it never fails**. GitHub hands out machines of different speed under one label, and of one
+CPU model too: on 2026-11-03 the job reported a 66 % collapse on a commit that changed no code, with
+every number 12-36 % faster than the run before it. A slowdown it flags is a `::warning::` annotation
+and a table in the job summary, and it is then measured again locally, on one fixed machine, the
+previous release against the candidate, alternating (A B B A):
+
+```sh
+DURATION=10 REPEATS=5 bash test/perf/reproduce.sh quay.io/seamware/coraine:<previous release>
+DURATION=10 REPEATS=5 bash test/perf/reproduce.sh quay.io/seamware/coraine:<candidate image>
+```
+
+That run decides whether it is a regression.
+
 ## The pre-release campaign
 
 Everything a release is checked with, in one run of `.github/workflows/prerelease.yml`:
@@ -273,6 +293,9 @@ or Actions → Pre-release → Run workflow.
 | `upgrade` | `test/upgrade/upgradeCheck.sh` from the image of the release before `ref` (the newest `v*` tag below its version - by version, not ancestry: a release is tagged on its release branch) to this build, mongoc + corDB; a failed check fails it, a downgrade difference is listed | 1 |
 | `soak` | `test/soak/soak.py`, `soakMinutes` per database, mongoc and corDB | 2 |
 | `summary` | every job of the run, green or red, in the run summary; red if any part is | 1 |
+
+The performance job in `nightly` warns and never fails ([Performance in CI](#performance-in-ci)): the
+release's performance is the local run against the previous release.
 
 - Every part tests the sha `ref` names when the run starts, and the Cor-Libs at the commit their `main`
   had then: the `resolve` job records every library's commit, corLibs' and c³'s
