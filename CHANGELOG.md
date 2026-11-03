@@ -12,15 +12,15 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
 
 ---
 
-## 0.6.2 — 2026-11-04
+## 0.7.0 — 2026-11-04
 
-Bug fixes above all: a batch upsert on a new tenant, a batch naming one Entity more than once in the
-temporal history, the temporal API's times, a query with a filter over a registered Context Source, a
-broker ended by a peer that went away, a stop that could hang on the built-in HTTP server, and the
-MongoDB C driver 2.5.7 with its security fixes. Three additions beside them: a Subscription's
-`notification.geometryProperty`, `GET /admin/probes`, and the `COR_OPTIMIZE=size` build for small
-hardware. Two changes of behaviour to check before upgrading: a HEAD request answers 204, and
-`DELETE /entities/{id}/attrs/scope` is refused (400) - the scope is changed through the Entity. The
+Three additions: a Subscription's `notification.geometryProperty` (the geometry of a GeoJSON
+notification), `GET /admin/probes`, and the `COR_OPTIMIZE=size` build for small hardware. Two changes of
+behaviour to check before upgrading: a HEAD request answers 204, and `DELETE /entities/{id}/attrs/scope`
+is refused (400) - the scope is changed through the Entity. And bug fixes: a batch upsert on a new
+tenant, a batch naming one Entity more than once in the temporal history, the temporal API's times, a
+query with a filter over a registered Context Source, a broker ended by a peer that went away, a stop
+that could hang on the built-in HTTP server, and the MongoDB C driver 2.5.7 with its security fixes. The
 cor libraries moved to the GitHub organisation SEAMWARE-cor.
 
 ### New
