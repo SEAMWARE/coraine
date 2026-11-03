@@ -439,8 +439,10 @@ planned or not, in [Ideas](doc/ideas.md):
 
 ## Quality assurance
 
-- **Conformance:** 100% of the official ETSI NGSI-LD conformance test suite
-  (see the note at the top of this file).
+- **Conformance:** the official ETSI NGSI-LD conformance test suite passes, except three test purposes
+  that coraine fails on purpose: they delete the scope with `DELETE /entities/{id}/attrs/scope`, which
+  coraine refuses (scope is an Entity member, not an Attribute). They are listed, with the reason, in
+  [`test/etsi/deviations.txt`](test/etsi/deviations.txt). See also the note at the top of this file.
 - **Functional tests:** 736 tests against MongoDB, 681 against `corDB` (2026-10-02),
   run through `corTest`. A change in behaviour is not finished until a test pins it.
 - **Coverage:** measured per DB, run as described in [`doc/testing.md`](doc/testing.md)
