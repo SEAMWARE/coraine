@@ -14,6 +14,9 @@
 # how they are stored and how a q value is compared with them: the short form and the IRI are one query.
 # A KEY that is a core term stays short; only these values take the core IRI.
 #
+# Step 08 uses a user @context: valueType's value is expanded by the request's whole @context, the user's
+# terms and prefixes included, and a q value by the q request's.
+#
 # Step 07 is a Subscription: its q is stored and read back after a restart - mongoc only (corDB keeps its
 # subscriptions in RAM; the query steps are store-independent).
 #
@@ -109,7 +112,31 @@ echo
 echo
 
 
+echo "08. A user @context (Link): MyType and the prefix ex - valueType expanded by it, q by the same context"
+echo "======================================================================================================"
+contextServerStart
+contextServerPush /jsonldContexts/qm '{"@context": {"MyType": "http://example.org/types/MyType", "ex": "http://example.org/types/"}}'
+LINK='Link: <http://localhost:7080/jsonldContexts/qm>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities --in application/json -H "$LINK" --payload '{"id":"urn:QM:U1","type":"U","a":{"type":"Property","value":1,"valueType":"MyType"},"b":{"type":"Property","value":2,"valueType":"ex:Other"}}' | head -1
+echo "GET with the context:"
+corCurl --url /ngsi-ld/v1/entities/urn:QM:U1 -H "$LINK" | grep valueType
+echo "GET without it - the IRIs:"
+corCurl --url /ngsi-ld/v1/entities/urn:QM:U1 | grep valueType
+for q in 'a.valueType==%22MyType%22' \
+         'b.valueType==%22ex:Other%22' \
+         'a.valueType==http://example.org/types/MyType'
+do
+  echo "q=$q, with the context:"
+  corCurl --url "/ngsi-ld/v1/entities?type=U&q=$q" -H "$LINK" | grep -E '^HTTP|"id"'
+  echo "q=$q, without it:"
+  corCurl --url "/ngsi-ld/v1/entities?type=U&q=$q" | grep -E '^HTTP|"id"'
+done
+echo
+echo
+
+
 --TEARDOWN--
+contextServerStop
 coraineStop
 ftClientStop
 corDbDrop
@@ -215,5 +242,32 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 /vt urn:QM:S1 ['urn:QM:W1']
+
+
+08. A user @context (Link): MyType and the prefix ex - valueType expanded by it, q by the same context
+======================================================================================================
+HTTP/1.1 201 Created
+GET with the context:
+    "valueType": "MyType"
+    "valueType": "http://example.org/types/Other"
+GET without it - the IRIs:
+    "valueType": "http://example.org/types/MyType"
+    "valueType": "http://example.org/types/Other"
+q=a.valueType==%22MyType%22, with the context:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+q=a.valueType==%22MyType%22, without it:
+HTTP/1.1 200 OK
+q=b.valueType==%22ex:Other%22, with the context:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+q=b.valueType==%22ex:Other%22, without it:
+HTTP/1.1 200 OK
+q=a.valueType==http://example.org/types/MyType, with the context:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+q=a.valueType==http://example.org/types/MyType, without it:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
 
 
