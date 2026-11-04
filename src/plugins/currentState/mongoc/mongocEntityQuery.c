@@ -314,7 +314,8 @@ static void bsonAppendInstancePrefilter(bson_t* docP, const char* attrPath, LdQT
   for (int i = 0; i < term->subPathN; i++)
     pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
 
-  pos += snprintf(path + pos, sizeof(path) - pos, ".value");
+  if (term->memberLeaf == false)                     // valueType, objectType, unitCode: the member is the value
+    pos += snprintf(path + pos, sizeof(path) - pos, ".value");
 
   for (int i = 0; i < term->valuePathN; i++)
     pos += snprintf(path + pos, sizeof(path) - pos, ".%s", mongocEscapeDotsInKey(term->valuePathV[i]));
@@ -451,7 +452,8 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
   for (int i = 0; i < term->subPathN; i++)
     vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".%s", mongocEscapeDotsInKey(term->subPathV[i]));
 
-  vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".value");
+  if (term->memberLeaf == false)                     // valueType, objectType, unitCode: the member is the value
+    vp += snprintf(vexpr + vp, sizeof(vexpr) - vp, ".value");
 
   //
   // § 7.2.3.3: "If the target element corresponds to a Relationship or
@@ -907,7 +909,8 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       return;
   }
 
-  pos += snprintf(path + pos, sizeof(path) - pos, "%s.value", (term->subPathN > 0) ? "" : ".@none");
+  if (term->memberLeaf == false)                     // valueType, objectType, unitCode: the member is the value
+    pos += snprintf(path + pos, sizeof(path) - pos, "%s.value", (term->subPathN > 0) ? "" : ".@none");
 
   //
   // § 7.2.3.4 item 5 — "[*]" (no natural language specified): match ANY key of
