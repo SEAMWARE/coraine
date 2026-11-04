@@ -12,6 +12,178 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
 
 ---
 
+## 0.7.0 — 2026-11-04
+
+Three additions: a Subscription's `notification.geometryProperty` (the geometry of a GeoJSON
+notification), `GET /admin/probes`, and the `COR_OPTIMIZE=size` build for small hardware. Two changes of
+behaviour to check before upgrading: a HEAD request answers 204, and `DELETE /entities/{id}/attrs/scope`
+is refused (400) - the scope is changed through the Entity. And bug fixes: a batch upsert on a new
+tenant, a batch naming one Entity more than once in the temporal history, the temporal API's times, a
+query with a filter over a registered Context Source, a broker ended by a peer that went away, a stop
+that could hang on the built-in HTTP server, and the MongoDB C driver 2.5.7 with its security fixes. The
+cor libraries moved to the GitHub organisation SEAMWARE-cor.
+
+### New
+
+- `notification.geometryProperty` in a Subscription: the GeoProperty whose value is the `geometry` of a GeoJSON
+  notification (`"accept": "application/geo+json"`), as the `geometryProperty` URL parameter is for a query.
+  Without it the geometry is `location`, as before; an entity positioned through another GeoProperty had
+  `"geometry": null`. Only with a GeoJSON `accept` - otherwise 400 BadRequestData. Proposed for the spec in
+  TS 104 175 issue #67. ([API walkthrough](doc/api-walkthrough.md#5-subscribe))
+- `GET /admin/probes` (the admin API plugin): what the code decided - which plan a query took - kept for the
+  functional tests to read, in a release build too, where the traces are compiled out. Each probe set since the
+  start or the last `DELETE /admin/probes`, and its last value; `GET /admin/probes/{name}` one of them.
+  The first probe: `timescale.entitySelector` - `candidates` when a temporal query's `q` has a term an index serves.
+  `COR_FEATURE_PROBES` (on): 2,237 bytes.
+- `COR_OPTIMIZE=speed|size` (`coraine-build --optimize`): a build whose defaults spend RAM rather than
+  throughput, for small hardware at low request rates - a worker per CPU whatever the store, and one
+  malloc arena for the process. With mongoc on 4 CPUs the broker holds 25 MB after 100 000 entities
+  created in batches of 1000, where the default build holds 197 MB. `speed` stays the default;
+  `coraine --version` and `GET /build` say which a binary is.
+  ([COR_OPTIMIZE](doc/building-details.md#cor_optimize))
+
+### Faster
+
+- The image, the CI and the `.deb` packages that bundle the MongoDB C driver (Ubuntu 24.04, Debian 13) build
+  2.5.7 with four patches of the stack's: a command's retry state made only when it is retried, retryReads /
+  retryWrites read once per client, a reply's error fields found in one pass, an implicit session without
+  transaction state. The broker runs 9.5 % fewer instructions per `PATCH` and 7.4 % per retrieve (mongoc);
+  requests/s are within their runs' spread. The patches, and the driver's licence, ship with it
+  (`/usr/local/share/doc/mongo-c-driver` in the image, `/usr/share/doc/coraine/mongo-c-driver` in a package).
+  Ubuntu 26.04's driver is the distribution's.
+  ([Performance](doc/performance.md#the-stacks-patches-to-mongo-c-driver-257))
+
+### Less memory
+
+- Every thread of the broker used 256 KiB of RAM for a bridge sample buffer that only a bridge plugin's
+  threads need - 18 MB with mongoc's 69 threads, before a single request. The buffer is now allocated by
+  a thread at its first sample.
+
+### Changed behaviour
+
+- The Debian packages can be built again for a release with a fix of c³'s, without a new release: a
+  package revision, version `<X>+<dist>.<N>` (`0.6.1+debian13.1`), which `apt upgrade` installs over
+  `<X>+<dist>` - the broker the same, c³ at a later commit (named in `MANIFEST.txt`). The `Packages`
+  workflow, run by hand, takes `ref`, `c3_ref` and `revision` for it.
+  ([Install with apt](doc/installation.md#install-with-apt))
+- A release is built from the libraries its pre-release campaign tested, not from each library's `main`
+  at tag time: the campaign records the commit of every library (corLibs and c³ too) once, every part of
+  it builds from that record, and `release.yml` builds and tags the release from the newest green
+  campaign of the tag's tree - with none, it stops before publishing anything. c³'s tag must be the
+  commit in the record. 0.6.0 was one commit newer in the NGSI-LD library than its campaign.
+  ([The pre-release campaign](doc/testing.md#the-pre-release-campaign))
+- A `COR_OPTIMIZE=size` build keeps the worker pool of a speed build (32 with mongoc) and changes only the malloc arena: with mongoc on 4 CPUs a worker per CPU saved another 1.5 MB after 100 000 entities and cost 34-46 % of the requests at 50 connections; one arena alone costs 0-3 % with mongoc, and with corDB up to 17 % of the creates (doc/building-details.md#cor_optimize)
+- A HEAD request on the NGSI-LD API answers `204 No Content` when the GET would succeed, as TS 104-176 § 5
+  requires ("The response code 204 No Content shall be used on success"). The GET's headers stay (`Link`,
+  `NGSILD-Results-Count`, `Location`), and a 204 has no `Content-Length`. An error keeps the GET's status, with
+  no body. Was `200 OK` with the GET's `Content-Length`. A HEAD on the broker's own endpoints (`/version`, ...)
+  still answers what their GET does.
+- `DELETE /entities/{id}/attrs/scope` answers 400 BadRequestData. Before, it removed the scope (§ 10.2.7.4).
+  The scope is changed through the Entity only: Merge Entity, Update Attributes or Append with
+  `"scope": "urn:ngsi-ld:null"` deletes it.
+- The cor libraries, the bridges and the tools moved to the GitHub organisation
+  [SEAMWARE-cor](https://github.com/SEAMWARE-cor): `github.com/SEAMWARE-cor/corNgsild`, ... coraine, c³ and
+  corApisixNgsild stay in [SEAMWARE](https://github.com/SEAMWARE), as do the apt repository and the docs
+  (`seamware.github.io/apt`, `seamware.github.io/docs`). The old URLs redirect, for git too. The c³ demos
+  page is now `seamware-cor.github.io/c3-demos`.
+- The nightly ETSI run accepts the test purposes listed in `test/etsi/deviations.txt`: a listed test that fails
+  is named in the summary as a deliberate deviation and does not fail the job, and one that passes is named
+  for removal from the list. The list holds the three test purposes that delete the scope with
+  `DELETE /entities/{id}/attrs/scope` (013_04, 020_19_01, 020_20_01), which coraine refuses (400).
+- The CI performance job (nightly and pre-release campaign) warns instead of failing: a slowdown against
+  the recorded history is a warning annotation plus the job summary, and the runner's CPU model is printed.
+  A flagged slowdown is measured again locally on one fixed machine, and that run decides
+  (doc/testing.md, "Performance in CI").
+
+### Fixed
+
+- A build of a commit between releases (`0.6.1+git<date>.<sha>+<dist>`) published to the apt repository
+  went into the component `main`, beside the releases, instead of `testing`.
+  ([Install with apt](doc/installation.md#install-with-apt))
+- On Ubuntu, a Debian package of a commit between releases sorted before the release it follows
+  (`0.6.1+git<date>.<sha>+ubuntu24.04` < `0.6.1+ubuntu24.04`), so `apt upgrade` did not install it over the
+  release. Its version is now `0.6.1+<dist>.<YYYYMMDD>.git<sha8>`: after the release and its package
+  revisions, before the next release, on every distribution.
+  ([Install with apt](doc/installation.md#install-with-apt))
+- `POST /ngsi-ld/v1/entityOperations/upsert` on a tenant that does not exist yet creates the tenant, as
+  Create Entity and Batch Create do - it answered 404 NonexistentTenant and wrote nothing. A query, an
+  update, a PATCH or a DELETE on an unknown tenant is still a 404 NonexistentTenant.
+  ([Multi-tenancy](doc/installation.md#multi-tenancy))
+- A batch that names one Entity more than once - `POST /ngsi-ld/v1/entityOperations/upsert?options=update`,
+  `/entityOperations/update` and `/entityOperations/merge` - records each entry in the temporal history with
+  its own value and `observedAt`. Every instance carried the last entry's values, so a batch of monthly
+  readings stored copies of the last one; Batch Merge's notification entries did the same. With
+  `--troe corDB` only one instance was recorded, the replace-mode upsert's too.
+- The temporal API renders its times as `/entities` does: to the microsecond (to the nanosecond with
+  `--high-precision`, for `--troe corDB`), the fraction's trailing zeros left out. An `observedAt` sent as
+  `.290` was `.29` in `/entities` and `.290` in `/temporal`; `--troe corDB` gave `observedAt` to the
+  millisecond only, `--troe timescale` its `createdAt` and `modifiedAt` with all six digits (`.123000`),
+  and rounded where `/entities` truncates - one microsecond apart for every other write.
+  ([--high-precision](doc/options.md#--high-precision))
+- A build of `main` after 0.6.1 said it was 0.6.1 (`GET /version`, the packages, the image tags) - it is
+  `0.6.1+dev`, as between any two releases.
+- A broker built with the built-in HTTP server (`COR_HTTP_SERVER=builtin`) could hang on SIGTERM / SIGINT that
+  arrived right after it started serving: an HTTP event loop that had not started yet missed the stop and
+  kept running, and the broker waited for it forever. (corHttp)
+- A query with `q`, `scopeQ` or a geo-query over a registered Context Source holding a page or more of
+  matching entities (20 by default) - the query an automatic EntityMap pages - counted and paged every entity
+  of the type, whatever the filter said: `NGSILD-Results-Count` was the number of entities of the type, not
+  of matches, and a page was cut before the filter, so `limit=1` with a match further on answered no rows.
+  The rows were right. With split entities (the default) the sources cannot be given the filters; the
+  broker now applies them to the entities it assembles when the EntityMap is created, so the map holds the
+  matches only. ([EntityMaps](doc/installation.md#entitymaps))
+- A GeoJSON notification whose `pick`, `omit` or `attributes` left out the geometry's GeoProperty (`location`
+  or the `notification.geometryProperty`) had `"geometry": null`; with a `geometryProperty`, such a
+  subscription was refused (400). The geometry is now taken before the projection, as for a query
+  (§ 5.3.3.2); the GeoProperty is in `properties` only when the projection keeps it.
+- The image, the CI and the `.deb` packages that bundle it (Ubuntu 24.04, Debian 13) are built with the MongoDB C
+  driver 2.5.7 (was 2.2.2) - the fixes of its 2.3 to 2.5 releases, about 14 CVEs among them (JSON and BSON
+  parsing, SCRAM and SASL, OCSP, name validation). Ubuntu 26.04's comes from the distribution, 2.2.2. 2.5 is the
+  version MongoDB recommends for server 9.0.
+- `troe_timescale_db_indexes.test` failed against a release build: it read a trace of the broker's SQL, compiled
+  out of one. It reads the probe `timescale.entitySelector` instead.
+- The image ships the MongoDB C driver's licence and third-party notices with the library (it had neither).
+- coraine builds again with a compiler whose default C standard is older than C23 (gcc 13, Ubuntu
+  24.04's): `src/lib/probe/probe.c` used `false` without `<stdbool.h>`, a keyword only from C23.
+- A peer that goes away while the broker writes to it - an HTTP client, a WebSocket, a notification
+  receiver - no longer ends the broker. The write raised SIGPIPE, whose default action ended the process:
+  the broker now ignores SIGPIPE, and the write fails with EPIPE where it is made. Seen on a WebSocket
+  closed while the broker sent its close frame at shutdown.
+- `--ddsSyncWaitMax` defaults to a quarter of the worker threads, at least one - it was a fixed 8, meant
+  as a quarter of 32 workers, so on a broker with 8 workers or fewer (corDB on a machine of 8 CPUs or
+  fewer) the requests waiting for a slow or absent DDS service could take every worker and stop the
+  broker answering. With 32 workers it is 8, as before.
+  ([Command-line options](doc/options.md#--ddssyncwaitmax))
+- The nightly's ETSI jobs passed `COR_OPTIMIZE=` empty (their matrix has no optimize), which CMake refuses: they would not have built. The makefile now refuses an empty `COR_OPTIMIZE` itself, and the valgrind size leg is gone - under valgrind malloc is valgrind's, so it ran the speed broker
+- The `Allow` header of a 405 listed `HEAD` on a resource without a GET: `GET
+  /temporal/entities/{id}/attrs/{attrId}` answered `Allow: DELETE, HEAD, OPTIONS`, now `DELETE, OPTIONS`.
+- `GET /ngsi-ld/v1/entities/{entityId}/attrs/{attrId}` and `.../attrs/{attrId}/value` without `datasetId` return
+  the default instance only (TS 104-175 § 10.4.4), and 404 when the attribute has no default instance - they
+  returned every instance.
+- `GET /ngsi-ld/v1/entities/{id}`, `.../attrs/{attrId}` and `.../attrs/{attrId}/value` honour `?type` on the local
+  entity: a type that is none of the entity's types answers 404 ResourceNotFound (TS 104-175 § 10.4.2.4,
+  § 10.4.4.4). `?type` only scoped the registrations a retrieve is forwarded to, and the local entity came back
+  whatever its type.
+- `GET /ngsi-ld/v1/entities/{id}?type=...` with a matching registration: a local copy of another type is no
+  longer merged into the sources' Entity, and the assembled Entity must have a requested type (an auxiliary
+  registration is matched by id only) - else 404. `?type=Vehicle` could answer a merged `Building`.
+- A LanguageProperty whose `valueType` is not `langString` (or its IRI, `rdf:langString`) is rejected with 400
+  BadRequestData on create and update (TS 104-175 § 5.2.6.4.6) - any string was accepted.
+- A multi-attribute in concise format (`options=concise` - entities, queries, a single attribute,
+  notifications) is an array of objects only: the default instance with nothing but its value is
+  `{ "value": "Eiffel Tower" }`, no longer the bare `"Eiffel Tower"` beside the other instances' objects - as
+  decided in the ETSI test-suite group (MR !304, 018_23_10). A GeoProperty instance is
+  `{ "value": <geometry> }`. A bare value inside the array is still accepted on input.
+- `PATCH`, `PUT`, `PUT .../value` and `DELETE` on `/entities/{id}/attrs/{id,type,scope}` answer 400
+  BadRequestData, "'<name>' is an Entity member, not an Attribute". The same holds for a term of the
+  request's `@context` that aliases `@id`, `@type` or `ngsi-ld:scope`. Before, PATCH and PUT on id/type gave a
+  400 with a misleading detail, and `PUT .../value` gave a 404.
+- A sub-attribute named `id` is refused (400 BadRequestData) on every route. Before, it was stored.
+- `PATCH /entities/{id}/attrs/{attrId}` stores a concise sub-attribute (`"note": "x"`) as a Property, as
+  Merge Entity does. Before, it was stored as a bare string.
+
+---
+
 ## 0.6.1 — 2026-10-28
 
 The same day as 0.6.0: 0.6.0 was built with an NGSI-LD library that accepts a Subscription's

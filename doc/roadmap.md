@@ -152,20 +152,21 @@ settles on.
 
 ## Short term
 
-- **The entity type and the EntityMap of a distributed query** - on hold until it is settled in ETSI. Today the
-  type of the request is left out when the map is created, so that an entity split across sources under
-  different types (an RV: its Vehicle part in one broker, its Building part in another) can enter the map
-  through either part; but each page then asks every source with `?type=<the map's types>&id=...`, so a source
-  holding the entity under another type returns nothing and the entity comes back in part. Either the parts are
-  fetched by id without the type, so that `?type=Vehicle` gives the entire RV, or the type is forwarded when the
-  map is created as well. The test case is on
-  [Distributed operations with real brokers](https://famzang.com/ttf/ngsi-ld-suite-multibroker.html), section 2.
+Nothing at the moment - the next release ships what is under [Available now](#available-now).
 
 ## Medium term
 
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
+-   **The entity type and the EntityMap of a distributed query** - on hold until it is settled in ETSI. Today the
+    type of the request is left out when the map is created, so that an entity split across sources under
+    different types (an RV: its Vehicle part in one broker, its Building part in another) can enter the map
+    through either part; but each page then asks every source with `?type=<the map's types>&id=...`, so a source
+    holding the entity under another type returns nothing and the entity comes back in part. Either the parts are
+    fetched by id without the type, so that `?type=Vehicle` gives the entire RV, or the type is forwarded when the
+    map is created as well. The test case is on
+    [Distributed operations with real brokers](https://famzang.com/ttf/ngsi-ld-suite-multibroker.html), section 2.
 -   **A skeleton repository per kind of plugin** - a current-state store, a temporal store, an API, a
     transport, a bridge: a makefile, a template `.c`/`.h`, a functest and CI each, made with `c3 new plugin`.
 -   **A small build: less RAM, slower** - one build switch that picks memory over speed everywhere it

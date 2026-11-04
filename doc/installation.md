@@ -85,18 +85,18 @@ keeps each run's `.deb` files as artifacts (`debs-<dist>-<arch>`), for an instal
 repository:
 
 ```sh
-sudo apt install ./coraine_0.6.1+ubuntu24.04_amd64.deb      # apt resolves the dependencies
+sudo apt install ./coraine_0.7.0+ubuntu24.04_amd64.deb      # apt resolves the dependencies
 ```
 
 Versions, `<dist>` being `ubuntu26.04`, `ubuntu24.04` or `debian13`:
 
 | Version | What |
 |---------|------|
-| `0.6.1+<dist>` | the release 0.6.1 |
-| `0.6.1+<dist>.<N>` | a package revision: the release 0.6.1 built again with a fix of c³'s, the broker the same (`MANIFEST.txt` names c³'s commit) |
-| `0.6.1+<dist>.<YYYYMMDD>.git<sha8>` | a build of a later commit of `main` (component `testing`) |
+| `0.7.0+<dist>` | the release 0.7.0 |
+| `0.7.0+<dist>.<N>` | a package revision: the release 0.7.0 built again with a fix of c³'s, the broker the same (`MANIFEST.txt` names c³'s commit) |
+| `0.7.0+<dist>.<YYYYMMDD>.git<sha8>` | a build of a later commit of `main` (component `testing`) |
 
-Each sorts after the one above it and before the next release (`0.6.2+<dist>`); builds of commits sort
+Each sorts after the one above it and before the next release (`0.7.0+<dist>`); builds of commits sort
 by date. `apt upgrade` installs a package revision over its release, and a build of a commit over both.
 
 ### The coraine package
