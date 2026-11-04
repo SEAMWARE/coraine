@@ -432,7 +432,13 @@ jobs:
       # one; they are separate JOBS now, so that guard is what `fail-fast: false`
       # says instead - and it covers all four rather than just the pair.
       #
+      #
+      # The step's own limit, under the job's: a shard that hangs is stopped HERE, the job goes on, and the
+      # steps below keep what it left. At the job's limit GitHub ends the job - no `if: failure()` step
+      # runs, and on 2026-11-03 (troe-corDB, 3 min as a rule, 40 min that time) not even the log was kept.
+      #
       - name: Functional tests - ${{ matrix.shard.db }} ${{ matrix.shard.name }}
+        timeout-minutes: 25
         working-directory: stack/coraine
         run: |
           to=""
@@ -454,6 +460,19 @@ jobs:
       # asserts on corTestClient's dump reports "0" for all of those, identically, so
       # without this log a failure is indistinguishable from a broker bug.
       #
+      #
+      # Which test was running when it stopped, and what was still alive: the newest .out is the test
+      # corTest was in, the processes are what it waited for.
+      #
+      - name: What was running
+        if: failure()
+        working-directory: stack/coraine/test/funcTests/cases
+        run: |
+          echo "--- newest test outputs:"
+          ls -lt --time-style=+%T *.out 2>/dev/null | head -5 || true
+          echo "--- processes:"
+          ps -eo pid,ppid,etime,args --forest | grep -E 'coraine|corTest|corCurl|corTestClient|curl' | grep -v grep || true
+
       - name: Keep the output of anything that failed
         if: failure()
         uses: actions/upload-artifact@v4
