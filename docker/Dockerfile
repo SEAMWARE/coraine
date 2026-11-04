@@ -83,7 +83,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake git pkg-config ca-certificates curl wrk python3 libjemalloc2 libtcmalloc-minimal4 \
       libssl-dev libgeos-dev libmosquitto-dev libpq-dev \
-      libsasl2-dev libzstd-dev zlib1g-dev \
+      libsasl2-dev libzstd-dev zlib1g-dev libgnutls28-dev \
       nlohmann-json3-dev libyaml-cpp-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -118,7 +118,9 @@ RUN ldconfig
 # job that stages it to the image builds as an artifact, and an artifact does not keep the execute bit
 # (deploy.yml failed "Permission denied" from 2026-10-13 01:03 until this).
 COPY docker/vendor/mhd/ /tmp/mhd/
-RUN MHD_VERSION="${MHD_VERSION}" bash /tmp/mhd/mhdBuild.sh -- --disable-https \
+# With TLS (GnuTLS), for --https: the runtime stage below has libgnutls30 already, a dependency of its other
+# libraries, so it costs the image nothing.
+RUN MHD_VERSION="${MHD_VERSION}" bash /tmp/mhd/mhdBuild.sh \
  && rm -rf /tmp/mhd
 
 # mongo-c driver v2 — required by the mongoc DB plugin (pkg-config: mongoc2). Built by corLibs'
@@ -217,7 +219,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Runtime shared libraries only. curl is here for the healthcheck below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libssl3t64 libgeos-c1t64 libmosquitto1 libpq5 \
-      libsasl2-2 libzstd1 zlib1g curl ca-certificates \
+      libsasl2-2 libzstd1 zlib1g libgnutls30t64 curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/bin/coraine /usr/local/bin/coraine
