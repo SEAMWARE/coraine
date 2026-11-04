@@ -37,7 +37,7 @@ cor libraries moved to the GitHub organisation SEAMWARE-cor.
   `COR_FEATURE_PROBES` (on): 2,237 bytes.
 - `COR_OPTIMIZE=speed|size` (`coraine-build --optimize`): a build that saves RAM at a cost in
   throughput, for small hardware at low request rates - one malloc arena for the process instead of glibc's
-  one per thread; the worker pool is the same. With mongoc on 4 CPUs the broker holds 27 MB after 100 000
+  one per thread; the worker pool is the same. With mongoc on 4 cores the broker holds 27 MB after 100 000
   entities created in batches of 1000, where the default build holds 198 MB. It costs 0-3 % of the requests
   with mongoc, and with corDB up to 17 % of the creates. `speed` stays the default; `coraine --version` and
   `GET /build` say which a binary is. ([COR_OPTIMIZE](doc/building-details.md#cor_optimize))

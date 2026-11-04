@@ -664,7 +664,7 @@ waits, 32 otherwise.
 **What it saves.** glibc gives each thread an arena of its own, and an arena keeps the peak of the
 largest request its thread ran: about 5.5 MB after a 1000-entity batch create. With mongoc and 32 workers
 (each with a libmicrohttpd thread beside it: 69 threads) that is 32 such peaks. The RSS of the broker
-alone - the store is another process - on 4 CPUs (`taskset -c 0-3`), release build, 100 000 entities
+alone - the store is another process - on 4 cores (`taskset -c 0-3`: four physical cores, one thread of each), release build, 100 000 entities
 created in batches of 1000, then 100 pages of 1000 entities read:
 
 | mongoc | idle | 1 000 | 10 000 | 100 000 | after the reads |
@@ -713,7 +713,7 @@ order speed, size, size, speed, requests per second, the mean of the two:
 The two runs of a build differ by up to 8 % (query_c50 and the 20-entity queries on the larger store) and
 mostly by less than 3 %.
 
-**A worker per CPU too.** With mongoc, `--connectionPoolSize 4` on the 4 CPUs saves another 1.5 MB after
+**A worker per CPU too.** With mongoc, `--connectionPoolSize 4` on the 4 cores saves another 1.5 MB after
 100 000 entities (the third mongoc row above), and each request at 50 connections then waits for one of 4
 workers while MongoDB answers: query_c50 11 531, retrieve_c50 37 166, patch_c50 12 098, create_c50
 29 609, delete_c50 17 788 (-34 to -46 % against speed); at one connection no difference (patch_c1 3 551,
