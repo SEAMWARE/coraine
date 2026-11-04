@@ -15,7 +15,7 @@
 # A KEY that is a core term stays short; only these values take the core IRI.
 #
 # Step 08 uses a user @context: valueType's value is expanded by the request's whole @context, the user's
-# terms and prefixes included, and a q value by the q request's.
+# terms and prefixes included, a q value by the q request's, and compacted back by the response's (ex:Other).
 #
 # Step 07 is a Subscription: its q is stored and read back after a restart - mongoc only (corDB keeps its
 # subscriptions in RAM; the query steps are store-independent).
@@ -249,7 +249,7 @@ HTTP/1.1 201 Created
 HTTP/1.1 201 Created
 GET with the context:
     "valueType": "MyType"
-    "valueType": "http://example.org/types/Other"
+    "valueType": "ex:Other"
 GET without it - the IRIs:
     "valueType": "http://example.org/types/MyType"
     "valueType": "http://example.org/types/Other"

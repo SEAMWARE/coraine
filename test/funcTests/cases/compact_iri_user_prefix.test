@@ -1,0 +1,158 @@
+#
+# FILE            compact_iri_user_prefix.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A compact IRI written with a prefix of the request's @context (`ex:attr`, ex = http://example.org/types/) is
+# expanded through that prefix, and compacted back to the same compact IRI when the response's @context has the
+# prefix - entity type, attribute name and vocabulary values (valueType, objectType) alike. Without the context
+# the full IRIs are given. The core @context's own prefixes are not used this way: an error type stays its IRI.
+#
+--NAME--
+Compaction with a user @context's prefix: ex:T, ex:attr, valueType ex:Other, objectType ex:Bldg come back compact
+
+--TAGS--
+context compaction prefix vocab valueType objectType
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+contextServerStart
+contextServerPush /jsonldContexts/cp '{"@context": {"ex": "http://example.org/types/"}}'
+LINK='Link: <http://localhost:7080/jsonldContexts/cp>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+echo "01. Create urn:CP:E1 of type ex:T, attribute ex:attr (valueType ex:Other), r (objectType ex:Bldg) - the ex prefix in a Link"
+echo "========================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --in application/json -H "$LINK" --payload '{"id":"urn:CP:E1","type":"ex:T","ex:attr":{"type":"Property","value":1,"valueType":"ex:Other"},"r":{"type":"Relationship","object":"urn:CP:B1","objectType":"ex:Bldg"}}' | head -1
+echo
+echo
+
+
+echo "02. GET urn:CP:E1 with the context - every ex IRI compact"
+echo "========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:CP:E1 -H "$LINK"
+echo
+echo
+
+
+echo "03. GET urn:CP:E1 without it - the full IRIs"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/entities/urn:CP:E1
+echo
+echo
+
+
+echo "04. GET /types with the context - ex:T"
+echo "======================================"
+corCurl --url /ngsi-ld/v1/types -H "$LINK"
+echo
+echo
+
+
+echo "05. GET an entity that does not exist, with the context - the error type is not re-shaped by a core prefix"
+echo "=========================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:CP:none -H "$LINK"
+echo
+echo
+
+
+--TEARDOWN--
+contextServerStop
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create urn:CP:E1 of type ex:T, attribute ex:attr (valueType ex:Other), r (objectType ex:Bldg) - the ex prefix in a Link
+=========================================================================================================================
+HTTP/1.1 201 Created
+
+
+02. GET urn:CP:E1 with the context - every ex IRI compact
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/cp>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 227
+
+{
+  "ex:attr": {
+    "type": "Property",
+    "value": 1,
+    "valueType": "ex:Other"
+  },
+  "id": "urn:CP:E1",
+  "r": {
+    "object": "urn:CP:B1",
+    "objectType": "ex:Bldg",
+    "type": "Relationship"
+  },
+  "type": "ex:T"
+}
+
+
+
+03. GET urn:CP:E1 without it - the full IRIs
+============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 315
+
+{
+  "http://example.org/types/attr": {
+    "type": "Property",
+    "value": 1,
+    "valueType": "http://example.org/types/Other"
+  },
+  "id": "urn:CP:E1",
+  "r": {
+    "object": "urn:CP:B1",
+    "objectType": "http://example.org/types/Bldg",
+    "type": "Relationship"
+  },
+  "type": "http://example.org/types/T"
+}
+
+
+
+04. GET /types with the context - ex:T
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/cp>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 107
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "ex:T"
+  ]
+}
+
+
+
+05. GET an entity that does not exist, with the context - the error type is not re-shaped by a core prefix
+==========================================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 156
+
+{
+  "detail": "entity 'urn:CP:none' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
