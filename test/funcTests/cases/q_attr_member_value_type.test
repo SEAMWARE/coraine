@@ -1,0 +1,273 @@
+#
+# FILE            q_attr_member_value_type.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.2.3: in an attribute path the name after the last dot is the target element, and a member
+# of the attribute is one (Example 9, temperature.observedAt). valueType, objectType and unitCode are such
+# members - q compares the member itself (they have no value of their own to look into).
+#
+# valueType and objectType are "@type": "@vocab" in the core @context, so their value is a term, expanded as
+# the core @context says - `String` (no core term) by @vocab, `langString` (a core term) to rdf's IRI. That is
+# how they are stored and how a q value is compared with them: the short form and the IRI are one query.
+# A KEY that is a core term stays short; only these values take the core IRI.
+#
+# Step 08 uses a user @context: valueType's value is expanded by the request's whole @context, the user's
+# terms and prefixes included, and a q value by the q request's.
+#
+# Step 07 is a Subscription: its q is stored and read back after a restart - mongoc only (corDB keeps its
+# subscriptions in RAM; the query steps are store-independent).
+#
+--NAME--
+q on an attribute's members: valueType, objectType, unitCode; valueType/objectType values expanded per the core @context
+
+--TAGS--
+q query valueType vocab objectType unitCode subscription notification
+
+--INIT--
+corDbDrop
+coraineStart
+ftClientStart
+
+--RUN--
+
+echo "01. E1: name valueType String, street (LanguageProperty) langString as the rdf IRI, t unitCode CEL, r objectType Building; E2: name without valueType"
+echo "=================================================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QM:E1","type":"T","name":{"type":"Property","value":"Eiffel","valueType":"String"},"street":{"type":"LanguageProperty","languageMap":{"fr":"Grand Place"},"valueType":"http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"},"t":{"type":"Property","value":21,"unitCode":"CEL"},"r":{"type":"Relationship","object":"urn:QM:B1","objectType":"Building"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QM:E2","type":"T","name":{"type":"Property","value":"Eiffel"}}' | head -1
+echo
+echo
+
+
+echo "02. GET E1 - every vocabulary value compacted: String, langString, Building"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:QM:E1
+echo
+echo
+
+
+echo "03. valueType: existence, == short and IRI, == not matching, != (E2, without one, does not match)"
+echo "================================================================================================="
+for q in 'name.valueType' \
+         'name.valueType==%22String%22' \
+         'name.valueType==https://uri.etsi.org/ngsi-ld/default-context/String' \
+         'name.valueType==%22Number%22' \
+         'name.valueType!=%22Number%22' \
+         'name.valueType==%22Number%22,%22String%22'
+do
+  echo "q=$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=T&orderBy=id&q=$q" | grep -E '^HTTP|"id"'
+done
+echo
+echo
+
+
+echo "04. valueType of a LanguageProperty: langString short and as rdf's IRI - one query"
+echo "=================================================================================="
+for q in 'street.valueType==%22langString%22' \
+         'street.valueType==http://www.w3.org/1999/02/22-rdf-syntax-ns%23langString'
+do
+  echo "q=$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$q" | grep -E '^HTTP|"id"'
+done
+echo
+echo
+
+
+echo "05. objectType and unitCode"
+echo "==========================="
+for q in 'r.objectType==%22Building%22' \
+         'r.objectType==%22House%22' \
+         't.unitCode==%22CEL%22' \
+         't.unitCode!=%22CEL%22'
+do
+  echo "q=$q"
+  corCurl --url "/ngsi-ld/v1/entities?type=T&q=$q" | grep -E '^HTTP|"id"'
+done
+echo
+echo
+
+
+echo "06. POST Query - the same q in a body"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/entityOperations/query --payload '{"type":"Query","entities":[{"type":"T"}],"q":"street.valueType==\"langString\""}' | grep -E '^HTTP|"id"'
+echo
+echo
+
+
+echo "07. Subscription S1 on type W, q=street.valueType==\"langString\"; restart; W1 (langString) notified, W2 (none) not"
+echo "================================================================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:QM:S1","type":"Subscription","entities":[{"type":"W"}],"q":"street.valueType==\"langString\"","notification":{"attributes":["street"],"endpoint":{"uri":"http://localhost:'$FT_CLIENT_PORT'/vt"}}}' | head -1
+coraineStop
+coraineStart
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QM:W1","type":"W","street":{"type":"LanguageProperty","languageMap":{"fr":"Grote Markt"},"valueType":"langString"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:QM:W2","type":"W","street":{"type":"LanguageProperty","languageMap":{"fr":"Grote Markt"}}}' | head -1
+ftClientWait 1
+ftClientDump | python3 -c 'import sys, json
+for n in sorted(json.load(sys.stdin), key=lambda n: n["url"]):
+  print(n["url"], n["body"]["subscriptionId"], [e["id"] for e in n["body"]["data"]])'
+echo
+echo
+
+
+echo "08. A user @context (Link): MyType and the prefix ex - valueType expanded by it, q by the same context"
+echo "======================================================================================================"
+contextServerStart
+contextServerPush /jsonldContexts/qm '{"@context": {"MyType": "http://example.org/types/MyType", "ex": "http://example.org/types/"}}'
+LINK='Link: <http://localhost:7080/jsonldContexts/qm>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+corCurl --url /ngsi-ld/v1/entities --in application/json -H "$LINK" --payload '{"id":"urn:QM:U1","type":"U","a":{"type":"Property","value":1,"valueType":"MyType"},"b":{"type":"Property","value":2,"valueType":"ex:Other"}}' | head -1
+echo "GET with the context:"
+corCurl --url /ngsi-ld/v1/entities/urn:QM:U1 -H "$LINK" | grep valueType
+echo "GET without it - the IRIs:"
+corCurl --url /ngsi-ld/v1/entities/urn:QM:U1 | grep valueType
+for q in 'a.valueType==%22MyType%22' \
+         'b.valueType==%22ex:Other%22' \
+         'a.valueType==http://example.org/types/MyType'
+do
+  echo "q=$q, with the context:"
+  corCurl --url "/ngsi-ld/v1/entities?type=U&q=$q" -H "$LINK" | grep -E '^HTTP|"id"'
+  echo "q=$q, without it:"
+  corCurl --url "/ngsi-ld/v1/entities?type=U&q=$q" | grep -E '^HTTP|"id"'
+done
+echo
+echo
+
+
+--TEARDOWN--
+contextServerStop
+coraineStop
+ftClientStop
+corDbDrop
+
+--EXPECT--
+01. E1: name valueType String, street (LanguageProperty) langString as the rdf IRI, t unitCode CEL, r objectType Building; E2: name without valueType
+==================================================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET E1 - every vocabulary value compacted: String, langString, Building
+===========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 439
+
+{
+  "id": "urn:QM:E1",
+  "name": {
+    "type": "Property",
+    "value": "Eiffel",
+    "valueType": "String"
+  },
+  "r": {
+    "object": "urn:QM:B1",
+    "objectType": "Building",
+    "type": "Relationship"
+  },
+  "street": {
+    "languageMap": {
+      "fr": "Grand Place"
+    },
+    "type": "LanguageProperty",
+    "valueType": "langString"
+  },
+  "t": {
+    "type": "Property",
+    "unitCode": "CEL",
+    "value": 21
+  },
+  "type": "T"
+}
+
+
+
+03. valueType: existence, == short and IRI, == not matching, != (E2, without one, does not match)
+=================================================================================================
+q=name.valueType
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=name.valueType==%22String%22
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=name.valueType==https://uri.etsi.org/ngsi-ld/default-context/String
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=name.valueType==%22Number%22
+HTTP/1.1 200 OK
+q=name.valueType!=%22Number%22
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=name.valueType==%22Number%22,%22String%22
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+
+
+04. valueType of a LanguageProperty: langString short and as rdf's IRI - one query
+==================================================================================
+q=street.valueType==%22langString%22
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=street.valueType==http://www.w3.org/1999/02/22-rdf-syntax-ns%23langString
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+
+
+05. objectType and unitCode
+===========================
+q=r.objectType==%22Building%22
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=r.objectType==%22House%22
+HTTP/1.1 200 OK
+q=t.unitCode==%22CEL%22
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+q=t.unitCode!=%22CEL%22
+HTTP/1.1 200 OK
+
+
+06. POST Query - the same q in a body
+=====================================
+HTTP/1.1 200 OK
+    "id": "urn:QM:E1",
+
+
+07. Subscription S1 on type W, q=street.valueType=="langString"; restart; W1 (langString) notified, W2 (none) not
+================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+/vt urn:QM:S1 ['urn:QM:W1']
+
+
+08. A user @context (Link): MyType and the prefix ex - valueType expanded by it, q by the same context
+======================================================================================================
+HTTP/1.1 201 Created
+GET with the context:
+    "valueType": "MyType"
+    "valueType": "http://example.org/types/Other"
+GET without it - the IRIs:
+    "valueType": "http://example.org/types/MyType"
+    "valueType": "http://example.org/types/Other"
+q=a.valueType==%22MyType%22, with the context:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+q=a.valueType==%22MyType%22, without it:
+HTTP/1.1 200 OK
+q=b.valueType==%22ex:Other%22, with the context:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+q=b.valueType==%22ex:Other%22, without it:
+HTTP/1.1 200 OK
+q=a.valueType==http://example.org/types/MyType, with the context:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+q=a.valueType==http://example.org/types/MyType, without it:
+HTTP/1.1 200 OK
+    "id": "urn:QM:U1",
+
+
