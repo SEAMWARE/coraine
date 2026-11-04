@@ -1,0 +1,517 @@
+#
+# FILE            list_objectlist_object_form.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# TS 104-175 § 5.2.6.4.9: in the normalized form each item of a ListRelationship's objectList is an object
+# {"object": <URI>}; an array of plain URIs is accepted too. Both are read, the normalized output (an entity,
+# an attribute, a temporal evolution, a notification) has the object form, concise and simplified the URIs.
+#
+# The core @context declares valueList and objectList "@container": "@list", so ["urn:ngsi-ld:null"] is,
+# after expansion, the same as "urn:ngsi-ld:null" - the NGSI-LD Null that deletes the attribute.
+#
+
+--NAME--
+ListRelationship objectList items as {"object": URI} and as URIs; ["urn:ngsi-ld:null"] deletes a list
+
+--TAGS--
+entity showchanges join listrelationship listproperty null temporal notification
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
+ftClientStart
+
+--RUN--
+
+EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
+
+echo "01. Create - objectList items in both forms, mixed"
+echo "=================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:1", "type": "T", "r": { "type": "ListRelationship", "objectList": [ { "object": "urn:A:1" }, "urn:A:2" ] }, "l": { "type": "ListProperty", "valueList": [ 1, 2 ] } }' | head -1
+echo
+echo
+
+
+echo "02. Create - an item with a member next to 'object' is neither form - 400"
+echo "========================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:2", "type": "T", "r": { "type": "ListRelationship", "objectList": [ { "object": "urn:A:1", "x": 1 } ] } }'
+echo
+echo
+
+
+echo "03. Retrieve - normalized: the object form"
+echo "=========================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E:1
+echo
+echo
+
+
+echo "04. Retrieve - concise and simplified: the URIs"
+echo "==============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:E:1?format=concise'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:1?format=simplified'
+echo
+echo
+
+
+echo "05. Retrieve the Attribute - normalized: the object form"
+echo "========================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E:1/attrs/r
+echo
+echo
+
+
+echo "06. Create with [\"urn:ngsi-ld:null\"] as a valueList - the NGSI-LD Null has no meaning in a create - 400"
+echo "======================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:3", "type": "T", "l": { "type": "ListProperty", "valueList": [ "urn:ngsi-ld:null" ] } }'
+echo
+echo
+
+
+echo "07. Update Attributes with valueList [\"urn:ngsi-ld:null\"], Partial Update with objectList [\"urn:ngsi-ld:null\"] - both deleted"
+echo "=============================================================================================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E:1/attrs --payload '{ "l": { "type": "ListProperty", "valueList": [ "urn:ngsi-ld:null" ] } }' | head -1
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E:1/attrs/r --payload '{ "type": "ListRelationship", "objectList": [ { "object": "urn:ngsi-ld:null" } ] }' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E:1
+echo
+echo
+
+
+echo "08. Temporal evolution - created with {\"object\": URI} items; normalized has them, temporalValues the URIs"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{ "id": "urn:E:4", "type": "T", "r": [ { "type": "ListRelationship", "objectList": [ { "object": "urn:A:1" }, "urn:A:2" ], "observedAt": "2026-01-01T00:00:00Z" } ] }' | head -1
+corCurl --url /ngsi-ld/v1/temporal/entities/urn:E:4 | grep -v instanceId
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:E:4?options=temporalValues'
+echo
+echo
+
+
+echo "09. Notification - normalized: the object form"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:S1", "type": "Subscription", "entities": [ { "type": "N" } ], "notification": { "endpoint": '"$EP"' } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:5", "type": "N", "r": { "type": "ListRelationship", "objectList": [ "urn:A:1" ] } }' | head -1
+ftClientWait 1
+ftClientDump
+echo
+echo
+
+
+echo "10. Notification with showChanges - a deleted ListRelationship: objectList [\"urn:ngsi-ld:null\"], previousObjectList in the object form"
+echo "=============================================================================================================================="
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{ "id": "urn:ngsi-ld:Subscription:S2", "type": "Subscription", "entities": [ { "type": "M" } ], "notificationTrigger": [ "attributeDeleted" ], "notification": { "showChanges": true, "endpoint": '"$EP"' } }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:6", "type": "M", "r": { "type": "ListRelationship", "objectList": [ "urn:A:1", "urn:A:2" ] } }' | head -1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E:6/attrs/r | head -1
+ftClientWait 1
+ftClientDump
+echo
+echo
+
+
+echo "11. Linked entity retrieval through a ListRelationship - inline: entityList; simplified: the entities; flat: the targets"
+echo "======================================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:C:1", "type": "City" }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:C:2", "type": "City" }' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{ "id": "urn:E:7", "type": "B", "at": { "type": "ListRelationship", "objectList": [ "urn:C:1", "urn:C:2" ] } }' | head -1
+corCurl --url '/ngsi-ld/v1/entities/urn:E:7?join=inline&joinLevel=1'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:7?join=inline&joinLevel=1&format=simplified'
+corCurl --url '/ngsi-ld/v1/entities/urn:E:7?join=flat&joinLevel=1'
+echo
+echo
+
+
+--EXPECT--
+01. Create - objectList items in both forms, mixed
+==================================================
+HTTP/1.1 201 Created
+
+
+02. Create - an item with a member next to 'object' is neither form - 400
+=========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "'objectList' items must be URIs or {\"object\": <URI>}",
+  "status": 400,
+  "title": "Invalid ListRelationship",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. Retrieve - normalized: the object form
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 282
+
+{
+  "id": "urn:E:1",
+  "l": {
+    "type": "ListProperty",
+    "valueList": [
+      1,
+      2
+    ]
+  },
+  "r": {
+    "objectList": [
+      {
+        "object": "urn:A:1"
+      },
+      {
+        "object": "urn:A:2"
+      }
+    ],
+    "type": "ListRelationship"
+  },
+  "type": "T"
+}
+
+
+
+04. Retrieve - concise and simplified: the URIs
+===============================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 166
+
+{
+  "id": "urn:E:1",
+  "l": {
+    "valueList": [
+      1,
+      2
+    ]
+  },
+  "r": {
+    "objectList": [
+      "urn:A:1",
+      "urn:A:2"
+    ]
+  },
+  "type": "T"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 107
+
+{
+  "id": "urn:E:1",
+  "l": [
+    1,
+    2
+  ],
+  "r": [
+    "urn:A:1",
+    "urn:A:2"
+  ],
+  "type": "T"
+}
+
+
+
+05. Retrieve the Attribute - normalized: the object form
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 133
+
+{
+  "objectList": [
+    {
+      "object": "urn:A:1"
+    },
+    {
+      "object": "urn:A:2"
+    }
+  ],
+  "type": "ListRelationship"
+}
+
+
+
+06. Create with ["urn:ngsi-ld:null"] as a valueList - the NGSI-LD Null has no meaning in a create - 400
+=======================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 236
+
+{
+  "detail": "'urn:ngsi-ld:null' is not allowed as the value of attribute 'https://uri.etsi.org/ngsi-ld/default-context/l'",
+  "status": 400,
+  "title": "Invalid Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. Update Attributes with valueList ["urn:ngsi-ld:null"], Partial Update with objectList ["urn:ngsi-ld:null"] - both deleted
+==============================================================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 37
+
+{
+  "id": "urn:E:1",
+  "type": "T"
+}
+
+
+
+08. Temporal evolution - created with {"object": URI} items; normalized has them, temporalValues the URIs
+========================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 353
+
+{
+  "id": "urn:E:4",
+  "r": [
+    {
+      "objectList": [
+        {
+          "object": "urn:A:1"
+        },
+        {
+          "object": "urn:A:2"
+        }
+      ],
+      "observedAt": "2026-01-01T00:00:00Z",
+      "type": "ListRelationship"
+    }
+  ],
+  "type": "T"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 219
+
+{
+  "id": "urn:E:4",
+  "r": {
+    "objectLists": [
+      [
+        [
+          "urn:A:1",
+          "urn:A:2"
+        ],
+        "2026-01-01T00:00:00Z"
+      ]
+    ],
+    "type": "ListRelationship"
+  },
+  "type": "T"
+}
+
+
+
+09. Notification - normalized: the object form
+==============================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:E:5",
+          "r": {
+            "objectList": [
+              {
+                "object": "urn:A:1"
+              }
+            ],
+            "type": "ListRelationship"
+          },
+          "type": "N"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S1",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "261",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+10. Notification with showChanges - a deleted ListRelationship: objectList ["urn:ngsi-ld:null"], previousObjectList in the object form
+==============================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+[
+  {
+    "body": {
+      "data": [
+        {
+          "id": "urn:E:6",
+          "r": {
+            "objectList": [
+              "urn:ngsi-ld:null"
+            ],
+            "previousObjectList": [
+              {
+                "object": "urn:A:1"
+              },
+              {
+                "object": "urn:A:2"
+              }
+            ],
+            "type": "ListRelationship"
+          },
+          "type": "M"
+        }
+      ],
+      "id": "REGEX(urn:ngsi-ld:Notification:.*)",
+      "notifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+      "subscriptionId": "urn:ngsi-ld:Subscription:S2",
+      "type": "Notification"
+    },
+    "headers": {
+      "Content-Length": "324",
+      "Content-Type": "application/json",
+      "Host": "localhost:7701",
+      "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
+      "User-Agent": "REGEX(Coraine/.*)"
+    },
+    "url": "/notify",
+    "verb": "POST"
+  }
+]
+
+
+11. Linked entity retrieval through a ListRelationship - inline: entityList; simplified: the entities; flat: the targets
+======================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 355
+
+{
+  "at": {
+    "entityList": [
+      {
+        "id": "urn:C:1",
+        "type": "City"
+      },
+      {
+        "id": "urn:C:2",
+        "type": "City"
+      }
+    ],
+    "objectList": [
+      {
+        "object": "urn:C:1"
+      },
+      {
+        "object": "urn:C:2"
+      }
+    ],
+    "type": "ListRelationship"
+  },
+  "id": "urn:E:7",
+  "type": "B"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 165
+
+{
+  "at": [
+    {
+      "id": "urn:C:1",
+      "type": "City"
+    },
+    {
+      "id": "urn:C:2",
+      "type": "City"
+    }
+  ],
+  "id": "urn:E:7",
+  "type": "B"
+}
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 331
+
+[
+  {
+    "at": {
+      "objectList": [
+        {
+          "object": "urn:C:1"
+        },
+        {
+          "object": "urn:C:2"
+        }
+      ],
+      "type": "ListRelationship"
+    },
+    "id": "urn:E:7",
+    "type": "B"
+  },
+  {
+    "id": "urn:C:1",
+    "type": "City"
+  },
+  {
+    "id": "urn:C:2",
+    "type": "City"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop
+corTroeDrop

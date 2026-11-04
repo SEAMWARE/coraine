@@ -97,7 +97,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 570
+Content-Length: 634
 
 [
   {
@@ -129,8 +129,12 @@ Content-Length: 570
     },
     "lr": {
       "objectList": [
-        "urn:ngsi-ld:A",
-        "urn:ngsi-ld:B"
+        {
+          "object": "urn:ngsi-ld:A"
+        },
+        {
+          "object": "urn:ngsi-ld:B"
+        }
       ],
       "type": "ListRelationship"
     },
@@ -146,7 +150,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 570
+Content-Length: 634
 
 [
   {
@@ -178,8 +182,12 @@ Content-Length: 570
     },
     "lr": {
       "objectList": [
-        "urn:ngsi-ld:A",
-        "urn:ngsi-ld:B"
+        {
+          "object": "urn:ngsi-ld:A"
+        },
+        {
+          "object": "urn:ngsi-ld:B"
+        }
       ],
       "type": "ListRelationship"
     },
@@ -195,7 +203,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 570
+Content-Length: 634
 
 [
   {
@@ -227,8 +235,12 @@ Content-Length: 570
     },
     "lr": {
       "objectList": [
-        "urn:ngsi-ld:A",
-        "urn:ngsi-ld:B"
+        {
+          "object": "urn:ngsi-ld:A"
+        },
+        {
+          "object": "urn:ngsi-ld:B"
+        }
       ],
       "type": "ListRelationship"
     },
@@ -256,7 +268,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 570
+Content-Length: 634
 
 [
   {
@@ -288,8 +300,12 @@ Content-Length: 570
     },
     "lr": {
       "objectList": [
-        "urn:ngsi-ld:A",
-        "urn:ngsi-ld:B"
+        {
+          "object": "urn:ngsi-ld:A"
+        },
+        {
+          "object": "urn:ngsi-ld:B"
+        }
       ],
       "type": "ListRelationship"
     },
