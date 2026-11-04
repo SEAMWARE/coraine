@@ -18,6 +18,7 @@
 //
 
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
 #include <string.h>                                  // strcmp
 
 #include "corRest/CorRestState.h"                      // corRest
@@ -37,6 +38,8 @@
 #include "corNgsild/ldEntityToApi.h"                  // ldEntityToApi
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
 #include "corNgsild/ldRender.h"                       // ldAttrValueNode
+#include "corNgsild/ldLangReduce.h"                   // ldLangReduce
+#include "corJsonld/corLdCompactTree.h"               // corLdCompactTreeWith
 #include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchType
 #include "corNgsild/ldTermId.h"                          // ldNodeRename
 
@@ -154,6 +157,14 @@ bool getEntityAttrValue(void)
   ldStripSysAttrs(wrap);
 
   //
+  // § 10.4.4.3 lists the language filter (§ 7.2.7) among this operation's input: with ?lang a LanguageProperty
+  // becomes a Property whose value is the string in that language - so its value-only form is that string, not
+  // the languageMap. Same reduction, and at the same point, as GET .../attrs/{attrId}.
+  //
+  if (corNgsild.lang != NULL)
+    ldLangReduce(wrap, corNgsild.lang, &corRest.kalloc);
+
+  //
   // wrap is now { attrName: {type, <valueMember>, ...} } — or, for a
   // multi-instance attribute, { attrName: [ {...}, {...} ] }. value-only returns
   // the instance the datasetId filter above kept (the default one, unless asked otherwise); pick the
@@ -178,6 +189,15 @@ bool getEntityAttrValue(void)
   //
   ldNodeRename(valueP, NULL);
   valueP->next = NULL;
+
+  //
+  // A JSON object value has its member names stored expanded, like any name of the entity. The render hook,
+  // which compacts every other response, never sees this one (the body is rendered here, raw: a value-only
+  // fragment has no place for an @context), so the value is compacted here, with the @context the request
+  // named - the one its attribute name was expanded with, above.
+  //
+  if ((valueP->type == CorObject) || (valueP->type == CorArray))
+    corLdCompactTreeWith(valueP, ctxP, &corRest.kalloc);
   int   len = corJsonFastRenderSize(valueP) + 1;
   char* buf = (char*) corAlloc(&corRest.kalloc, len);
   if (buf == NULL)
@@ -186,6 +206,29 @@ bool getEntityAttrValue(void)
     return true;
   }
   corJsonFastRender(valueP, buf);
+
+  //
+  // TS 104-175 § 5.4.2: "An @context cannot be embedded within the Attribute fragment when using the value only
+  // representation, therefore in this case, whenever an @context is required, it shall be supplied through the use
+  // of a Link header" - whatever the Accept. The render hook writes that header for the responses it renders; this
+  // one it does not render.
+  //
+  if ((ctxP != NULL) && (ctxP->url != NULL))
+  {
+    static const char suffix[] = ">; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"";
+    int               linkLen  = 1 + strlen(ctxP->url) + (sizeof(suffix) - 1) + 1;
+    char*             linkBuf  = (char*) corAlloc(&corRest.kalloc, linkLen);
+
+    if (linkBuf != NULL)
+    {
+      snprintf(linkBuf, linkLen, "<%s%s", ctxP->url, suffix);
+
+      int ix = corRest.out.headerCount;
+      corRest.out.headerV[ix].key   = (char*) "Link";
+      corRest.out.headerV[ix].value = linkBuf;
+      corRest.out.headerCount       = ix + 1;
+    }
+  }
 
   corRest.out.payload        = buf;
   corRest.out.payloadSize    = strlen(buf);

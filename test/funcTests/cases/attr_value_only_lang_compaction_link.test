@@ -1,0 +1,157 @@
+#
+# FILE            attr_value_only_lang_compaction_link.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /entities/{id}/attrs/{attrId}/value - the value only Attribute fragment (TS 104-175 § 5.4.2, § 10.4.4):
+#   - a JSON object value, and an object inside an array value, come back with their member names compacted,
+#     as in GET .../attrs/{attrId} - they were the expanded IRIs (ngsi-ld default-context/streetAddress)
+#   - ?lang (§ 7.2.7, an input of § 10.4.4.3) makes a LanguageProperty a Property: its value only form is the
+#     string in that language - it was the whole languageMap; a language the attribute does not have gives
+#     another one, as § 7.2.7 says; no ?lang, the languageMap
+#   - the @context is in a Link header (§ 5.4.2: it cannot be embedded in a value only fragment) - there was none
+# Found by the ETSI test suite's 062_02 (feat/retrieve-attribute-value, !333).
+#
+--NAME--
+GET .../attrs/{attrId}/value - an object value compacted, ?lang applied, the @context in a Link header
+
+--TAGS--
+entity retrieve attribute
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create urn:B1 - an object value, an array value holding an object, a LanguageProperty"
+echo "=========================================================================================="
+payload='{
+  "id": "urn:B1",
+  "type": "Building",
+  "address":  { "type": "Property", "value": { "streetAddress": "Champ de Mars", "nested": { "addressLocality": "Paris" } } },
+  "category": { "type": "Property", "value": [ "monument", { "kind": "tower" } ] },
+  "street":   { "type": "LanguageProperty", "languageMap": { "fr": "Grand Place", "nl": "Grote Markt" } }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. GET .../attrs/address/value - the object, its member names compacted; the @context in a Link header"
+echo "========================================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/address/value
+echo
+echo
+
+
+echo "03. GET .../attrs/category/value - the array, the object inside it compacted"
+echo "============================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/category/value
+echo
+echo
+
+
+echo "04. GET .../attrs/street/value?lang=fr - the French string"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:B1/attrs/street/value?lang=fr'
+echo
+echo
+
+
+echo "05. GET .../attrs/street/value?lang=de - no German: another language (§ 7.2.7)"
+echo "==============================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:B1/attrs/street/value?lang=de'
+echo
+echo
+
+
+echo "06. GET .../attrs/street/value - no ?lang: the languageMap"
+echo "=========================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/street/value
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:B1 - an object value, an array value holding an object, a LanguageProperty
+==========================================================================================
+HTTP/1.1 201 Created
+
+
+02. GET .../attrs/address/value - the object, its member names compacted; the @context in a Link header
+========================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 70
+
+{
+  "nested": {
+    "addressLocality": "Paris"
+  },
+  "streetAddress": "Champ de Mars"
+}
+
+
+
+03. GET .../attrs/category/value - the array, the object inside it compacted
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 29
+
+[
+  "monument",
+  {
+    "kind": "tower"
+  }
+]
+
+
+
+04. GET .../attrs/street/value?lang=fr - the French string
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 13
+
+"Grand Place"
+
+
+05. GET .../attrs/street/value?lang=de - no German: another language (§ 7.2.7)
+===============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 13
+
+"Grand Place"
+
+
+06. GET .../attrs/street/value - no ?lang: the languageMap
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+{
+  "fr": "Grand Place",
+  "nl": "Grote Markt"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
