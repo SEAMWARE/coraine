@@ -35,12 +35,12 @@ cor libraries moved to the GitHub organisation SEAMWARE-cor.
   start or the last `DELETE /admin/probes`, and its last value; `GET /admin/probes/{name}` one of them.
   The first probe: `timescale.entitySelector` - `candidates` when a temporal query's `q` has a term an index serves.
   `COR_FEATURE_PROBES` (on): 2,237 bytes.
-- `COR_OPTIMIZE=speed|size` (`coraine-build --optimize`): a build whose defaults spend RAM rather than
-  throughput, for small hardware at low request rates - a worker per CPU whatever the store, and one
-  malloc arena for the process. With mongoc on 4 CPUs the broker holds 25 MB after 100 000 entities
-  created in batches of 1000, where the default build holds 197 MB. `speed` stays the default;
-  `coraine --version` and `GET /build` say which a binary is.
-  ([COR_OPTIMIZE](doc/building-details.md#cor_optimize))
+- `COR_OPTIMIZE=speed|size` (`coraine-build --optimize`): a build that saves RAM at a cost in
+  throughput, for small hardware at low request rates - one malloc arena for the process instead of glibc's
+  one per thread; the worker pool is the same. With mongoc on 4 cores the broker holds 27 MB after 100 000
+  entities created in batches of 1000, where the default build holds 198 MB. It costs 0-3 % of the requests
+  with mongoc, and with corDB up to 17 % of the creates. `speed` stays the default; `coraine --version` and
+  `GET /build` say which a binary is. ([COR_OPTIMIZE](doc/building-details.md#cor_optimize))
 
 ### Faster
 
@@ -72,7 +72,6 @@ cor libraries moved to the GitHub organisation SEAMWARE-cor.
   campaign of the tag's tree - with none, it stops before publishing anything. c³'s tag must be the
   commit in the record. 0.6.0 was one commit newer in the NGSI-LD library than its campaign.
   ([The pre-release campaign](doc/testing.md#the-pre-release-campaign))
-- A `COR_OPTIMIZE=size` build keeps the worker pool of a speed build (32 with mongoc) and changes only the malloc arena: with mongoc on 4 CPUs a worker per CPU saved another 1.5 MB after 100 000 entities and cost 34-46 % of the requests at 50 connections; one arena alone costs 0-3 % with mongoc, and with corDB up to 17 % of the creates (doc/building-details.md#cor_optimize)
 - A HEAD request on the NGSI-LD API answers `204 No Content` when the GET would succeed, as TS 104-176 § 5
   requires ("The response code 204 No Content shall be used on success"). The GET's headers stay (`Link`,
   `NGSILD-Results-Count`, `Location`), and a 204 has no `Content-Length`. An error keeps the GET's status, with
