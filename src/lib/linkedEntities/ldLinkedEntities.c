@@ -43,6 +43,46 @@
 #include "linkedEntities/ldLinkedEntities.h"          // Own interface
 
 
+// -----------------------------------------------------------------------------
+//
+// isRelationshipType - a Relationship or a ListRelationship: both link to entities
+//
+static bool isRelationshipType(const char* type)
+{
+  return (strcmp(type, "Relationship") == 0) || (strcmp(type, "ListRelationship") == 0);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// targetsNode - the API-format member that holds the target URIs: a Relationship's object, a ListRelationship's
+//               objectList
+//
+static CorNode* targetsNode(CorNode* instP, const char* type)
+{
+  return corTreeLookup(instP, (type[0] == 'L') ? "objectList" : "object");
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// itemUriString - a target URI: a string, or an objectList item {"object": <URI>}; NULL for anything else
+//
+static const char* itemUriString(CorNode* itemP)
+{
+  if (itemP->type == CorString)
+    return itemP->value.s;
+
+  if ((itemP->type == CorObject) && (itemP->value.head != NULL) && (itemP->value.head->next == NULL) &&
+      (itemP->value.head->type == CorString) && (ldTermId(itemP->value.head) == CorTermObject))
+    return itemP->value.head->value.s;
+
+  return NULL;
+}
+
+
 
 // -----------------------------------------------------------------------------
 //
@@ -388,7 +428,7 @@ static void flatBfs(CorNode*        outArr,
 
           CorNode* typeP = corTreeLookup(instP, "type");
           if (typeP == NULL || typeP->type != CorString)              continue;
-          if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
+          if (!isRelationshipType(typeP->value.s))                   continue;
 
           CorNode* valP = corTreeLookup(instP, "value");
           if (valP == NULL)
@@ -628,12 +668,15 @@ static void inlineWalk(CorNode*      entityP,
 
       CorNode* typeP = corTreeLookup(instP, "type");
       if (typeP == NULL || typeP->type != CorString)              continue;
-      if (strcmp(typeP->value.s, "Relationship") != 0)            continue;
+      if (!isRelationshipType(typeP->value.s))                   continue;
 
       CorNode* valP = corTreeLookup(instP, "value");
       if (valP == NULL)                                           continue;
 
-      if (valP->type == CorString)
+      bool        isList   = (typeP->value.s[0] == 'L');      // ListRelationship: entityList, an array always (§ 5.2.6.4.9)
+      const char* listName = isList ? "entityList" : "entity";
+
+      if ((valP->type == CorString) && !isList)
       {
         // Single-valued object → one `entity` sub-attribute (§ C.2.2.1.2).
         CorNode* targetP = inlineFetchTarget(valP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
@@ -643,12 +686,15 @@ static void inlineWalk(CorNode*      entityP,
           corTreeChildAdd(instP, targetP);
         }
       }
-      else if (valP->type == CorArray)
+      else if ((valP->type == CorArray) || isList)
       {
         // Multivalued object → `entity` is an ARRAY holding one inlined linked
-        // entity per followable target URI, in object order (§ C.2.2.1.2).
-        CorNode* entityArr = corTreeArray(corRest.kallocP, "entity");
-        for (CorNode* oP = valP->value.head; oP != NULL; oP = oP->next)
+        // entity per followable target URI, in object order (§ C.2.2.1.2);
+        // a ListRelationship's objectList → `entityList`, in list order.
+        CorNode* entityArr = corTreeArray(corRest.kallocP, listName);
+        CorNode* oP        = (valP->type == CorArray) ? valP->value.head : valP;
+        CorNode* lastP     = (valP->type == CorArray) ? NULL : valP->next;
+        for (; oP != lastP; oP = oP->next)
         {
           if (oP->type != CorString)                              continue;
           CorNode* targetP = inlineFetchTarget(oP->value.s, instP, remaining, visitedPP, tenantP, subPick, subOmit);
@@ -750,9 +796,9 @@ static void collectRelationshipTargetsApi(CorNode* entityP, const char*** outIds
     {
       CorNode* typeP = corTreeLookup(instances[i], "type");
       if (typeP == NULL || typeP->type != CorString)                continue;
-      if (strcmp(typeP->value.s, "Relationship") != 0)              continue;
+      if (!isRelationshipType(typeP->value.s))                     continue;
 
-      CorNode* objP = corTreeLookup(instances[i], "object");
+      CorNode* objP = targetsNode(instances[i], typeP->value.s);
       if (objP == NULL)                                             continue;
 
       if (objP->type == CorString)
@@ -760,8 +806,11 @@ static void collectRelationshipTargetsApi(CorNode* entityP, const char*** outIds
       else if (objP->type == CorArray)
       {
         for (CorNode* oP = objP->value.head; oP != NULL; oP = oP->next)
-          if (oP->type == CorString)
-            idsAppend(outIdsP, outCountP, outCapP, oP->value.s);
+        {
+          const char* uri = itemUriString(oP);
+          if (uri != NULL)
+            idsAppend(outIdsP, outCountP, outCapP, uri);
+        }
       }
     }
   }
@@ -912,12 +961,15 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
     {
       CorNode* typeP = corTreeLookup(instances[i], "type");
       if (typeP == NULL || typeP->type != CorString) continue;
-      if (strcmp(typeP->value.s, "Relationship") != 0) continue;
+      if (!isRelationshipType(typeP->value.s)) continue;
 
-      CorNode* objP = corTreeLookup(instances[i], "object");
+      CorNode* objP = targetsNode(instances[i], typeP->value.s);
       if (objP == NULL)                                             continue;
 
-      if (objP->type == CorString)
+      bool        isList   = (typeP->value.s[0] == 'L');      // ListRelationship: entityList (§ 5.2.6.4.9)
+      const char* listName = isList ? "entityList" : "entity";
+
+      if ((objP->type == CorString) && !isList)
       {
         // Single-valued object → one `entity` sub-attribute (§ C.2.2.1.2).
         CorNode* targetEntityP = notifFetchTarget(objP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
@@ -929,12 +981,14 @@ static void notifInlineWalk(CorNode* primaryP, int joinLevel, bool sysAttrs, Vis
       }
       else if (objP->type == CorArray)
       {
-        // Multivalued object → `entity` is an ARRAY of inlined linked entities.
-        CorNode* entityArr = corTreeArray(corRest.kallocP, "entity");
+        // Multivalued object → `entity` is an ARRAY of inlined linked entities;
+        // a ListRelationship's objectList → `entityList`.
+        CorNode* entityArr = corTreeArray(corRest.kallocP, listName);
         for (CorNode* oP = objP->value.head; oP != NULL; oP = oP->next)
         {
-          if (oP->type != CorString)                                continue;
-          CorNode* targetEntityP = notifFetchTarget(oP->value.s, joinLevel, sysAttrs, visitedPP, tenantP);
+          const char* uri = itemUriString(oP);
+          if (uri == NULL)                                          continue;
+          CorNode* targetEntityP = notifFetchTarget(uri, joinLevel, sysAttrs, visitedPP, tenantP);
           if (targetEntityP != NULL)
           {
             ldNodeRename(targetEntityP, NULL);

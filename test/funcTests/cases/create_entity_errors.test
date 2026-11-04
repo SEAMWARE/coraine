@@ -2041,10 +2041,10 @@ Content-Length: 172
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 177
+Content-Length: 193
 
 {
-  "detail": "'objectList' items must be URI strings",
+  "detail": "'objectList' items must be URIs or {\"object\": <URI>}",
   "status": 400,
   "title": "Invalid ListRelationship",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"

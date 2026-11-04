@@ -30,6 +30,7 @@
 
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
 #include "corNgsild/ldEntityToApi.h"                  // ldEntityToApi
+#include "corNgsild/ldObjectList.h"                   // ldObjectListWrap
 #include "corNgsild/ldStripSysAttrs.h"                // ldStripSysAttrs
 #include "corNgsild/ldLangReduce.h"                   // ldLangReduce
 #include "corNgsild/ldRender.h"                       // ldToConcise, ldToSimplified
@@ -170,6 +171,8 @@ bool getEntityAttr(void)
     ldToConcise(wrap, &corRest.kalloc);
   else if (corNgsild.format == LdFormatSimplified)
     ldToSimplified(wrap, &corRest.kalloc);
+  else
+    ldObjectListWrap(wrap, corRest.kallocP);   // § 5.2.6.4.9: normalized objectList items are {"object": <URI>}
 
   CorNode* unwrapped = wrap->value.head;
   if (unwrapped == NULL)
