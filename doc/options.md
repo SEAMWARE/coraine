@@ -27,7 +27,7 @@ options, and its options are also documented with the plugin.
 ## The broker
 
 - [The program](#the-program) - 11
-- [Listening](#listening) - 12
+- [Listening](#listening) - 15
 - [Limits and memory](#limits-and-memory) - 7
 - [Built-in HTTP server (corHttp)](#built-in-http-server-corhttp) - 1
 - [libmicrohttpd HTTP server (the default build)](#libmicrohttpd-http-server-the-default-build) - 1
@@ -286,9 +286,49 @@ is the port NGSI-LD brokers use by convention. A port another process holds stop
 
     coraine -db corDB -p 1027
 
+### `--https`
+
+`-https` · `CORAINE_HTTPS` · Bool · default: `false`
+· values: `true`, `false` · plugin: core (the libmicrohttpd HTTP server)
+
+The NGSI-LD API over HTTPS (TLS) instead of HTTP, on the same `--port` - the whole port, the API
+plugins' paths (`/admin/...`) and `/version` with it. The server's
+private key and certificate are `--key` and `--cert`, both required; they are read at start, and a file
+that cannot be read, or holds no PEM block, stops the start with exit code 1 - as `--https` without them
+does, and `--key` or `--cert` without `--https`. Plain HTTP on the port gets no answer.
+
+The default of `--httpEndpoint` then begins with `https://`, so the URLs the broker hands out - its hosted
+`@context` documents, the `Link` header of a forwarded request, the notification endpoint of a distributed
+subscription - name the scheme it serves.
+
+libmicrohttpd does the TLS (GnuTLS): a build with the built-in HTTP server (`coraine -V` says
+`httpServer: builtin`) has none, and refuses `--https` at start. The other ports - cor://, the health
+probes, the policy API, a bridge's own port - stay as they are.
+
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 365 \
+            -keyout key.pem -out cert.pem -subj /CN=broker.example.com
+    coraine -db corDB --https --key key.pem --cert cert.pem
+    curl --cacert cert.pem https://broker.example.com:1026/ngsi-ld/v1/types
+
+### `--key`
+
+`-key` · `CORAINE_KEY` · String · default: none
+· values: a file, the private key in PEM · plugin: core (the libmicrohttpd HTTP server)
+
+The HTTPS server's private key (`--https`), a PEM file - RSA or EC, not encrypted with a passphrase. It
+is read once, at start; the broker keeps it in memory.
+
+### `--cert`
+
+`-cert` · `CORAINE_CERT` · String · default: none
+· values: a file, the certificate in PEM · plugin: core (the libmicrohttpd HTTP server)
+
+The HTTPS server's certificate (`--https`), a PEM file, matching `--key`. A certificate a CA issued goes
+with its chain: the server's certificate first, then the intermediates, in the one file.
+
 ### `--httpEndpoint`
 
-`-he` · `CORAINE_HTTPENDPOINT` · String · default: `http://<the LAN address found>:<port>`, else `http://localhost:<port>`
+`-he` · `CORAINE_HTTPENDPOINT` · String · default: `http://<the LAN address found>:<port>`, else `http://localhost:<port>` - `https://` with `--https`
 · values: a base URL, `http://broker.example.com:1026` · plugin: core
 
 The base URL other hosts reach this broker at. It is not checked or parsed: it is written, as it is,

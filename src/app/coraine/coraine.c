@@ -244,6 +244,9 @@ bool           distributed     = false;     // --distributed: opt-in distributed
 bool           highPrecision   = false;     // --high-precision/-hp: 9-digit (ns) timestamps vs default 6 (µs, §5.2.2.4)
 bool           asyncSnapshot   = false;
 bool           insecureNotif   = false;     // accept self-signed certs on TLS notifications/forwards
+bool           https           = false;     // --https: the API over TLS - libmicrohttpd's, with --key and --cert
+char*          httpsKey        = NULL;      // --key: the server's private key, a PEM file
+char*          httpsCert       = NULL;      // --cert: the server's certificate (chain), a PEM file
 bool           noInline        = false;     // hand every request to a worker (see inlineDispatch.h)
 int            memoryLimit     = 0;         // MiB; 0: 85% of the cgroup limit, if there is one (see memoryBudget.h)
 #if COR_FEATURE_POLICY_API
@@ -295,11 +298,14 @@ static CorArg kargV[] =
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build" },
   { "--httpConnectionMemory", "-hcm",       CorArgInt,    _vp &httpConnectionMemory, CorArgOpt, _vp 12, _vp 4, _vp 1024, "kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
+  { "--https",              "-https",       CorArgBool,   _vp &https,        CorArgOpt, _vp false, _vp false, _vp true, "serve the NGSI-LD API over HTTPS (TLS), with --key and --cert - a libmicrohttpd build only (httpServer: mhd)" },
+  { "--key",                "-key",         CorArgString, _vp &httpsKey,     CorArgOpt, _vp NULL,  NULL,  NULL,      "--https: the server's private key, a PEM file" },
+  { "--cert",               "-cert",        CorArgString, _vp &httpsCert,    CorArgOpt, _vp NULL,  NULL,  NULL,      "--https: the server's certificate, a PEM file - the chain, the server's first, when a CA issued it" },
   { "--corsOrigin",         "-corsOrigin",  CorArgString, _vp &corsOrigin,   CorArgOpt, _vp NULL,  NULL,  NULL,      "enable CORS with allowed origin ('__ALL' for any)" },
   { "--corsMaxAge",         "-corsMaxAge",  CorArgInt,    _vp &corsMaxAge,   CorArgOpt, _vp 86400, _vp 0, _vp 864000, "preflight cache max age in seconds" },
   { "--defaultUserContext", "-duc",         CorArgString, _vp &defaultUserContext, CorArgOpt, _vp NULL, NULL,  NULL,      "default user @context: a URL, or a file (hosted, as /ngsi-ld/v1/jsonldContexts/defaultUserContext)" },
   { "--csourceAlias",       "-csourceAlias",CorArgString, _vp &csourceAlias, CorArgOpt, _vp NULL,  NULL,  NULL,      "contextSourceAlias base for Via headers (default: the advertised endpoint authority)" },
-  { "--httpEndpoint",       "-he",          CorArgString, _vp &httpEndpoint, CorArgOpt, _vp NULL,  NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port>)" },
+  { "--httpEndpoint",       "-he",          CorArgString, _vp &httpEndpoint, CorArgOpt, _vp NULL,  NULL,  NULL,      "externally-reachable HTTP base URL (default: auto-detected LAN IP, else http://localhost:<port> - https:// with --https)" },
   { "--contextSourceExtras","-csx",         CorArgString, _vp &contextSourceExtras, CorArgOpt, _vp NULL, NULL, NULL,  "a JSON file rendered verbatim as contextSourceExtras on /info/sourceIdentity (§ 5.2.40); default $SEAMWARE_ETC_DIR/contextSourceExtras.json - missing, nothing is rendered" },
   { "--distributed",        "-dist",        CorArgBool,   _vp &distributed, CorArgOpt, _vp false, _vp false, _vp true, "enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way" },
   { "--noSplitEntities",    "-noSplitEntities",CorArgBool, _vp &noSplitEntities,CorArgOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
@@ -1629,6 +1635,49 @@ static void contextSourceExtrasLoad(const char* cliPath)
 
 // -----------------------------------------------------------------------------
 //
+// pemFileRead - the whole of a PEM file (--key, --cert), for libmicrohttpd's in-memory TLS credentials
+//
+// The text stays allocated for the broker's life: libmicrohttpd keeps the pointers it is given. A file that
+// cannot be read, is empty or larger than 1 MiB, or has no PEM block in it stops the start - a broker asked
+// for HTTPS does not start without it.
+//
+static char* pemFileRead(const char* option, const char* path)
+{
+  FILE* fp = fopen(path, "r");
+  if (fp == NULL)
+    COR_X(1, "%s: cannot open '%s': %s", option, path, strerror(errno));
+
+  fseek(fp, 0, SEEK_END);
+  long fsz = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  if ((fsz <= 0) || (fsz > 1024 * 1024))
+  {
+    fclose(fp);
+    COR_X(1, "%s: '%s' is empty or too large (max 1 MiB)", option, path);
+  }
+
+  char* pem = (char*) malloc(fsz + 1);
+  if (pem == NULL)
+    COR_X(1, "%s: out of memory reading '%s'", option, path);
+
+  if (fread(pem, 1, fsz, fp) != (size_t) fsz)
+  {
+    fclose(fp);
+    COR_X(1, "%s: cannot read '%s'", option, path);
+  }
+  fclose(fp);
+  pem[fsz] = 0;
+
+  if (strstr(pem, "-----BEGIN ") == NULL)
+    COR_X(1, "%s: '%s' is not a PEM file (no -----BEGIN line)", option, path);
+
+  return pem;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // httpEndpointDetect - discover the LAN address peers can actually use to reach us
 //
 // The forwarded Link header, distributed-subscription callbacks, and served
@@ -1719,7 +1768,7 @@ static bool httpEndpointDetect(char* endpoint, size_t endpointLen, unsigned shor
   if (bestIp[0] == 0)
     return false;
 
-  snprintf(endpoint, endpointLen, "http://%s:%u", bestIp, (unsigned) port);
+  snprintf(endpoint, endpointLen, "%s://%s:%u", https ? "https" : "http", bestIp, (unsigned) port);
   return true;
 }
 
@@ -1826,6 +1875,26 @@ int main(int argC, char* argV[])
     exit(1);
   }
 
+  //
+  // HTTPS: --key and --cert go with --https, and --https with a server that has TLS. The credentials are read
+  // now, before anything else is started - a broker asked for HTTPS stops here rather than serve in the clear
+  // or fail later; corRestStart hands them to libmicrohttpd (MHD_USE_TLS).
+  //
+  if (https)
+  {
+    if ((httpsKey == NULL) || (httpsCert == NULL))
+      COR_X(1, "--https needs --key (the server's private key) and --cert (its certificate), PEM files");
+    if (strcmp(CORAINE_HTTP_SERVER, "mhd") != 0)
+      COR_X(1, "--https: this broker is built with the %s HTTP server, which has no TLS - a libmicrohttpd build has (cmake -DCOR_HTTP_SERVER=mhd, httpServer: mhd)", CORAINE_HTTP_SERVER);
+
+    char* keyPem  = pemFileRead("--key",  httpsKey);
+    char* certPem = pemFileRead("--cert", httpsCert);
+
+    corRestHttpsServerCredentialsSet(keyPem, certPem);
+  }
+  else if ((httpsKey != NULL) || (httpsCert != NULL))
+    COR_X(1, "--key and --cert are the HTTPS server's - they need --https");
+
   ldNotifyValueChangeOnly = notifyValueChangeOnly;
   ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
   ldDistributed         = distributed;      // default: false — every entity operation stays local until asked otherwise
@@ -1853,7 +1922,7 @@ int main(int argC, char* argV[])
       endpointSource = "auto-detected LAN IP";
     else
     {
-      snprintf(defaultEndpoint, sizeof(defaultEndpoint), "http://localhost:%u", (unsigned) port);
+      snprintf(defaultEndpoint, sizeof(defaultEndpoint), "%s://localhost:%u", https ? "https" : "http", (unsigned) port);
       endpointSource = "fallback (no LAN interface found)";
     }
     ldBrokerHttpEndpoint = defaultEndpoint;
@@ -2411,7 +2480,7 @@ int main(int argC, char* argV[])
   if (corRestStart((unsigned short) port, poolSize) != 0)
     COR_X(1, "corRestStart failed on port %u", port);
 
-  COR_I("coraine running on port %u", port);
+  COR_I("coraine running on port %u%s", port, https ? " (HTTPS)" : "");
 
 #if COR_FEATURE_POLICY_API
   if ((policyApiPort != 0) && (policyApiStart(policyApiHost, policyApiPort) == false))

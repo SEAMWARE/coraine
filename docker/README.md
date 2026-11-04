@@ -76,6 +76,14 @@ installation's directories: **`SEAMWARE_PLUGIN_DIR`**, where plugins are loaded 
 
 The port is not fixed in the image: pass `--port` and publish what you chose.
 
+HTTPS: mount the key and the certificate and pass `--https --key <file> --cert <file>`
+([HTTPS](../doc/installation.md#https)):
+
+```sh
+docker run --rm -p 1026:1026 -v /etc/coraine/tls:/tls:ro coraine:local \
+       --database corDB --https --key /tls/key.pem --cert /tls/cert.pem
+```
+
 ## Tags
 
 Published images are `quay.io/seamware/coraine:<version>-<date>-<sha>` - one

@@ -1,0 +1,127 @@
+#
+# FILE            https_server.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# --https --key --cert: the NGSI-LD API over TLS, on its --port - libmicrohttpd's TLS, with the key and the
+# certificate read from PEM files at start. A client that trusts the certificate is served; plain HTTP on
+# the port, and a client that does not trust the certificate, get no answer. Started wrong, the broker does
+# not start: --https without --key/--cert, --key/--cert without --https, a file it cannot read, a file
+# with no PEM block - each said, exit code 1.
+#
+# REQUIRE_HTTPSERVER: mhd
+#
+--NAME--
+HTTPS: the API over TLS with --key and --cert; started wrong, the broker says so and stops
+
+--TAGS--
+https tls options
+
+--INIT--
+corDbDrop
+corHttpsCertGen /tmp/coraineHttps.key /tmp/coraineHttps.pem
+coraineStart --https --key /tmp/coraineHttps.key --cert /tmp/coraineHttps.pem
+
+--RUN--
+
+#
+# 01. Create an entity over HTTPS - 201
+# 02. Read it over HTTPS
+# 03. Plain HTTP on the TLS port - no answer
+# 04. A client that does not trust the certificate - no answer (curl: 60, the peer's certificate)
+# 05. Started wrong - the broker says so and stops, exit code 1
+#
+
+https="https://localhost:$COR_PORT"
+ca="--cacert /tmp/coraineHttps.pem"
+
+echo "01. Create an entity over HTTPS - 201"
+echo "====================================="
+curl -s $ca -o /dev/null -w '%{http_code}\n' -X POST "$https/ngsi-ld/v1/entities" -H 'Content-Type: application/json' \
+     -d '{"id": "urn:ngsi-ld:T:E1", "type": "T", "p": {"type": "Property", "value": 1}}'
+echo
+echo
+
+
+echo "02. Read it over HTTPS"
+echo "======================"
+curl -s $ca "$https/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1"
+echo
+echo
+
+
+echo "03. Plain HTTP on the TLS port - no answer"
+echo "=========================================="
+curl -s -m 5 -o /dev/null -w '%{http_code}\n' "http://localhost:$COR_PORT/ngsi-ld/v1/types"
+echo
+
+
+echo "04. A client that does not trust the certificate - no answer (curl: 60, the peer's certificate)"
+echo "==============================================================================================="
+curl -s -m 5 -o /dev/null "$https/ngsi-ld/v1/types"
+echo "curl: $?"
+echo
+echo
+
+
+echo "05. Started wrong - the broker says so (its X: line) and stops, exit code 1"
+echo "========================================================================="
+echo "not a key" > /tmp/coraineHttps.bad
+wrong() {
+  $COR_BROKER --port $((COR_PORT + 7)) --database ramDB "$@" 2>&1 | grep -o "^X: .*"
+  echo "exit: ${PIPESTATUS[0]}"
+}
+wrong --https
+wrong --https --key /tmp/coraineHttps.key
+wrong --key /tmp/coraineHttps.key --cert /tmp/coraineHttps.pem
+wrong --https --key /tmp/coraineHttps.none --cert /tmp/coraineHttps.pem
+wrong --https --key /tmp/coraineHttps.bad --cert /tmp/coraineHttps.pem
+echo
+
+
+--EXPECT--
+01. Create an entity over HTTPS - 201
+=====================================
+201
+
+
+02. Read it over HTTPS
+======================
+{
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T",
+  "p": {
+    "type": "Property",
+    "value": 1
+  }
+}
+
+
+03. Plain HTTP on the TLS port - no answer
+==========================================
+000
+
+04. A client that does not trust the certificate - no answer (curl: 60, the peer's certificate)
+===============================================================================================
+curl: 60
+
+
+05. Started wrong - the broker says so (its X: line) and stops, exit code 1
+=========================================================================
+X: --https needs --key (the server's private key) and --cert (its certificate), PEM files
+exit: 1
+X: --https needs --key (the server's private key) and --cert (its certificate), PEM files
+exit: 1
+X: --key and --cert are the HTTPS server's - they need --https
+exit: 1
+X: --key: cannot open '/tmp/coraineHttps.none': No such file or directory
+exit: 1
+X: --key: '/tmp/coraineHttps.bad' is not a PEM file (no -----BEGIN line)
+exit: 1
+
+--TEARDOWN--
+coraineStop
+\rm -f /tmp/coraineHttps.key /tmp/coraineHttps.pem /tmp/coraineHttps.bad
