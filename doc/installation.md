@@ -398,6 +398,85 @@ TimeoutStopSec=120
 A `Type=simple` unit can keep the log in a file as well, without `--daemon`: `--logTo file`
 (or `both`, for the journal too).
 
+## HTTPS
+
+`--https` serves the NGSI-LD API over TLS instead of plain HTTP, on the same `--port`. The server's
+private key and certificate are PEM files, `--key` and `--cert`:
+
+| Option | Environment variable | Default | Values |
+|--------|----------------------|---------|--------|
+| `--https` / `-https` | `CORAINE_HTTPS` | off | serve HTTPS on `--port` |
+| `--key` / `-key` | `CORAINE_KEY` | - | the private key, a PEM file - RSA or EC, not encrypted with a passphrase |
+| `--cert` / `-cert` | `CORAINE_CERT` | - | the certificate, a PEM file; from a CA: the server's certificate first, then the intermediates |
+
+- **The whole port.** Every path on `--port` is served over TLS - the NGSI-LD API, `/version`, the API
+  plugins' (`/admin/...`). Plain HTTP on the port gets no answer: the connection is closed.
+- **The other ports stay as they are:** cor://, the health port (`--healthPort` - the probes stay plain
+  `httpGet`), the policy API, a bridge's own port.
+- **Read at start, kept in memory.** A changed certificate takes a restart.
+- **The URLs the broker hands out** - its hosted `@context` documents, the `Link` header of a forwarded
+  request, the notification endpoint of a distributed subscription - come from `--httpEndpoint`, whose
+  default then begins with `https://`. Given explicitly, `--httpEndpoint` is used as it is: give it the
+  `https://` URL the clients reach (the name the certificate is issued for).
+- **libmicrohttpd does the TLS** (GnuTLS). The .deb package and the Docker image are libmicrohttpd builds.
+  A build with the built-in HTTP server (`coraine -V`: `httpServer: builtin`) has no TLS and refuses
+  `--https`.
+- **Behind a proxy** (an ingress, APISIX) that ends TLS itself, the broker stays on HTTP - `--https` is for
+  a broker clients reach directly.
+
+### The combinations
+
+| | no `--key` / `--cert` | `--key` and `--cert` | only one of them |
+|---|---|---|---|
+| no `--https` (the default) | plain HTTP | **refused** | **refused** |
+| `--https` | **refused** | HTTPS | **refused** |
+
+A refused combination, a file that cannot be read, is empty or over 1 MiB, or has no PEM block, stops the
+broker before anything starts - exit code 1, one line on stderr:
+
+```text
+X: --https needs --key (the server's private key) and --cert (its certificate), PEM files
+X: --key and --cert are the HTTPS server's - they need --https
+X: --key: cannot open 'nosuch.pem': No such file or directory
+X: --key: 'notpem.txt' is not a PEM file (no -----BEGIN line)
+```
+
+### Examples
+
+```sh
+# A self-signed certificate for a test - for clients, one a CA issued for the broker's name
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 365 \
+        -keyout key.pem -out cert.pem -subj /CN=localhost -addext subjectAltName=DNS:localhost
+coraine --database corDB --https --key key.pem --cert cert.pem
+
+# A client that trusts the certificate
+curl --cacert cert.pem https://localhost:1026/ngsi-ld/v1/types                 # 200
+curl --cacert cert.pem https://localhost:1026/ngsi-ld/v1/entities \
+     -H 'Content-Type: application/json' -d '{"id": "urn:E:1", "type": "T"}'    # 201
+
+# Plain HTTP on the port: the connection is closed, no answer (curl: exit 52, "Empty reply from server")
+curl http://localhost:1026/version
+
+# A client that does not trust the certificate (curl: exit 60)
+curl https://localhost:1026/version
+```
+
+**Docker.** Mount the two files and name them:
+
+```sh
+docker run --rm -p 1026:1026 -v /etc/coraine/tls:/tls:ro coraine:local \
+       --database corDB --https --key /tls/key.pem --cert /tls/cert.pem
+```
+
+**systemd.** In the package's options file, `/etc/default/coraine` - the files readable by the user
+`coraine`:
+
+```sh
+CORAINE_HTTPS=true
+CORAINE_KEY=/etc/coraine/tls/key.pem
+CORAINE_CERT=/etc/coraine/tls/cert.pem
+```
+
 ## Configuration
 
 Every setting is a command-line option. **`coraine --usage`** (`-u`) prints the full
@@ -441,6 +520,9 @@ the ones most deployments set.
 | `--cooldownMillis` / `-cms` | 30000 | endpoint cooldown after a delivery failure |
 | `--notifyValueChangeOnly` / `-nvco` | off | suppress value-neutral update notifications |
 | `--insecureNotif` | off | accept self-signed certificates on TLS notifications |
+| `--https` / `-https` | off | serve the API over HTTPS (TLS) on `--port` - needs `--key` and `--cert`; see [HTTPS](#https) |
+| `--key` / `-key` | - | `--https`: the private key, a PEM file |
+| `--cert` / `-cert` | - | `--https`: the certificate (chain), a PEM file |
 | `--high-precision` / `-hp` | off | nanosecond timestamps instead of microsecond |
 | `--asyncSnapshot` | off | run snapshot queries in the background |
 | `--subStatsFlushInterval` / `-ssfi` | 60 | subscription-statistics flush interval (s) |
@@ -742,6 +824,9 @@ What they cost a write: [Performance](performance.md), "TimescaleDB: the write p
 | `--daemon` | `CORAINE_DAEMON` (`true` to turn it on) |
 | `--logTo` | `CORAINE_LOGTO` |
 | `--logDir` | `CORAINE_LOGDIR` |
+| `--https` | `CORAINE_HTTPS` (`true` to turn it on) |
+| `--key` | `CORAINE_KEY` |
+| `--cert` | `CORAINE_CERT` |
 | … | … |
 
 `coraine -U` (extended usage) prints the environment-variable name of every option
