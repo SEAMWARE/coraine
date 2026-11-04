@@ -1,0 +1,171 @@
+#
+# FILE            discovery_forward_auxiliary.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+# TS 104-175 § 4.3.6 / § 9: auxiliary distributed operations are limited to context information consumption
+# (§ 10.4). Discovery (§ 10.6) is not one of them, so an auxiliary Context Source is never forwarded a /types or
+# /attributes request - even with no `operations` (the default op set, federationOps, has the discovery ops).
+# What the registration DECLARES is still listed (the Context Registry, § 10.6.2): Sensor is in /types, while
+# temp and humidity, which only CP1 knows, are not in /attributes.
+#
+# The same registration as inclusive (step 06) is forwarded to: temp and humidity appear.
+#
+--NAME--
+Discovery is not forwarded to an auxiliary Context Source - only its declared types are listed
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -dist
+coraineStart -role CP1 -dist
+
+--TAGS--
+query discovery distop auxiliary
+
+--RUN--
+
+echo "01. Seed CP1: Sensor with temp + humidity; CB: Vehicle with speed"
+echo "=================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22},"humidity":{"type":"Property","value":60}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload \
+  '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50}}' | head -1
+echo
+echo
+
+
+echo "02. Register CB->CP1 auxiliary, entity type Sensor, no operations"
+echo "================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:AUX",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "auxiliary",
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}' | head -1
+echo
+echo
+
+
+echo "03. GET /types - Vehicle (local) and Sensor (declared by the registration)"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/types
+echo
+echo
+
+
+echo "04. GET /attributes - speed only: CP1 is not asked for temp and humidity"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+echo "05. GET /attributes/humidity - not found: not forwarded"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/attributes/humidity | head -1
+echo
+echo
+
+
+echo "06. The same registration, inclusive - now forwarded: temp and humidity"
+echo "======================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:AUX -X DELETE | head -1
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:CSR:INC",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:'$CP1_PORT'",
+  "mode": "inclusive",
+  "information": [{"entities": [{"type": "Sensor"}]}]
+}' | head -1
+corCurl --url /ngsi-ld/v1/attributes
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+
+--EXPECT--
+01. Seed CP1: Sensor with temp + humidity; CB: Vehicle with speed
+==================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Register CB->CP1 auxiliary, entity type Sensor, no operations
+=================================================================
+HTTP/1.1 201 Created
+
+
+03. GET /types - Vehicle (local) and Sensor (declared by the registration)
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 124
+
+{
+  "id": "urn:ngsi-ld:EntityTypeList:local",
+  "type": "EntityTypeList",
+  "typeList": [
+    "Vehicle",
+    "Sensor"
+  ]
+}
+
+
+
+04. GET /attributes - speed only: CP1 is not asked for temp and humidity
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+{
+  "attributeList": [
+    "speed"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
+05. GET /attributes/humidity - not found: not forwarded
+=======================================================
+HTTP/1.1 404 Not Found
+
+
+06. The same registration, inclusive - now forwarded: temp and humidity
+=======================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 139
+
+{
+  "attributeList": [
+    "speed",
+    "temp",
+    "humidity"
+  ],
+  "id": "urn:ngsi-ld:AttributeList:local",
+  "type": "AttributeList"
+}
+
+
+
