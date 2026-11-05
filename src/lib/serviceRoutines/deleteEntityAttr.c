@@ -37,7 +37,7 @@
 
 #include "corNgsild/ldSysTimestamp.h"                 // ldSysTimestampModify
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild
-#include "corNgsild/LdVocab.h"                        // LD_VOCAB_CREATED_AT, LD_VOCAB_MODIFIED_AT, LD_VOCAB_NGSILD_NULL
+#include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_NGSILD_NULL
 #include "corNgsild/LdSubCache.h"                     // LdSubCache
 #include "corNgsild/ldSubscriptionNotify.h"           // LdNotifyEntityUpdate
 #include "corNgsild/ldNotifyDefer.h"                  // ldNotifyDefer
@@ -126,7 +126,7 @@ static bool applyLocalDelete(CorNode* entityP, const char* attrIri)
   if (attrP == NULL)
     return false;
 
-  if (corNgsild.deleteAll)
+  if (corNgsild.deleteAll || strcmp(attrIri, LD_VOCAB_SCOPE) == 0)
   {
     corTreeChildRemove(entityP, attrP);
     return true;
@@ -170,9 +170,19 @@ bool deleteEntityAttr(void)
   if (attrIri == NULL) attrIri = attrWild;
 
   //
-  // id, type and scope are Entity members, not Attributes - refused (attrPathEntityMember.c).
+  // § 10.2.7.4: "If the target Attribute is scope, remove the scope Attribute
+  // from the target Entity." No error - scope is a legitimate delete target, also
+  // as a term of the request's @context for ngsi-ld:scope. Delete Attribute is the
+  // only .../attrs/{attrId} operation that takes it: the others refuse it
+  // (§ 10.2.5.4, § 10.2.6.4, § 10.2.11.4).
   //
-  if (attrPathEntityMember(attrWild, attrIri, "deleted") == true)
+  // id and type are not: mandatory Entity members, never Attributes - § 10.2.7.4's first bullet,
+  // "the target Attribute name is not a valid name" (attrPathEntityMember.c).
+  //
+  if ((strcmp(attrWild, LD_VOCAB_SCOPE) == 0) || (strcmp(attrIri, LD_VOCAB_SCOPE) == 0) ||
+      (strcmp(attrIri, "https://uri.etsi.org/ngsi-ld/scope") == 0))
+    attrIri = LD_VOCAB_SCOPE;
+  else if (attrPathEntityMember(attrWild, attrIri, "deleted") == true)
     return true;
 
   //
@@ -438,12 +448,14 @@ bool deleteEntityAttr(void)
               // them all at once, and a single anonymous marker would hide
               // which instances went away.
               //
-              // A snapshot that is not an object keeps the plain "@none" key.
+              // Scope is not a dataset-keyed wrapper, so it keeps the plain
+              // "@none" key, as does any snapshot that is not an object.
               CorNode* dsKeys = corTreeArray(corRest.kallocP, "datasetIds");
               if (!corNgsild.deleteAll)
                 corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL,
                                             (corNgsild.datasetId != NULL) ? corNgsild.datasetId : "@none"));
-              else if ((preSnapshot != NULL) && (preSnapshot->type == CorObject))
+              else if ((preSnapshot != NULL) && (preSnapshot->type == CorObject) &&
+                       (strcmp(attrIri, LD_VOCAB_SCOPE) != 0))
               {
                 for (CorNode* instP = preSnapshot->value.head; instP != NULL; instP = instP->next)
                   corTreeChildAdd(dsKeys, corTreeString(corRest.kallocP, NULL, instP->name));

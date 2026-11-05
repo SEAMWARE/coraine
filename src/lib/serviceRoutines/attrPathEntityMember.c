@@ -20,12 +20,12 @@
 // attrPathEntityMember -
 //
 // id, type and scope are Entity members (§ 5.2.4), not Attributes: .../attrs/{attrId} names none of them,
-// and Partial Attribute Update, Replace Attribute, Set Attribute Value and Delete Attribute refuse it -
-// BadRequestData. A term of the request's @context expanding to @id, @type or ngsi-ld:scope is the same.
+// and Partial Attribute Update, Replace Attribute and Set Attribute Value refuse it - BadRequestData
+// (§ 10.2.5.4, § 10.2.6.4, § 10.2.11.4 for scope). A term of the request's @context expanding to @id, @type
+// or ngsi-ld:scope is the same.
 //
-// scope is changed through the Entity (Merge Entity, Update Attributes, Replace Entity), never through
-// .../attrs/scope - Delete Attribute included, where § 10.2.7.4 has "If the target Attribute is scope,
-// remove the scope" - coraine refuses it too.
+// Delete Attribute refuses id and type only: § 10.2.7.4 has "If the target Attribute is scope, remove the
+// scope Attribute from the target Entity" - deleteEntityAttr takes scope before calling this.
 //
 bool attrPathEntityMember(const char* attrWild, const char* attrIri, const char* operation)
 {

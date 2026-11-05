@@ -20,7 +20,8 @@
 //
 // attrWild is the name as the URL path has it, attrIri as the request's @context expands it (an alias of
 // @id or @type, or a term for ngsi-ld:scope, in a user @context is caught there). 'operation' says what was refused - "modified",
-// "replaced", "deleted" - for the error's detail.
+// "replaced", "deleted" - for the error's detail. Delete Attribute does not ask about scope: § 10.2.7.4
+// deletes it.
 //
 extern bool attrPathEntityMember(const char* attrWild, const char* attrIri, const char* operation);
 
