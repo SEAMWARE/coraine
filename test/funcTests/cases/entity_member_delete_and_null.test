@@ -7,12 +7,11 @@
 #
 # The Entity members id, type and scope, and what may be done to them.
 #
-# id, type and scope are Entity members (§ 5.2.4), never Attributes: DELETE
-# .../attrs/{id,type,scope} is refused with BadRequestData rather than answered
-# with a 404 that would read as "this Entity happens not to carry it". For scope
-# that departs from § 10.2.7.4 ("If the target Attribute is scope, remove the
-# scope Attribute from the target Entity"): coraine changes the scope through the
-# Entity only.
+# § 10.2.7.4 (Delete Attribute): "If the target Attribute is scope, remove the
+# scope Attribute from the target Entity." Scope is deletable - id and type are
+# not: they are mandatory Entity members (§ 5.2.4), never Attributes, so the
+# request is refused with BadRequestData rather than answered with a 404 that
+# would read as "this Entity happens not to carry it".
 #
 # § 5.4.1 (Entity fragments): "A member ... with value equal to an NGSI-LD Null
 # shall cause for the member to be removed from the target NGSI-LD element."
@@ -28,7 +27,7 @@
 # Entity: it has to reach the database, not just the response.
 #
 --NAME--
-Entity members: DELETE .../attrs/{id,type,scope} refused, the NGSI-LD Null deletes the scope but not the type
+Entity members: scope is deletable, id and type are not, and the NGSI-LD Null deletes only what may be deleted
 
 --TAGS--
 entity scope delete null
@@ -67,19 +66,17 @@ echo
 echo
 
 
-echo "05. DELETE /attrs/scope -> 400, the Scope is changed through the Entity only"
-echo "============================================================================="
-corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
-echo
-corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep -A3 '"scope"'
-echo
-echo
-
-
-echo "06. Merge scope = NGSI-LD Null -> the Scope is gone"
-echo "=================================================="
-corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1 --payload '{ "scope": "urn:ngsi-ld:null" }' | head -1
+echo "05. DELETE /attrs/scope -> 204, the Scope is gone (§ 10.2.7.4)"
+echo "=============================================================="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope | head -1
 corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+echo
+echo
+
+
+echo "06. DELETE /attrs/scope again -> 404, there is none left"
+echo "========================================================"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
 echo
 echo
 
@@ -274,31 +271,26 @@ Content-Length: REGEX(\d+)
 
 
 
-05. DELETE /attrs/scope -> 400, the Scope is changed through the Entity only
-=============================================================================
-HTTP/1.1 400 Bad Request
+05. DELETE /attrs/scope -> 204, the Scope is gone (§ 10.2.7.4)
+==============================================================
+HTTP/1.1 204 No Content
+no scope
+
+
+06. DELETE /attrs/scope again -> 404, there is none left
+========================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "'scope' is an Entity member, not an Attribute - it cannot be deleted through .../attrs/scope",
-  "status": 400,
-  "title": "Invalid Attribute name",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "detail": "attribute 'scope' not found in entity 'urn:E1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
-
-  "scope": [
-    "/a",
-    "/b"
-  ],
-
-
-06. Merge scope = NGSI-LD Null -> the Scope is gone
-==================================================
-HTTP/1.1 204 No Content
-no scope
 
 
 07. Merge a scope and nothing else - it has to reach the database

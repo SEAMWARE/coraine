@@ -6,23 +6,28 @@
 # Copyright 2026 Seamware
 #
 # id, type and scope are Entity members (§ 5.2.4), never Attributes: .../attrs/{attrId} with any of them
-# names no Attribute, and Partial Attribute Update (PATCH), Replace Attribute (PUT), Set Attribute Value (PUT
-# .../value) and Delete Attribute (DELETE) refuse it - BadRequestData. Before: PATCH and PUT took the fragment
-# for the Entity's new id or type and refused it only because an object is neither (a 400 for the wrong
-# reason), PUT .../value answered 404, and DELETE .../attrs/scope removed the scope (§ 10.2.7.4 - coraine
-# departs from it: the scope is changed through the Entity only).
+# names no Attribute, and Partial Attribute Update (PATCH), Replace Attribute (PUT) and Set Attribute Value
+# (PUT .../value) refuse it - BadRequestData (§ 10.2.5.4, § 10.2.6.4, § 10.2.11.4 for scope). Delete
+# Attribute (DELETE) refuses id and type, but removes the scope: § 10.2.7.4, "If the target Attribute is
+# scope, remove the scope Attribute from the target Entity". Before: PATCH and PUT took the fragment for the
+# Entity's new id or type and refused it only because an object is neither (a 400 for the wrong reason), and
+# PUT .../value answered 404.
 #
-# A term of the request's @context that expands to @id, @type or ngsi-ld:scope is the same: "identifier": "@id".
+# A term of the request's @context that expands to @id, @type or ngsi-ld:scope is the same: "identifier": "@id",
+# "sc": ngsi-ld:scope - refused on PATCH, deleted on DELETE.
 #
 --NAME--
-.../attrs/{id,type,scope} - PATCH, PUT, PUT .../value and DELETE refuse an Entity member as the target Attribute; an alias too
+.../attrs/{id,type,scope} - PATCH, PUT, PUT .../value refuse an Entity member as the target Attribute, DELETE removes the scope; an alias too
 
 --TAGS--
 entity update attribute
 
 --INIT--
 corDbDrop
+contextServerStart
 coraineStart
+
+contextServerPush /jsonldContexts/sc '{ "@context": { "sc": "https://uri.etsi.org/ngsi-ld/scope" } }'
 
 --RUN--
 
@@ -86,13 +91,11 @@ echo
 echo
 
 
-echo "09. DELETE /attrs/id, /attrs/type, /attrs/scope -> 400"
-echo "======================================================"
+echo "09. DELETE /attrs/id, /attrs/type -> 400"
+echo "========================================="
 corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/id
 echo
 corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/type
-echo
-corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope
 echo
 echo
 
@@ -123,8 +126,25 @@ echo
 echo
 
 
+echo "13. DELETE /attrs/sc, the request's @context saying \"sc\": \"https://uri.etsi.org/ngsi-ld/scope\" -> 204, the scope is gone (§ 10.2.7.4)"
+echo "====================================================================================================================================="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/sc \
+        -H 'Link: <http://localhost:7080/jsonldContexts/sc>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' | head -1
+corCurl --url /ngsi-ld/v1/entities/urn:E1 | grep '"scope"' || echo "no scope"
+echo
+echo
+
+
+echo "14. DELETE /attrs/scope again -> 404, there is none left"
+echo "========================================================"
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:E1/attrs/scope | head -1
+echo
+echo
+
+
 --TEARDOWN--
 coraineStop
+contextServerStop
 corDbDrop
 
 
@@ -272,8 +292,8 @@ Content-Length: 230
 
 
 
-09. DELETE /attrs/id, /attrs/type, /attrs/scope -> 400
-======================================================
+09. DELETE /attrs/id, /attrs/type -> 400
+=========================================
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
@@ -294,19 +314,6 @@ Content-Length: 227
 
 {
   "detail": "'type' is an Entity member, not an Attribute - it cannot be deleted through .../attrs/type",
-  "status": 400,
-  "title": "Invalid Attribute name",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
-
-
-HTTP/1.1 400 Bad Request
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 229
-
-{
-  "detail": "'scope' is an Entity member, not an Attribute - it cannot be deleted through .../attrs/scope",
   "status": 400,
   "title": "Invalid Attribute name",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
@@ -372,5 +379,16 @@ Content-Length: 224
   "type": "T"
 }
 
+
+
+13. DELETE /attrs/sc, the request's @context saying "sc": "https://uri.etsi.org/ngsi-ld/scope" -> 204, the scope is gone (§ 10.2.7.4)
+=====================================================================================================================================
+HTTP/1.1 204 No Content
+no scope
+
+
+14. DELETE /attrs/scope again -> 404, there is none left
+========================================================
+HTTP/1.1 404 Not Found
 
 

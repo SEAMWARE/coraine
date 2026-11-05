@@ -52,18 +52,19 @@ echo
 echo
 
 
-echo "02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty)"
-echo "=========================================================================="
+echo "02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty), attrs/scope"
+echo "======================================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/isParkedIn -X DELETE >/dev/null
 corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/name -X DELETE >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/scope -X DELETE >/dev/null
 echo done
 echo
 echo
 
 
-echo "03. PATCH merge-patch deletes locatedAt (Relationship) and the scope via the NGSI-LD Null"
-echo "========================================================================================"
-corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"locatedAt":"urn:ngsi-ld:null","scope":"urn:ngsi-ld:null"}' >/dev/null
+echo "03. PATCH merge-patch deletes locatedAt (Relationship) via the NGSI-LD Null"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1 -X PATCH --payload '{"locatedAt":"urn:ngsi-ld:null"}' >/dev/null
 echo done
 echo
 echo
@@ -89,13 +90,13 @@ echo
 done
 
 
-02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty)
-==========================================================================
+02. DELETE attrs/isParkedIn (Relationship), attrs/name (LanguageProperty), attrs/scope
+=======================================================================================
 done
 
 
-03. PATCH merge-patch deletes locatedAt (Relationship) and the scope via the NGSI-LD Null
-========================================================================================
+03. PATCH merge-patch deletes locatedAt (Relationship) via the NGSI-LD Null
+===========================================================================
 done
 
 
