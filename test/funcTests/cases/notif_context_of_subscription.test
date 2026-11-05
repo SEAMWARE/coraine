@@ -121,12 +121,12 @@ HTTP/1.1 201 Created
         }
       ],
       "id": REGEX("urn:ngsi-ld:Notification:.*"),
-      "notifiedAt": REGEX(".*"),
+      "notifiedAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{3})?Z)",
       "subscriptionId": "urn:S1",
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "207",
+      "Content-Length": "REGEX(203|207)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<http://localhost:7080/jsonldContexts/ctxA>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",

@@ -360,7 +360,7 @@ HTTP/1.1 201 Created
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "261",
+      "Content-Length": "REGEX(257|261)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
@@ -406,7 +406,7 @@ HTTP/1.1 204 No Content
       "type": "Notification"
     },
     "headers": {
-      "Content-Length": "324",
+      "Content-Length": "REGEX(320|324)",
       "Content-Type": "application/json",
       "Host": "localhost:7701",
       "Link": "<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"",
