@@ -1,0 +1,106 @@
+#
+# FILE            troe_temporal_values_deleted_list.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.3.2.6 (Temporal Simplified): for a ListProperty, each element of "valueLists" is a
+# pair whose "first element shall be an ordered array of Property values"; for a ListRelationship, "objectLists"
+# the same with the objects. A deleted Attribute is recorded with the NGSI-LD Null as value and deletedAt set
+# (§ 5.3.2.5), so a deleted list's pair carries ["urn:ngsi-ld:null"] - an array - not the bare string.
+#
+# ETSI 020_26_02 / 020_26_04 (!335).
+#
+--NAME--
+Simplified temporal: a deleted ListProperty / ListRelationship gives ["urn:ngsi-ld:null"] as its list
+
+--TAGS--
+troe timescale postgres temporal delete list
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+echo "01. Create urn:V1 with a ListProperty and a ListRelationship"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{
+  "id": "urn:V1",
+  "type": "Vehicle",
+  "colors":  { "type": "ListProperty",     "valueList":  ["red", "blue"],                      "observedAt": "2026-06-01T09:00:00Z" },
+  "parkedIn": { "type": "ListRelationship", "objectList": [{"object": "urn:P1"}, {"object": "urn:P2"}], "observedAt": "2026-06-01T09:00:00Z" }
+}' | head -1
+echo
+echo
+
+
+echo "02. DELETE both"
+echo "==============="
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/colors | head -1
+corCurl -X DELETE --url /ngsi-ld/v1/entities/urn:V1/attrs/parkedIn | head -1
+echo
+echo
+
+
+echo "03. GET /temporal/entities/urn:V1?timeproperty=deletedAt&options=temporalValues - the lists are [\"urn:ngsi-ld:null\"]"
+echo "======================================================================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?timeproperty=deletedAt&options=temporalValues'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create urn:V1 with a ListProperty and a ListRelationship
+=============================================================
+HTTP/1.1 201 Created
+
+
+02. DELETE both
+===============
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+03. GET /temporal/entities/urn:V1?timeproperty=deletedAt&options=temporalValues - the lists are ["urn:ngsi-ld:null"]
+======================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "colors": {
+    "type": "ListProperty",
+    "valueLists": [
+      [
+        [
+          "urn:ngsi-ld:null"
+        ],
+        "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?Z)"
+      ]
+    ]
+  },
+  "id": "urn:V1",
+  "parkedIn": {
+    "objectLists": [
+      [
+        [
+          "urn:ngsi-ld:null"
+        ],
+        "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?Z)"
+      ]
+    ],
+    "type": "ListRelationship"
+  },
+  "type": "Vehicle"
+}
+
+
+
