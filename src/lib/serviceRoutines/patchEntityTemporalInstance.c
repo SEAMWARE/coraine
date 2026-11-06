@@ -266,7 +266,7 @@ bool patchEntityTemporalInstance(void)
       LdDistOpEntry* items;
       int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                     LdOpUpdateAttrInstanceTemporal, "updateAttrInstanceTemporal",
-                                    entityId, /*perRi=*/false, NULL, NULL,
+                                    entityId, /*perRi=*/false, NULL, NULL, NULL,
                                     errorsArrayP, &items);
 
       const char* prefix  = "/ngsi-ld/v1/temporal/entities/";

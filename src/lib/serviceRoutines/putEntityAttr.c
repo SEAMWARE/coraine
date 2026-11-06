@@ -264,7 +264,7 @@ bool putEntityAttr(void)
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                   corRest.serviceP->ldOp, "replaceAttrs",
-                                  entityId, /*perRi=*/true, entityId, attrIri,
+                                  entityId, /*perRi=*/true, entityId, NULL, attrIri,
                                   errorsArrayP, &items);
 
     for (int i = 0; i < n; i++)

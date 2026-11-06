@@ -299,7 +299,7 @@ bool patchEntity(void)
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                   corRest.serviceP->ldOp, "mergeEntity",
-                                  entityId, /*perRi=*/true, entityId, NULL,
+                                  entityId, /*perRi=*/true, entityId, typeArgP, NULL,
                                   errorsArrayP, &items);
 
     // Compact: drop entries whose riP yields no matching fragment.

@@ -70,23 +70,6 @@ static bool hasNonKeywordAttr(CorNode* entityP)
 
 
 
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
-}
-
-
-
 static char* renderFragmentWithContext(CorNode* fragP)
 {
   // Strip body @context: forward goes out as application/json + Link.
@@ -182,7 +165,7 @@ bool postEntityTemporalAttrs(void)
 
           for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
           {
-            if (!entityInfoCoversId(riP, entityId)) continue;
+            if (!ldRegInfoCoversEntity(riP, entityId, NULL)) continue;
 
             CorNode* fragP = ldEntityFragmentForInfo(bodyP, riP, corRest.kallocP, detachOnMode[m]);
             if (fragP == NULL) continue;

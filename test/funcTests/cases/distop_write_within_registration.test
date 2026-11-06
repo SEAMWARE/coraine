@@ -1,0 +1,131 @@
+#
+# A forwarded write never carries more than the registration part it goes to covers (TS 104-175
+# § 4.3.6.2). Each element of a registration's information[], with each element of its entities[],
+# is a part of its own: its entity (type, id or idPattern) and the attributes of that information[]
+# element. An attribute reaches a source only through a part that covers both the entity and the
+# attribute.
+#
+#   7711  {Car} attrs a            {Bus} attrs b              - create a Bus with a and b: b only
+#   7712  {T, id urn:T:A} attrs a  {T} attrs b                - batch upsert urn:T:B with a and b: b only
+#   7713  {S, idPattern urn:X:.*} attrs a   {S} attrs b       - batch create urn:Y:1 with a and b: b only
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+DistOps forward - a write carries only what the registration part covers
+--TAGS--
+distops registration
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7711 --status 201
+ftClientStart --port 7712 --status 201
+ftClientStart --port 7713 --status 201
+--RUN--
+#
+# The writes a source received since the last call: verb, path, and for each entity in the body its
+# id and its attribute names, sorted
+#
+writes() {
+  ftClientDump --port $1 | python3 -c "
+import sys,json
+for e in json.load(sys.stdin):
+    b=e.get('body')
+    if isinstance(b,str):
+        try: b=json.loads(b)
+        except Exception: b=None
+    ents=b if isinstance(b,list) else ([b] if isinstance(b,dict) else [])
+    desc=' '.join(x.get('id','?')+':'+','.join(sorted(k for k in x if k not in ('id','type','@context','scope'))) for x in ents)
+    print(e['verb'], e['url'].split('?')[0], desc)
+"
+}
+
+reg() {
+  corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "{
+    \"id\": \"urn:ngsi-ld:CSR:$1\", \"type\": \"ContextSourceRegistration\", \"mode\": \"inclusive\",
+    \"endpoint\": \"http://localhost:$1\", \"operations\": [\"redirectionOps\", \"createBatch\", \"upsertBatch\"],
+    \"information\": [ $2 ]
+  }" | grep HTTP
+}
+
+echo "01. Three registrations, two parts each"
+echo "======================================="
+reg 7711 '{"entities":[{"type":"Car"}],"propertyNames":["a"]}, {"entities":[{"type":"Bus"}],"propertyNames":["b"]}'
+reg 7712 '{"entities":[{"type":"T","id":"urn:T:A"}],"propertyNames":["a"]}, {"entities":[{"type":"T"}],"propertyNames":["b"]}'
+reg 7713 '{"entities":[{"type":"S","idPattern":"urn:X:.*"}],"propertyNames":["a"]}, {"entities":[{"type":"S"}],"propertyNames":["b"]}'
+echo
+echo
+
+
+echo "02. POST /entities - a Bus with a and b: 7711 gets b, the Bus part's attribute, not a"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:Bus:1","type":"Bus","a":{"type":"Property","value":1},"b":{"type":"Property","value":2}}' | grep HTTP
+echo "7711:"
+writes 7711
+echo
+echo
+
+
+echo "03. POST /entityOperations/upsert - urn:T:B with a and b: 7712 gets b, a is pinned to urn:T:A"
+echo "=============================================================================================="
+corCurl --url /ngsi-ld/v1/entityOperations/upsert --payload '[{"id":"urn:T:B","type":"T","a":{"type":"Property","value":1},"b":{"type":"Property","value":2}}]' | grep HTTP
+echo "7712:"
+writes 7712
+echo
+echo
+
+
+echo "04. POST /entityOperations/create - urn:Y:1 with a and b: 7713 gets b, the idPattern urn:X:.* does not match"
+echo "============================================================================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[{"id":"urn:Y:1","type":"S","a":{"type":"Property","value":1},"b":{"type":"Property","value":2}}]' | grep HTTP
+echo "7713:"
+writes 7713
+echo
+echo
+
+
+ftClientSettle
+ftClientDump --port 7711
+echo
+ftClientDump --port 7712
+echo
+ftClientDump --port 7713
+echo
+
+--EXPECT--
+01. Three registrations, two parts each
+=======================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. POST /entities - a Bus with a and b: 7711 gets b, the Bus part's attribute, not a
+======================================================================================
+HTTP/1.1 201 Created
+7711:
+POST /ngsi-ld/v1/entities urn:Bus:1:b
+
+
+03. POST /entityOperations/upsert - urn:T:B with a and b: 7712 gets b, a is pinned to urn:T:A
+==============================================================================================
+HTTP/1.1 201 Created
+7712:
+POST /ngsi-ld/v1/entityOperations/upsert urn:T:B:b
+
+
+04. POST /entityOperations/create - urn:Y:1 with a and b: 7713 gets b, the idPattern urn:X:.* does not match
+============================================================================================================
+HTTP/1.1 201 Created
+7713:
+POST /ngsi-ld/v1/entityOperations/create urn:Y:1:b
+
+
+[]
+[]
+[]
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+ftClientStop --port 7713
+coraineStop

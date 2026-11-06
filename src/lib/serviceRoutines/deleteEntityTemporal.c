@@ -90,7 +90,7 @@ bool deleteEntityTemporal(void)
       LdDistOpEntry* items;
       int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                     LdOpDeleteTemporal, "deleteTemporal",
-                                    entityId, /*perRi=*/false, NULL, NULL,
+                                    entityId, /*perRi=*/false, NULL, NULL, NULL,
                                     errorsArrayP, &items);
 
       const char* path    = "/ngsi-ld/v1/temporal/entities/";

@@ -110,27 +110,6 @@ static void addUpdatedUnique(CorNode* arrP, const char* attrName)
 
 // -----------------------------------------------------------------------------
 //
-// entityInfoCoversId -
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // attrsUrl -
 //
 static char* attrsUrl(const char* endpoint, const char* entityId)
@@ -325,7 +304,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId)) continue;
+          if (!ldRegInfoCoversEntity(riP, entityId, typeArgP)) continue;
 
           CorNode* fragP = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
@@ -384,7 +363,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
       // redirect-owned attr must not be merged locally either way.
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
-        if (!entityInfoCoversId(riP, entityId)) continue;
+        if (!ldRegInfoCoversEntity(riP, entityId, typeArgP)) continue;
         CorNode* drop = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/true);
         (void) drop;
       }

@@ -265,7 +265,7 @@ bool deleteEntityAttr(void)
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                   corRest.serviceP->ldOp, "deleteAttrs",
-                                  entityId, /*perRi=*/true, entityId, attrIri,
+                                  entityId, /*perRi=*/true, entityId, NULL, attrIri,
                                   errorsArrayP, &items);
 
     // The {attrId} path component is an alias — emit the short the

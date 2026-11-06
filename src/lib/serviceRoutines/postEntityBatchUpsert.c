@@ -370,6 +370,8 @@ static void chopForMode(Tenant*      tenantP,
 
     for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
     {
+      if (!ldRegInfoCoversEntity(riP, entityId, typeArr)) continue;   // the part covers this entity
+
       CorNode* chopped = ldEntityFragmentForInfo(fragP, riP, corRest.kallocP, detach);
       if (chopped == NULL)
         continue;
@@ -413,7 +415,8 @@ static void purgeRedirAttrsFromFragment(Tenant*     tenantP,
     if (ldDistOpCsrWouldLoop(csr, ownAlias))   continue;
 
     for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-      (void) ldEntityFragmentForInfo(fragP, riP, corRest.kallocP, /*detach=*/true);
+      if (ldRegInfoCoversEntity(riP, entityId, typeArr))
+        (void) ldEntityFragmentForInfo(fragP, riP, corRest.kallocP, /*detach=*/true);
   }
 
   ldRegCacheMatchRelease(matchV, matchN);
