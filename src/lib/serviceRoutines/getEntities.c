@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <errno.h>                                   // errno
+#include <regex.h>                                   // regcomp, regexec
 #include <stddef.h>                                  // NULL
 #include <stdio.h>                                   // snprintf
 #include <stdlib.h>                                  // free, strtoll
@@ -173,6 +174,8 @@ static void applyLinkedQPostFilter(CorNode* arrayP)
 // resolve their Relationship target correctly. Entities are in storage
 // shape on entry (post-merge / post-apiAttrToStorageWrap).
 //
+static bool clientIdMatch(const char* id);
+
 static void applyResultFilters(CorNode* arrayP)
 {
   if (arrayP == NULL || arrayP->type != CorArray)
@@ -183,6 +186,17 @@ static void applyResultFilters(CorNode* arrayP)
   {
     CorNode* nextP = entityP->next;
     bool    keep  = true;
+
+    //
+    // The client's ids and idPattern: a source asked for a part of its registration (an idPattern of
+    // its own, see ForwardUnit) answers with what that part covers
+    //
+    if (((corNgsild.idV != NULL && corNgsild.idV[0] != NULL) || (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)))
+    {
+      CorNode* idP = corTreeLookup(entityP, "id");
+      if ((idP == NULL) || (idP->type != CorString) || (clientIdMatch(idP->value.s) == false))
+        keep = false;
+    }
 
     if (keep && corNgsild.typeExpr != NULL)
     {
@@ -459,50 +473,6 @@ static const char* intersectAndPick(char** exportV, char** wanted, CorAlloc* kaP
 
 // -----------------------------------------------------------------------------
 //
-// csrUnionExports - union of all infoV[*].attributeNamesV
-//
-// Split-mode forwards are CSR-level (not per-RegistrationInfo), so the
-// "exports" set the broker should narrow against is the union across
-// every info entry of the CSR. Returns a NULL-terminated, deduped char**
-// allocated in kaP, or NULL when the CSR has no restriction at all
-// (every info entry has attributeNamesV == NULL).
-//
-static char** csrUnionExports(LdRegCacheItem* csr, CorAlloc* kaP)
-{
-  // Worst-case capacity
-  int cap = 0;
-  bool anyRestricts = false;
-  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-  {
-    if (riP->attributeNamesV != NULL)
-      anyRestricts = true;
-    for (int a = 0; riP->attributeNamesV != NULL && riP->attributeNamesV[a] != NULL; a++)
-      cap++;
-  }
-
-  if (!anyRestricts)
-    return NULL;
-
-  char** out = (char**) corAlloc(kaP, (cap + 1) * sizeof(char*));
-  int    n   = 0;
-  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-  {
-    for (int a = 0; riP->attributeNamesV != NULL && riP->attributeNamesV[a] != NULL; a++)
-    {
-      bool dup = false;
-      for (int i = 0; i < n; i++)
-        if (strcmp(out[i], riP->attributeNamesV[a]) == 0) { dup = true; break; }
-      if (!dup) out[n++] = riP->attributeNamesV[a];
-    }
-  }
-  out[n] = NULL;
-  return out;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // apiAttrToStorageWrap - wrap upstream API-format entity into storage format
 //
 // Wraps each attribute: "speed": {type,value} → "speed": {"@none": {type,value}}
@@ -677,67 +647,266 @@ static CorNode* retrieveEntityFromCSR(LdRegCacheItem* csr,
 
 // -----------------------------------------------------------------------------
 //
-// csrPinnedIdsParam - "&id=<id1>,<id2>" when the CSR pins specific entities
+// ForwardUnit - one forward to a Context Source, cut from one part of its registration
 //
-// A registration whose matching EntityInfo entries all carry a specific
-// `id` only ever serves those entities — forwarding the bare type query
-// would ask the source for EVERYTHING of that type. Narrow the forward
-// with the pinned ids. Only when the client itself sent no id/idPattern
-// (their filter passes through raw and must not be widened), and only
-// when EVERY type-matching EntityInfo is id-specific (one id-less or
-// idPattern entry means the source legitimately holds more).
+// A forward never asks a source for more than its registration covers (TS 104-175 § 4.3.6.2): the
+// types, the entities and the attributes of one RegistrationInfo. One query string cannot say
+// "Vehicle:2 or any OffStreetParking", so a registration whose parts differ in what they pin is
+// asked once per part:
 //
-static const char* csrPinnedIdsParam(LdRegCacheItem* csr, CorAlloc* kaP)
+//   - the EntityInfos of a RegistrationInfo with a type only: one forward, their types, and the
+//     client's own id / idPattern (narrower than the registration, so passed on)
+//   - the EntityInfos with an id: one forward per type, type=<T>&id=<the ids of T> - the client's
+//     ids or idPattern pick from those ids, never add to them
+//   - an EntityInfo with an idPattern: one forward, type=<T>&idPattern=<its pattern> - or, if the
+//     client gave ids, the ids the pattern matches. The client's own idPattern is applied to the
+//     answer (applyResultFilters), since a query string carries one idPattern only.
+//   - a RegistrationInfo without entities: the client's types and ids, its attributes
+//
+// The attributes of every forward are the RegistrationInfo's, intersected with the wanted ones
+// (intersectAndPick). A part the query does not reach gives no forward; a registration without
+// any gives none at all.
+//
+typedef struct ForwardUnit
 {
-  if (corNgsild.id != NULL && corNgsild.id[0] != 0)
-    return "";
-  if (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
-    return "";
+  char**       typeV;      // the types asked for (expanded), NULL = the client's (none given)
+  bool         clientIds;  // the client's id / idPattern go on the forward
+  const char*  idParam;    // "&id=..." / "&idPattern=..." of the registration part, or ""
+  char**       attrsV;     // the RegistrationInfo's attributeNames (NULL = all)
+} ForwardUnit;
 
-  int   cap  = 512;
-  char* buf  = (char*) corAlloc(kaP, cap);
-  int   pos  = 0;
-  int   ids  = 0;
+
+
+// -----------------------------------------------------------------------------
+//
+// clientIdMatch - does an entity id pass the client's id list and idPattern?
+//
+static bool clientIdMatch(const char* id)
+{
+  if (corNgsild.idV != NULL && corNgsild.idV[0] != NULL)
+  {
+    bool found = false;
+    for (int i = 0; corNgsild.idV[i] != NULL; i++)
+      if (strcmp(corNgsild.idV[i], id) == 0) { found = true; break; }
+    if (found == false)
+      return false;
+  }
+
+  if (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
+  {
+    regex_t re;
+    if (regcomp(&re, corNgsild.idPattern, REG_EXTENDED | REG_NOSUB) != 0)
+      return false;
+    bool match = (regexec(&re, id, 0, NULL, 0) == 0);
+    regfree(&re);
+    if (match == false)
+      return false;
+  }
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// queriedType - is the type one of the query's (or does the query name none)?
+//
+static bool queriedType(const char* type)
+{
+  if (corNgsild.typeV == NULL || corNgsild.typeV[0] == NULL)
+    return true;
+
+  for (int t = 0; corNgsild.typeV[t] != NULL; t++)
+    if (strcmp(corNgsild.typeV[t], type) == 0)
+      return true;
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// idParamBuild - "&<name>=v1,v2,..." (URL-encoded values)
+//
+static const char* idParamBuild(const char* name, const char** valueV, int valueN, CorAlloc* kaP)
+{
+  int need = strlen(name) + 3;
+  const char** encV = (const char**) corAlloc(kaP, valueN * sizeof(char*));
+  for (int i = 0; i < valueN; i++)
+  {
+    encV[i] = corRestUrlValueEncode(valueV[i], kaP);
+    need   += strlen(encV[i]) + 1;
+  }
+
+  char* buf = (char*) corAlloc(kaP, need);
+  int   pos = sprintf(buf, "&%s=", name);
+  for (int i = 0; i < valueN; i++)
+    pos += sprintf(buf + pos, (i == 0) ? "%s" : ",%s", encV[i]);
+
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// csrForwardUnits - the forwards a registration gets for this query (see ForwardUnit)
+//
+static ForwardUnit* csrForwardUnits(LdRegCacheItem* csr, int* unitNP, CorAlloc* kaP)
+{
+  int unitCap = 4;
+  for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
+  {
+    unitCap += 1;
+    for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+      unitCap += 1;
+  }
+
+  ForwardUnit* unitV = (ForwardUnit*) corAlloc(kaP, unitCap * sizeof(ForwardUnit));
+  int          unitN = 0;
+  bool         clientIdsGiven = (corNgsild.idV != NULL && corNgsild.idV[0] != NULL);
 
   for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
   {
+    if (riP->entityInfoV == NULL)
+    {
+      unitV[unitN++] = (ForwardUnit) { corNgsild.typeV, true, "", riP->attributeNamesV };
+      continue;
+    }
+
+    int eiN = 0;
+    for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
+      eiN++;
+
+    char**       typeOnlyV = (char**) corAlloc(kaP, (eiN + 1) * sizeof(char*));
+    int          typeOnlyN = 0;
+    const char** pinTypeV  = (const char**) corAlloc(kaP, eiN * sizeof(char*));   // per pinned entry: its type
+    const char** pinIdV    = (const char**) corAlloc(kaP, eiN * sizeof(char*));   //                   its id
+    int          pinN      = 0;
+
     for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
     {
-      // type filter: only entityInfos the query can match
-      if (corNgsild.typeV != NULL && eiP->type != NULL)
+      if ((eiP->type != NULL) && (queriedType(eiP->type) == false))
+        continue;
+
+      if (eiP->id != NULL)
       {
-        bool typeMatch = false;
-        for (int t = 0; corNgsild.typeV[t] != NULL; t++)
-          if (strcmp(eiP->type, corNgsild.typeV[t]) == 0) { typeMatch = true; break; }
-        if (!typeMatch)
+        if (clientIdMatch(eiP->id) == false)
           continue;
+        pinTypeV[pinN] = eiP->type;
+        pinIdV[pinN]   = eiP->id;
+        pinN++;
       }
-
-      if (eiP->id == NULL || eiP->idPatternList != NULL)
-        return "";   // id-less or pattern-matched entry — can't narrow
-
-      const char* v    = corRestUrlValueEncode(eiP->id, kaP);
-      int         vLen = strlen(v);
-      if (pos + vLen + 8 >= cap)
+      else if (eiP->idPatternList != NULL)
       {
-        int   newCap = cap * 2 + vLen;
-        char* nb     = (char*) corAlloc(kaP, newCap);
-        memcpy(nb, buf, pos);
-        buf = nb;
-        cap = newCap;
+        char** typeV = NULL;
+        if (eiP->type != NULL)
+        {
+          typeV    = (char**) corAlloc(kaP, 2 * sizeof(char*));
+          typeV[0] = eiP->type;
+          typeV[1] = NULL;
+        }
+
+        for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
+        {
+          const char* idParam;
+          if (clientIdsGiven)
+          {
+            const char** idV = (const char**) corAlloc(kaP, 1 * sizeof(char*));
+            int          idN = 0;
+            for (int i = 0; corNgsild.idV[i] != NULL; i++)
+            {
+              if ((regexec(&patP->regex, corNgsild.idV[i], 0, NULL, 0) == 0) && clientIdMatch(corNgsild.idV[i]))
+              {
+                const char** nV = (const char**) corAlloc(kaP, (idN + 1) * sizeof(char*));
+                if (idN > 0) memcpy(nV, idV, idN * sizeof(char*));
+                idV = nV;
+                idV[idN++] = corNgsild.idV[i];
+              }
+            }
+            if (idN == 0)
+              continue;
+            idParam = idParamBuild("id", idV, idN, kaP);
+          }
+          else
+            idParam = idParamBuild("idPattern", &patP->source, 1, kaP);
+
+          if (unitN >= unitCap)
+          {
+            ForwardUnit* nV = (ForwardUnit*) corAlloc(kaP, 2 * unitCap * sizeof(ForwardUnit));
+            memcpy(nV, unitV, unitN * sizeof(ForwardUnit));
+            unitV   = nV;
+            unitCap = 2 * unitCap;
+          }
+          unitV[unitN++] = (ForwardUnit) { typeV, false, idParam, riP->attributeNamesV };
+        }
       }
-      if (ids == 0) { memcpy(buf + pos, "&id=", 4); pos += 4; }
-      else            buf[pos++] = ',';
-      memcpy(buf + pos, v, vLen); pos += vLen;
-      ids++;
+      else if (eiP->type != NULL)
+      {
+        bool dup = false;
+        for (int t = 0; t < typeOnlyN; t++)
+          if (strcmp(typeOnlyV[t], eiP->type) == 0) { dup = true; break; }
+        if (dup == false)
+          typeOnlyV[typeOnlyN++] = eiP->type;
+      }
+    }
+
+    if (typeOnlyN > 0)
+    {
+      typeOnlyV[typeOnlyN] = NULL;
+      if (unitN >= unitCap)
+      {
+        ForwardUnit* nV = (ForwardUnit*) corAlloc(kaP, 2 * unitCap * sizeof(ForwardUnit));
+        memcpy(nV, unitV, unitN * sizeof(ForwardUnit));
+        unitV   = nV;
+        unitCap = 2 * unitCap;
+      }
+      unitV[unitN++] = (ForwardUnit) { typeOnlyV, true, "", riP->attributeNamesV };
+    }
+
+    // the pinned ids, one forward per type
+    bool* doneV = (bool*) corAlloc(kaP, (pinN + 1) * sizeof(bool));
+    memset(doneV, 0, (pinN + 1) * sizeof(bool));
+    for (int p = 0; p < pinN; p++)
+    {
+      if (doneV[p]) continue;
+
+      const char** idV = (const char**) corAlloc(kaP, pinN * sizeof(char*));
+      int          idN = 0;
+      for (int q = p; q < pinN; q++)
+      {
+        bool sameType = ((pinTypeV[p] == NULL) && (pinTypeV[q] == NULL)) ||
+                        ((pinTypeV[p] != NULL) && (pinTypeV[q] != NULL) && (strcmp(pinTypeV[p], pinTypeV[q]) == 0));
+        if ((doneV[q] == false) && sameType)
+        {
+          idV[idN++] = pinIdV[q];
+          doneV[q]   = true;
+        }
+      }
+
+      char** typeV = NULL;
+      if (pinTypeV[p] != NULL)
+      {
+        typeV    = (char**) corAlloc(kaP, 2 * sizeof(char*));
+        typeV[0] = (char*) pinTypeV[p];
+        typeV[1] = NULL;
+      }
+
+      if (unitN >= unitCap)
+      {
+        ForwardUnit* nV = (ForwardUnit*) corAlloc(kaP, 2 * unitCap * sizeof(ForwardUnit));
+        memcpy(nV, unitV, unitN * sizeof(ForwardUnit));
+        unitV   = nV;
+        unitCap = 2 * unitCap;
+      }
+      unitV[unitN++] = (ForwardUnit) { typeV, false, idParamBuild("id", idV, idN, kaP), riP->attributeNamesV };
     }
   }
 
-  if (ids == 0)
-    return "";
-
-  buf[pos] = 0;
-  return buf;
+  *unitNP = unitN;
+  return unitV;
 }
 
 
@@ -862,7 +1031,7 @@ static const char* buildQueryBodyFromQs(const char* qs, CorAlloc* kaP)
 // context (compactForUrl; ldQRender for q's embedded attribute terms), the
 // same algorithm buildSplitForwardQueryString uses.
 //
-static const char* buildQueryString(CorLdContext* csrCtx)
+static const char* buildQueryString(CorLdContext* csrCtx, char** typeV, bool clientIds)
 {
   if (csrCtx == NULL) csrCtx = corLdCoreContext();
 
@@ -910,9 +1079,9 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     need += strlen(corRest.in.uriParamV[i].key) + 2 + ((v != NULL) ? 3 * strlen(v) : 0);
   }
 
-  if (corNgsild.typeV != NULL)
-    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
-      need += 3 * strlen(corNgsild.typeV[i]) + 1;
+  if (typeV != NULL)
+    for (int i = 0; typeV[i] != NULL; i++)
+      need += 3 * strlen(typeV[i]) + 1;
 
   if (qRendered                  != NULL)  need += 3 * strlen(qRendered) + 8;
   if (attrsExists                != NULL)  need += 3 * strlen(attrsExists) + 8;
@@ -922,14 +1091,14 @@ static const char* buildQueryString(CorLdContext* csrCtx)
   char* qs = (char*) corAlloc(&corRest.kalloc, need);
   int   pos = 0;
 
-  // type — alias-bearing → emit from corNgsild.typeV via CSR ctx
-  if (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL)
+  // type — alias-bearing → emit from typeV via CSR ctx
+  if (typeV != NULL && typeV[0] != NULL)
   {
     strcpy(qs + pos, "type="); pos += 5;
-    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
+    for (int i = 0; typeV[i] != NULL; i++)
     {
       if (i > 0) qs[pos++] = ',';
-      const char* v = compactForUrl(csrCtx, corNgsild.typeV[i], &corRest.kalloc);
+      const char* v = compactForUrl(csrCtx, typeV[i], &corRest.kalloc);
       int vLen = strlen(v);
       strcpy(qs + pos, v); pos += vLen;
     }
@@ -993,6 +1162,7 @@ static const char* buildQueryString(CorLdContext* csrCtx)
     if (strcmp(key, "pick")             == 0) continue;
     if (strcmp(key, "omit")             == 0) continue;
     if (strcmp(key, "type")             == 0) continue;  // handled above
+    if ((clientIds == false) && ((strcmp(key, "id") == 0) || (strcmp(key, "idPattern") == 0))) continue;  // the registration part's own
     if (strcmp(key, "attrs")            == 0) continue;  // deprecated — replaced by pick + q above
     if (strcmp(key, "q")                == 0) continue;  // handled above (ldQRender)
     if (strcmp(key, "geoproperty")      == 0) continue;  // handled above
@@ -1063,7 +1233,7 @@ static const char* buildQueryString(CorLdContext* csrCtx)
 // type, we have to send local=true to satisfy the receiver's too-wide-
 // query check (this disables transitive fanout for that hop only).
 //
-static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
+static const char* buildSplitForwardQueryString(CorLdContext* csrCtx, char** typeV, bool clientIds)
 {
   //
   // Sized from the inputs: a percent-encoded byte becomes three, an id is an
@@ -1072,9 +1242,9 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
   //
   int need = 128;
 
-  if (corNgsild.typeV != NULL)
-    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
-      need += 3 * strlen(corNgsild.typeV[i]) + 1;
+  if (typeV != NULL)
+    for (int i = 0; typeV[i] != NULL; i++)
+      need += 3 * strlen(typeV[i]) + 1;
 
   if (corNgsild.id        != NULL)  need += 3 * strlen(corNgsild.id) + 4;
   if (corNgsild.idPattern != NULL)  need += 3 * strlen(corNgsild.idPattern) + 11;
@@ -1100,19 +1270,19 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
   // shorts. POST queryBatch routes its selectors through corNgsild
   // (ldQueryBodyToParams) but never into uriParamV; this path covers
   // both GET and POST uniformly.
-  if (corNgsild.typeV != NULL && corNgsild.typeV[0] != NULL)
+  if (typeV != NULL && typeV[0] != NULL)
   {
     strcpy(qs + pos, "type="); pos += 5;
-    for (int i = 0; corNgsild.typeV[i] != NULL; i++)
+    for (int i = 0; typeV[i] != NULL; i++)
     {
       if (i > 0) qs[pos++] = ',';
-      const char* v = compactForUrl(csrCtx, corNgsild.typeV[i], &corRest.kalloc);
+      const char* v = compactForUrl(csrCtx, typeV[i], &corRest.kalloc);
       int vLen = strlen(v);
       strcpy(qs + pos, v); pos += vLen;
     }
   }
 
-  if (corNgsild.id != NULL && corNgsild.id[0] != 0)
+  if (clientIds && corNgsild.id != NULL && corNgsild.id[0] != 0)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "id="); pos += 3;
@@ -1123,7 +1293,7 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx)
     strcpy(qs + pos, v); pos += vLen;
   }
 
-  if (corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
+  if (clientIds && corNgsild.idPattern != NULL && corNgsild.idPattern[0] != 0)
   {
     if (pos > 0) qs[pos++] = '&';
     strcpy(qs + pos, "idPattern="); pos += 10;
@@ -3290,6 +3460,7 @@ static bool queryEntities(PagePosition* posP)
       // baseQs is per-CSR (alias-bearing params are compacted via ldDistOpForwardContext)
       // so it gets computed inside the loop now.
 
+      int                  itemCap = totalMatch;
       LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, totalMatch * sizeof(LdDistOpBatchItem));
       memset(items, 0, totalMatch * sizeof(LdDistOpBatchItem));
 
@@ -3358,60 +3529,39 @@ static bool queryEntities(PagePosition* posP)
               continue;
           }
 
-          const char* fullQs;
-          if (splitMode)
+          int          unitN = 0;
+          ForwardUnit* unitV = csrForwardUnits(csr, &unitN, &corRest.kalloc);
+          if (unitN == 0)
           {
-            char** csrExports = csrUnionExports(csr, &corRest.kalloc);
-            bool   skip       = false;
-            const char* pickParam = intersectAndPick(csrExports, pickWanted, &corRest.kalloc, &skip, ldDistOpForwardContext(csr));
-            if (skip) continue;
-
-            const char* splitBase = buildSplitForwardQueryString(ldDistOpForwardContext(csr));
-            const char* idParam   = csrPinnedIdsParam(csr, &corRest.kalloc);
-            int   bLen = strlen(splitBase), pLen = strlen(pickParam), iLen = strlen(idParam);
-            char* combined = (char*) corAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
-            strcpy(combined, splitBase);
-            if (iLen > 0) strcpy(combined + bLen, idParam);
-            if (pLen > 0) strcpy(combined + bLen + iLen, pickParam);
-            fullQs = combined;
+            COR_T(LdTRegMatch, "%s: matched, but NOT forwarded to: no part of the registration covers the query", regId);
+            continue;
           }
-          else
+
+          for (int u = 0; u < unitN; u++)
           {
-            const char* baseQs = buildQueryString(ldDistOpForwardContext(csr));
-            fullQs = baseQs;
-            bool csrSkipped = false;
+          ForwardUnit* unitP     = &unitV[u];
+          bool         skip      = false;
+          const char*  pickParam = intersectAndPick(unitP->attrsV, pickWanted, &corRest.kalloc, &skip, ldDistOpForwardContext(csr));
+          if (skip) continue;
 
-            for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
-            {
-              if (corNgsild.typeV != NULL)
-              {
-                bool typeMatch = false;
-                for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-                {
-                  if (eiP->type == NULL) { typeMatch = true; break; }
-                  for (int t = 0; corNgsild.typeV[t] != NULL; t++)
-                    if (strcmp(eiP->type, corNgsild.typeV[t]) == 0) { typeMatch = true; break; }
-                  if (typeMatch) break;
-                }
-                if (!typeMatch) continue;
-              }
+          const char* baseQs = splitMode ? buildSplitForwardQueryString(ldDistOpForwardContext(csr), unitP->typeV, unitP->clientIds)
+                                         : buildQueryString(ldDistOpForwardContext(csr), unitP->typeV, unitP->clientIds);
+          int   bLen = strlen(baseQs), iLen = strlen(unitP->idParam), pLen = strlen(pickParam);
+          char* fullQs = (char*) corAlloc(&corRest.kalloc, bLen + iLen + pLen + 1);
+          strcpy(fullQs, baseQs);
+          strcpy(fullQs + bLen, unitP->idParam);
+          strcpy(fullQs + bLen + iLen, pickParam);
 
-              bool        skip      = false;
-              const char* pickParam = intersectAndPick(riP->attributeNamesV,
-                                                        pickWanted, &corRest.kalloc, &skip, ldDistOpForwardContext(csr));
-              if (skip) { csrSkipped = true; break; }
-
-              const char* idParam = csrPinnedIdsParam(csr, &corRest.kalloc);
-              int   bLen = strlen(baseQs), pLen = strlen(pickParam), iLen = strlen(idParam);
-              char* combined = (char*) corAlloc(&corRest.kalloc, bLen + pLen + iLen + 1);
-              strcpy(combined, baseQs);
-              if (iLen > 0) strcpy(combined + bLen, idParam);
-              strcpy(combined + bLen + iLen, pickParam);
-              fullQs = combined;
-              break;
-            }
-
-            if (csrSkipped) continue;
+          if (itemCount >= itemCap)
+          {
+            LdDistOpBatchItem*   nItems   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, 2 * itemCap * sizeof(LdDistOpBatchItem));
+            LdDistOpBatchResult* nResults = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, 2 * itemCap * sizeof(LdDistOpBatchResult));
+            memset(nItems,   0, 2 * itemCap * sizeof(LdDistOpBatchItem));
+            memset(nResults, 0, 2 * itemCap * sizeof(LdDistOpBatchResult));
+            memcpy(nItems, items, itemCount * sizeof(LdDistOpBatchItem));
+            items   = nItems;
+            results = nResults;
+            itemCap = 2 * itemCap;
           }
 
           if (postForward && !corNgsild.entityMapCreate)
@@ -3489,6 +3639,7 @@ static bool queryEntities(PagePosition* posP)
           items[itemCount].body    = NULL;
           items[itemCount].bodyLen = 0;
           itemCount++;
+          }
         }
       }
 

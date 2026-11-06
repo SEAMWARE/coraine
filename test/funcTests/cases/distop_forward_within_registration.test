@@ -1,0 +1,169 @@
+#
+# A forwarded query never asks a Context Source for more than its registration covers (TS 104-175
+# § 4.3.6.2). A registration's information[] is a list, and each element's entities[] is a list
+# too: one registration is several smaller ones, each with the attributes of its own element.
+#
+# The registration on 7711:
+#   [0] Vehicle                                   attributes speed
+#   [1] Building                                  attributes floors
+#   [2] OffStreetParking urn:P:2, urn:P:3         attributes location
+#   [3] Car, idPattern urn:C:.*                   all attributes
+# and an auxiliary one on 7712 for Truck.
+#
+# Each forward is one part of a registration: its types, its ids or idPattern, its attributes
+# (pick). A query for five types gives four forwards to 7711, none asking for Bus, and never one
+# to 7712, whose registration has none of the queried types.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+DistOps forward - each forward within one part of the registration
+--TAGS--
+distops registration
+--INIT--
+corDbDrop
+coraineStart -dist
+ftClientStart --port 7711 --status 200
+ftClientStart --port 7712 --status 200
+--RUN--
+#
+# The forwards a source received since the last call, one line each: the query parameters that
+# select (type, id, idPattern, pick), sorted - the forwards go out concurrently
+#
+forwards() {
+  ftClientDump --port $1 | python3 -c "
+import sys,json
+lines=[]
+for e in json.load(sys.stdin):
+    p=e.get('params',{})
+    lines.append(e['verb']+' '+e['url']+' '+' '.join(k+'='+str(p[k]) for k in ('type','id','idPattern','pick') if k in p))
+for l in sorted(lines): print(l)
+"
+}
+
+echo "01. Register four information[] parts -> 7711, an auxiliary registration for Truck -> 7712"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{
+  "id": "urn:ngsi-ld:CSR:parts",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7711",
+  "operations": ["retrieveOps"],
+  "information": [
+    { "entities": [{"type": "Vehicle"}],                                                                  "propertyNames": ["speed"] },
+    { "entities": [{"type": "Building"}],                                                                 "propertyNames": ["floors"] },
+    { "entities": [{"type": "OffStreetParking", "id": "urn:P:2"}, {"type": "OffStreetParking", "id": "urn:P:3"}], "propertyNames": ["location"] },
+    { "entities": [{"type": "Car", "idPattern": "urn:C:.*"}] }
+  ]
+}' | grep HTTP
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:ngsi-ld:CSR:aux","type":"ContextSourceRegistration","mode":"auxiliary","endpoint":"http://localhost:7712","operations":["retrieveOps"],"information":[{"entities":[{"type":"Truck"}]}]}' | grep HTTP
+echo
+echo
+
+
+echo "02. GET ?type=Vehicle,Building,OffStreetParking,Car,Bus - one forward per part, each with its own types, ids and attributes"
+echo "========================================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle,Building,OffStreetParking,Car,Bus' | grep HTTP
+echo "7711:"
+forwards 7711
+echo "7712:"
+forwards 7712
+echo
+echo
+
+
+echo "03. GET ?type=OffStreetParking&id=urn:P:3,urn:P:9 - only the registered id of the two"
+echo "======================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=OffStreetParking&id=urn:P:3,urn:P:9' | grep HTTP
+echo "7711:"
+forwards 7711
+echo
+echo
+
+
+echo "04. GET ?type=Car&id=urn:C:1,urn:X:1 - the ids the registration's idPattern matches, instead of the idPattern"
+echo "============================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Car&id=urn:C:1,urn:X:1' | grep HTTP
+echo "7711:"
+forwards 7711
+echo
+echo
+
+
+echo "05. GET ?type=Vehicle&pick=speed,color - the client's pick, narrowed to the part's attributes"
+echo "============================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&pick=speed,color' | grep HTTP
+echo "7711:"
+forwards 7711
+echo
+echo
+
+
+echo "06. GET ?type=Building&pick=speed - no part covers it: no forward"
+echo "================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Building&pick=speed' | grep HTTP
+echo "7711:"
+forwards 7711
+echo "7712:"
+forwards 7712
+echo
+echo
+
+
+ftClientSettle
+ftClientDump --port 7711
+echo
+ftClientDump --port 7712
+echo
+
+--EXPECT--
+01. Register four information[] parts -> 7711, an auxiliary registration for Truck -> 7712
+=========================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET ?type=Vehicle,Building,OffStreetParking,Car,Bus - one forward per part, each with its own types, ids and attributes
+========================================================================================================================
+HTTP/1.1 200 OK
+7711:
+GET /ngsi-ld/v1/entities type=Building pick=floors,id,type,scope
+GET /ngsi-ld/v1/entities type=Car idPattern=urn:C:.*
+GET /ngsi-ld/v1/entities type=OffStreetParking id=urn:P:2,urn:P:3 pick=location,id,type,scope
+GET /ngsi-ld/v1/entities type=Vehicle pick=speed,id,type,scope
+7712:
+
+
+03. GET ?type=OffStreetParking&id=urn:P:3,urn:P:9 - only the registered id of the two
+======================================================================================
+HTTP/1.1 200 OK
+7711:
+GET /ngsi-ld/v1/entities type=OffStreetParking id=urn:P:3 pick=location,id,type,scope
+
+
+04. GET ?type=Car&id=urn:C:1,urn:X:1 - the ids the registration's idPattern matches, instead of the idPattern
+=============================================================================================================
+HTTP/1.1 200 OK
+7711:
+GET /ngsi-ld/v1/entities type=Car id=urn:C:1
+
+
+05. GET ?type=Vehicle&pick=speed,color - the client's pick, narrowed to the part's attributes
+=============================================================================================
+HTTP/1.1 200 OK
+7711:
+GET /ngsi-ld/v1/entities type=Vehicle pick=speed,id,type,scope
+
+
+06. GET ?type=Building&pick=speed - no part covers it: no forward
+=================================================================
+HTTP/1.1 200 OK
+7711:
+7712:
+
+
+[]
+[]
+--TEARDOWN--
+ftClientStop --port 7711
+ftClientStop --port 7712
+coraineStop
