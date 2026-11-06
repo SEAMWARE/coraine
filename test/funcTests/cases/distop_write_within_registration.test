@@ -9,6 +9,8 @@
 #   7712  {T, id urn:T:A} attrs a  {T} attrs b                - batch upsert urn:T:B with a and b: b only
 #   7713  {S, idPattern urn:X:.*} attrs a   {S} attrs b       - batch create urn:Y:1 with a and b: b only
 #
+# A write that does not say the type (PATCH .../attrs, PATCH .../attrs/{attr}) takes it from the local copy.
+#
 # REQUIRE_FEATURE: REGISTRATIONS
 #
 --NAME--
@@ -84,6 +86,24 @@ echo
 echo
 
 
+echo "05. PATCH /entities/urn:Bus:1/attrs with a and b, no type in the request - the local copy's type: 7711 gets b"
+echo "=============================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:Bus:1/attrs -X PATCH --payload '{"a":{"type":"Property","value":10},"b":{"type":"Property","value":20}}' | grep HTTP
+echo "7711:"
+writes 7711
+echo
+echo
+
+
+echo "06. PATCH /entities/urn:Bus:1/attrs/a - a is the Car part's: no forward"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:Bus:1/attrs/a -X PATCH --payload '{"type":"Property","value":11}' | grep HTTP
+echo "7711:"
+writes 7711
+echo
+echo
+
+
 ftClientSettle
 ftClientDump --port 7711
 echo
@@ -119,6 +139,19 @@ POST /ngsi-ld/v1/entityOperations/upsert urn:T:B:b
 HTTP/1.1 201 Created
 7713:
 POST /ngsi-ld/v1/entityOperations/create urn:Y:1:b
+
+
+05. PATCH /entities/urn:Bus:1/attrs with a and b, no type in the request - the local copy's type: 7711 gets b
+==============================================================================================================
+HTTP/1.1 204 No Content
+7711:
+PATCH /ngsi-ld/v1/entities/urn:Bus:1/attrs ?:b
+
+
+06. PATCH /entities/urn:Bus:1/attrs/a - a is the Car part's: no forward
+========================================================================
+HTTP/1.1 204 No Content
+7711:
 
 
 []

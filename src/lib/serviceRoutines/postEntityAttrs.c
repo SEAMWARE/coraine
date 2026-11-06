@@ -58,6 +58,7 @@
 #include "corNgsild/ldTermId.h"                        // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
+#include "db/dbEntityTypeV.h"                         // dbEntityTypeV
 #include "db/Tenant.h"                                // Tenant
 
 #include "corLog/corLog.h"                            // COR_T
@@ -304,8 +305,15 @@ bool postEntityAttrs(void)
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
 
+    //
+    // No type in the request: the local copy's, to know which parts of a registration cover the entity -
+    // read only when a registration matched at all
+    //
+    if ((typeArgP == NULL) && ((exclN + redirN + inclN) > 0))
+      typeArgP = dbEntityTypeV(tenantP, entityId);
+
     COR_T(CtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
-          entityId, typeArgP != NULL ? typeArr[0] : "(none)", exclN, redirN, inclN);
+          entityId, typeArgP != NULL ? typeArgP[0] : "(none)", exclN, redirN, inclN);
 
     LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
     int              counts[]  = { exclN,       redirN,     inclN      };

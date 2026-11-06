@@ -52,6 +52,7 @@
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "db/dbEntityTypeV.h"                         // dbEntityTypeV
 #include "db/Tenant.h"                               // Tenant
 
 #include "corLog/corLog.h"                           // COR_T
@@ -280,6 +281,13 @@ bool patchEntity(void)
     int inclN  = ldRegCacheMatchForRetrieveScoped((LdRegCache*) tenantP->regCacheP,
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
+
+    //
+    // No type in the request: the local copy's, to know which parts of a registration cover the entity -
+    // read only when a registration matched at all
+    //
+    if ((typeArgP == NULL) && ((exclN + redirN + inclN) > 0))
+      typeArgP = dbEntityTypeV(tenantP, entityId);
 
     singleAuthoritative = ((exclN + redirN) == 1) && (inclN == 0);
 
