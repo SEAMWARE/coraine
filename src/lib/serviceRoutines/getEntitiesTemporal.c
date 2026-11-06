@@ -346,27 +346,6 @@ static void mergeRemoteArray(CorNode* arrayP, CorNode* remoteArrayP, bool keepOn
 
 // -----------------------------------------------------------------------------
 //
-// entityInfoCoversId - does any EntityInfo entry in riP cover entityId?
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && entityId != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (entityId != NULL && regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // stripInfoAttrsFromArray - apply a RegistrationInfo's coverage to the entities
 // in arrayP it actually covers (used for exclusive/redirect modes).
 //
@@ -385,7 +364,7 @@ static void stripInfoAttrsFromArray(CorNode* arrayP, LdRegInfo* riP)
   for (CorNode* ep = arrayP->value.head; ep != NULL; ep = ep->next)
   {
     CorNode* idP = corTreeLookup(ep, "id");
-    if ((idP != NULL) && (idP->type == CorString) && !entityInfoCoversId(riP, idP->value.s))
+    if ((idP != NULL) && (idP->type == CorString) && !ldRegInfoCoversEntity(riP, idP->value.s, NULL))
       continue;
 
     stripInfoAttrsFromEntity(ep, riP);

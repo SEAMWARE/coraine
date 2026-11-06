@@ -135,7 +135,7 @@ bool deleteEntity(void)
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                   corRest.serviceP->ldOp, "deleteEntity",
-                                  entityId, /*perRi=*/false, NULL, NULL,
+                                  entityId, /*perRi=*/false, NULL, NULL, NULL,
                                   errorsArrayP, &items);
 
     for (int i = 0; i < n; i++)

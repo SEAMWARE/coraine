@@ -97,27 +97,6 @@ static bool hasNonKeywordAttr(CorNode* entityP)
 
 // -----------------------------------------------------------------------------
 //
-// entityInfoCoversId - does any EntityInfo entry in riP cover entityId?
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // wrapApiGeoPropAsStorage - synthesize a minimal storage-format entity that
 // holds just one GeoProperty, for passing to db.geoMatchFunc.
 //
@@ -565,7 +544,7 @@ bool postEntities(void)
 
           for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
           {
-            if (!entityInfoCoversId(riP, entityId)) continue;
+            if (!ldRegInfoCoversEntity(riP, entityId, typeArr)) continue;
 
             // Exclusive: detach in-loop (unique owner per attr).
             // Redirect: clone here, one detach sweep after the loop —
@@ -636,7 +615,7 @@ bool postEntities(void)
         // created locally.
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId)) continue;
+          if (!ldRegInfoCoversEntity(riP, entityId, typeArr)) continue;
           CorNode* drop = ldEntityFragmentForInfo(entityP, riP, corRest.kallocP, /*detach=*/true);
           (void) drop;
         }

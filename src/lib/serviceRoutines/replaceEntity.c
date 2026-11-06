@@ -332,7 +332,7 @@ bool replaceEntity(void)
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                   corRest.serviceP->ldOp, "replaceEntity",
-                                  entityId, /*perRi=*/true, entityId, NULL,
+                                  entityId, /*perRi=*/true, entityId, typeArgP, NULL,
                                   errorsArrayP, &items);
 
     int kept = 0;

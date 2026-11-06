@@ -66,6 +66,7 @@
 #include "corNgsild/ldIsEntityKeyword.h"               // ldIsNotAttributeName
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
+#include "db/dbEntityTypeV.h"                         // dbEntityTypeV
 #include "db/Tenant.h"                                // Tenant
 
 #if COR_FEATURE_AUTH
@@ -104,27 +105,6 @@ static void addUpdatedUnique(CorNode* arrP, const char* attrName)
     if (p->type == CorString && strcmp(p->value.s, attrName) == 0)
       return;
   corTreeChildAdd(arrP, corTreeString(corRest.kallocP, NULL, attrName));
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// entityInfoCoversId -
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
 }
 
 
@@ -287,6 +267,13 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
 
+    //
+    // No type in the request: the local copy's, to know which parts of a registration cover the entity -
+    // read only when a registration matched at all
+    //
+    if ((typeArgP == NULL) && ((exclN + redirN + inclN) > 0))
+      typeArgP = dbEntityTypeV(tenantP, entityId);
+
     LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
     int              counts[]  = { exclN,       redirN,     inclN      };
     const char*      modeTag[] = { "exclusive", "redirect", "inclusive" };
@@ -325,7 +312,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId)) continue;
+          if (!ldRegInfoCoversEntity(riP, entityId, typeArgP)) continue;
 
           CorNode* fragP = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
@@ -384,7 +371,7 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
       // redirect-owned attr must not be merged locally either way.
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
-        if (!entityInfoCoversId(riP, entityId)) continue;
+        if (!ldRegInfoCoversEntity(riP, entityId, typeArgP)) continue;
         CorNode* drop = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/true);
         (void) drop;
       }

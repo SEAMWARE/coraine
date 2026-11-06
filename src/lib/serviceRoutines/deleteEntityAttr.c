@@ -57,6 +57,7 @@
 #include "corNgsild/ldTermId.h"                          // ldNodeRename
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
+#include "db/dbEntityTypeV.h"                         // dbEntityTypeV
 #include "db/Tenant.h"                               // Tenant
 
 #if COR_FEATURE_AUTH
@@ -262,10 +263,16 @@ bool deleteEntityAttr(void)
     };
     static const bool detach[] = { true, true, false };
 
+    //
+    // The request does not say the entity's type: the local copy's, to know which parts of a registration
+    // cover the entity - read only when a registration matched at all
+    //
+    char** localTypeV = ((exclN + redirN + inclN) > 0) ? dbEntityTypeV(tenantP, entityId) : NULL;
+
     LdDistOpEntry* items;
     int n = ldDistOpEntriesBuild(groups, 3, ownAlias,
                                   corRest.serviceP->ldOp, "deleteAttrs",
-                                  entityId, /*perRi=*/true, entityId, attrIri,
+                                  entityId, /*perRi=*/true, entityId, localTypeV, attrIri,
                                   errorsArrayP, &items);
 
     // The {attrId} path component is an alias — emit the short the

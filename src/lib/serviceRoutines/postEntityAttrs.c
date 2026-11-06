@@ -58,6 +58,7 @@
 #include "corNgsild/ldTermId.h"                        // ldTermId, CorTerm*
 
 #include "db/DbDriver.h"                              // db, DB_OK, DB_NOT_FOUND
+#include "db/dbEntityTypeV.h"                         // dbEntityTypeV
 #include "db/Tenant.h"                                // Tenant
 
 #include "corLog/corLog.h"                            // COR_T
@@ -67,27 +68,6 @@
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
 #include "serviceRoutines/postEntityAttrs.h"          // Own interface
-
-
-
-// -----------------------------------------------------------------------------
-//
-// entityInfoCoversId - does any EntityInfo entry in riP cover entityId?
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL)
-      return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0)
-      return true;
-    for (LdRegIdPattern* patP = eiP->idPatternList; patP != NULL; patP = patP->next)
-      if (regexec(&patP->regex, entityId, 0, NULL, 0) == 0)
-        return true;
-  }
-  return false;
-}
 
 
 
@@ -325,8 +305,15 @@ bool postEntityAttrs(void)
                                                   entityId, typeArgP, NULL,
                                                   LdRegModeInclusive, &inclV);
 
+    //
+    // No type in the request: the local copy's, to know which parts of a registration cover the entity -
+    // read only when a registration matched at all
+    //
+    if ((typeArgP == NULL) && ((exclN + redirN + inclN) > 0))
+      typeArgP = dbEntityTypeV(tenantP, entityId);
+
     COR_T(CtDistOpRequest, "postEntityAttrs dispatch: entityId=%s type=%s excl=%d redir=%d incl=%d",
-          entityId, typeArgP != NULL ? typeArr[0] : "(none)", exclN, redirN, inclN);
+          entityId, typeArgP != NULL ? typeArgP[0] : "(none)", exclN, redirN, inclN);
 
     LdRegCacheItem** groups[]  = { exclV,       redirV,     inclV      };
     int              counts[]  = { exclN,       redirN,     inclN      };
@@ -366,7 +353,7 @@ bool postEntityAttrs(void)
 
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, entityId)) continue;
+          if (!ldRegInfoCoversEntity(riP, entityId, typeArgP)) continue;
 
           CorNode* fragP = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/(g == 0));
           if (fragP == NULL) continue;
@@ -419,7 +406,7 @@ bool postEntityAttrs(void)
       // redirect-owned attr must not be stored locally either way.
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
-        if (!entityInfoCoversId(riP, entityId)) continue;
+        if (!ldRegInfoCoversEntity(riP, entityId, typeArgP)) continue;
         CorNode* drop = ldEntityFragmentForInfo(fragment, riP, corRest.kallocP, /*detach=*/true);
         (void) drop;
       }

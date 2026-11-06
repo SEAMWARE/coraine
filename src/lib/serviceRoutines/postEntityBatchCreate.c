@@ -118,24 +118,6 @@ static void addBatchError(CorNode* errorsP, const char* entityId, int statusCode
 
 // -----------------------------------------------------------------------------
 //
-// entityInfoCoversId - does any EntityInfo in riP cover this entity id?
-//
-static bool entityInfoCoversId(LdRegInfo* riP, const char* entityId)
-{
-  for (LdRegEntityInfo* eiP = riP->entityInfoV; eiP != NULL; eiP = eiP->next)
-  {
-    if (eiP->id == NULL && eiP->idPatternList == NULL) return true;
-    if (eiP->id != NULL && strcmp(eiP->id, entityId) == 0) return true;
-    // idPattern: the cache already decided this csr matches. Accept.
-    if (eiP->idPatternList != NULL) return true;
-  }
-  return false;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // entityAtIndex - O(i) walk of eligibleP to return its i-th child.
 //
 // Used by the distops dispatcher when it needs to re-locate an entity
@@ -352,7 +334,7 @@ static void dispatchOneMode(Tenant*       tenantP,
       LdRegInfo* selectedRi = NULL;
       for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
       {
-        if (entityInfoCoversId(riP, idP->value.s))
+        if (ldRegInfoCoversEntity(riP, idP->value.s, typeArr))
         {
           selectedRi = riP;
           break;
@@ -787,7 +769,7 @@ bool postEntityBatchCreate(void)
         if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
         for (LdRegInfo* riP = csr->infoV; riP != NULL; riP = riP->next)
         {
-          if (!entityInfoCoversId(riP, idP->value.s)) continue;
+          if (!ldRegInfoCoversEntity(riP, idP->value.s, typeArr)) continue;
           (void) ldEntityFragmentForInfo(ent, riP, corRest.kallocP, /*detach=*/true);
         }
       }
