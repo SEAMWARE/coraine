@@ -50,6 +50,7 @@
 #include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotExecTemporalQueries
 #include "serviceRoutines/ldSnapshotCaptureAsync.h"      // ldSnapshotCaptureAsync
 #include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
+#include "corNgsild/ldCheckUri.h"                        // ldUriValid
 #include "serviceRoutines/postSnapshot.h"                // Own interface
 
 
@@ -112,6 +113,36 @@ static bool validateSnapshot(CorNode* snapP)
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not a JSON Array",
             "'snapshotTemporalQueries' must be an array");
     return false;
+  }
+
+  //
+  // TS 104 175 § 5.2.6.5.4: no Query of snapshotQueries has a temporalQ, every Query of
+  // snapshotTemporalQueries has one
+  //
+  if (qP != NULL)
+  {
+    for (CorNode* queryP = qP->value.head; queryP != NULL; queryP = queryP->next)
+    {
+      if (queryP->type == CorObject && corTreeLookup(queryP, "temporalQ") != NULL)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
+                "a Query of 'snapshotQueries' must not have a 'temporalQ' - the temporal queries go in 'snapshotTemporalQueries'");
+        return false;
+      }
+    }
+  }
+
+  if (tqP != NULL)
+  {
+    for (CorNode* queryP = tqP->value.head; queryP != NULL; queryP = queryP->next)
+    {
+      if (queryP->type != CorObject || corTreeLookup(queryP, "temporalQ") == NULL)
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value",
+                "every Query of 'snapshotTemporalQueries' must have a 'temporalQ'");
+        return false;
+      }
+    }
   }
 
   CorNode* prioP = corTreeLookup(snapP, "snapshotPriority");
@@ -201,6 +232,11 @@ bool postSnapshot(void)
   else if (idP->type != CorString)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid Field Value", "Snapshot 'id' must be a string");
+    return true;
+  }
+  else if (ldUriValid(idP->value.s) == false)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URI", "Snapshot 'id' '%s' is not a valid URI", idP->value.s);
     return true;
   }
 
@@ -296,7 +332,7 @@ bool postSnapshot(void)
     troe.tenantSetup((Tenant*) itemP->snapTenantP);
 
   // Persist the snapshot metadata BEFORE running the queries. The
-  // initial status is "preparing" — async mode returns 201 right
+  // initial status is "preparing" — async mode returns 202 right
   // afterwards and the worker thread updates the status when capture
   // completes; sync mode runs the capture inline and overwrites the
   // status before persistence (we still write twice — once here as
@@ -323,7 +359,7 @@ bool postSnapshot(void)
   {
     // § 5.16.1.4 — "the following is executed in the background".
     // Worker spawns, mutates itemP->tree + itemP->status, calls
-    // db.snapshotUpdate, fires the notification. POST returns 201
+    // db.snapshotUpdate, fires the notification. POST returns 202
     // immediately with snapshotStatus="preparing".
     ldSnapshotCaptureAsync(cacheP, itemP, tenantP,
                             corNgsild.splitEntitiesSet,
@@ -358,8 +394,8 @@ bool postSnapshot(void)
     ldSnapshotNotify(itemP, false);
   }
 
-  // 201 Created + Location: /ngsi-ld/v1/snapshots/{id}
-  corRest.out.httpStatusCode = 201;
+  // 202 Accepted + Location: /ngsi-ld/v1/snapshots/{id} (TS 104 176 § 13.2.3.1)
+  corRest.out.httpStatusCode = 202;
   const char* prefix = "/ngsi-ld/v1/snapshots/";
   int locLen = strlen(prefix) + strlen(idP->value.s) + 1;
   char* locBuf = (char*) corAlloc(&corRest.kalloc, locLen);

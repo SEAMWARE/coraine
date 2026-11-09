@@ -1157,11 +1157,11 @@ lock) or `--troe none`. Cost with `timescale`: 1-6 % fewer writes a second
 · values: a flag · plugin: core
 
 How `POST /ngsi-ld/v1/snapshots` runs a Snapshot's `snapshotQueries` and `snapshotTemporalQueries`.
-By default inside the request: the `201 Created` comes once the capture is done, and the Snapshot's
+By default inside the request: the `202 Accepted` comes once the capture is done, and the Snapshot's
 `snapshotStatus` is final (`success`, `partial`, `empty` or `failure`). With `--asyncSnapshot` the capture
-runs on a thread of its own (§ 5.16.1.4: "executed in the background"): the `201` comes at once, the
+runs on a thread of its own (§ 5.16.1.4: "executed in the background"): the `202` comes at once, the
 Snapshot reads `"snapshotStatus": "preparing"` until the capture is done, and the SnapshotNotification is
-sent from that thread. The `201` has no body either way. Any `--database`.
+sent from that thread. The `202` has no body either way. Any `--database`.
 
     coraine --database corDB --asyncSnapshot
 

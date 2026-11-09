@@ -128,7 +128,7 @@ echo
 --EXPECT--
 01. POST snapshot with snapshotLifetime=PT2H — expiresAt should be ~7200s out
 =============================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Two
 Content-Length: 0
@@ -170,7 +170,7 @@ Content-Length: REGEX(\d+)
 
 02. POST snapshot with snapshotLifetime=P1D — expiresAt should be ~86400s out
 =============================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Day
 Content-Length: 0
@@ -212,7 +212,7 @@ Content-Length: REGEX(\d+)
 
 03. POST snapshot with snapshotLifetime=PT1H30M — combined (5400s)
 ==================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Mix
 Content-Length: 0
@@ -254,7 +254,7 @@ Content-Length: REGEX(\d+)
 
 04. POST snapshot WITHOUT snapshotLifetime — default 1h fallback (~3600s)
 =========================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Default
 Content-Length: 0

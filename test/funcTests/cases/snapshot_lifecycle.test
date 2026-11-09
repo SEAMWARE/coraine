@@ -88,14 +88,14 @@ echo
 echo
 
 
-echo "09. POST /snapshots/S1/clone (no body) → 201, server-generated id"
+echo "09. POST /snapshots/S1/clone (no body) → 202, server-generated id"
 echo "================================================================="
 corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{}'
 echo
 echo
 
 
-echo "10. POST /snapshots/S1/clone with explicit id → 201"
+echo "10. POST /snapshots/S1/clone with explicit id → 202"
 echo "==================================================="
 corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id":"urn:ngsi-ld:Snapshot:S1Copy","snapshotPriority":7}'
 echo
@@ -172,7 +172,7 @@ Content-Length: REGEX(\d+)
 
 02. Create snapshot capturing Vehicles
 ======================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1
 Content-Length: REGEX(\d+)
@@ -312,9 +312,9 @@ Content-Length: REGEX(\d+)
 
 
 
-09. POST /snapshots/S1/clone (no body) → 201, server-generated id
+09. POST /snapshots/S1/clone (no body) → 202, server-generated id
 =================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/REGEX(urn:ngsi-ld:Snapshot:[0-9a-f]+:[0-9a-f]+)
 Content-Length: REGEX(\d+)
@@ -322,9 +322,9 @@ Content-Length: REGEX(\d+)
 
 
 
-10. POST /snapshots/S1/clone with explicit id → 201
+10. POST /snapshots/S1/clone with explicit id → 202
 ===================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1Copy
 Content-Length: REGEX(\d+)

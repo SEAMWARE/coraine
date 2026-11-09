@@ -207,7 +207,7 @@ echo
 01. Seed V1 (speed 42) live; Snapshot S captures the Vehicles
 =============================================================
 HTTP/1.1 201 Created
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 
 
 02. Subscription SubS on S (receiverInfo tries NGSILD-Snapshot + NGSILD-Tenant); SubL on the live tenant
@@ -241,7 +241,7 @@ urn:SubL urn:V1:50 tenant=- snapshot=-
 06. Tenant t1: Snapshot T, subscription SubT on it; a write on T: NGSILD-Tenant t1 + NGSILD-Snapshot urn:T
 ==========================================================================================================
 HTTP/1.1 201 Created
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 HTTP/1.1 201 Created
 NGSILD-Tenant: t1
 NGSILD-Snapshot: urn:T

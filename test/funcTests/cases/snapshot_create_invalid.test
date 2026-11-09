@@ -1,0 +1,166 @@
+#
+# FILE            snapshot_create_invalid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A Snapshot that does not meet the Snapshot data type (TS 104 175 § 5.2.6.5.4) is not created - 400 BadRequestData:
+#   01. an id that is not a URI
+#   02. a Query of snapshotQueries with a temporalQ
+#   03. a Query of snapshotTemporalQueries without a temporalQ
+#   04. GET /snapshots/{snapshotId} with an id that is not a URI (TS 104 175 § 16.4.4)
+#   05. a clone whose id is not a URI
+#
+--NAME--
+Create Snapshot: an id that is not a URI, a temporalQ in the wrong list - 400
+
+--TAGS--
+snapshot
+
+--INIT--
+corDbDrop
+corSnapDrop
+coraineStart
+
+--RUN--
+
+echo "01. POST /snapshots with an id that is not a URI - 400"
+echo "======================================================"
+payload='{
+  "id": "notauri",
+  "type": "Snapshot",
+  "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
+}'
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "02. POST /snapshots with a temporalQ in a Query of snapshotQueries - 400"
+echo "========================================================================"
+payload='{
+  "type": "Snapshot",
+  "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}], "temporalQ": {"timerel": "after", "timeAt": "2020-01-01T00:00:00Z"}}]
+}'
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "03. POST /snapshots with a Query of snapshotTemporalQueries without a temporalQ - 400"
+echo "====================================================================================="
+payload='{
+  "type": "Snapshot",
+  "snapshotTemporalQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
+}'
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload"
+echo
+echo
+
+
+echo "04. GET /snapshots/notauri - 400"
+echo "================================"
+corCurl --url /ngsi-ld/v1/snapshots/notauri
+echo
+echo
+
+
+echo "05. POST /snapshots/S1/clone with an id that is not a URI - 400"
+echo "==============================================================="
+payload='{
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "type": "Snapshot",
+  "snapshotQueries": [{"type": "Query", "entities": [{"type": "Vehicle"}]}]
+}'
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload" > /dev/null
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1/clone --payload '{"id": "notauri", "type": "Snapshot"}'
+echo
+echo
+
+
+--EXPECT--
+01. POST /snapshots with an id that is not a URI - 400
+======================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
+
+{
+  "detail": "Snapshot 'id' 'notauri' is not a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+02. POST /snapshots with a temporalQ in a Query of snapshotQueries - 400
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 245
+
+{
+  "detail": "a Query of 'snapshotQueries' must not have a 'temporalQ' - the temporal queries go in 'snapshotTemporalQueries'",
+  "status": 400,
+  "title": "Invalid Field Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. POST /snapshots with a Query of snapshotTemporalQueries without a temporalQ - 400
+=====================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "every Query of 'snapshotTemporalQueries' must have a 'temporalQ'",
+  "status": 400,
+  "title": "Invalid Field Value",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. GET /snapshots/notauri - 400
+================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 154
+
+{
+  "detail": "'notauri' is not a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. POST /snapshots/S1/clone with an id that is not a URI - 400
+===============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 165
+
+{
+  "detail": "the id of the clone must be a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corSnapDrop
+corDbDrop

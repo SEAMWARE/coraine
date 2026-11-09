@@ -101,7 +101,7 @@ echo
 
 03. POST snapshot with snapshotTemporalQueries — capture history
 ================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Hist
 Content-Length: 0

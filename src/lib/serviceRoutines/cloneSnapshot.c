@@ -43,6 +43,7 @@
 #include "troe/TroeDriver.h"                             // troe
 
 #include "corNgsild/ldIdGenerate.h"                      // ldIdGenerate
+#include "corNgsild/ldCheckUri.h"                        // ldUriValid
 #include "serviceRoutines/ldSnapshotExecTemporal.h"      // ldSnapshotInstanceIdsRemove
 #include "serviceRoutines/cloneSnapshot.h"               // Own interface
 
@@ -157,6 +158,12 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
     CorNode* idP = corTreeLookup(bodyP, "id");
     if (idP != NULL && idP->type == CorString)
       newId = idP->value.s;
+
+    if ((idP != NULL) && ((idP->type != CorString) || (ldUriValid(idP->value.s) == false)))
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URI", "the id of the clone must be a valid URI");
+      return true;
+    }
   }
   if (newId == NULL)
     newId = ldIdGenerate(&corRest.kalloc, "Snapshot");
@@ -349,8 +356,8 @@ static bool cloneFromSource(Tenant* tenantP, LdSnapshotCache* cacheP, LdSnapshot
 
   ldSnapshotNotify(newItemP, false);
 
-  // 201 Created + Location.
-  corRest.out.httpStatusCode = 201;
+  // 202 Accepted + Location (TS 104 176 § 13.4.3.1)
+  corRest.out.httpStatusCode = 202;
   const char* prefix = "/ngsi-ld/v1/snapshots/";
   int locLen = strlen(prefix) + strlen(newId) + 1;
   char* locBuf = (char*) corAlloc(&corRest.kalloc, locLen);
