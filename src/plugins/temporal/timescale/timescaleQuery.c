@@ -1911,6 +1911,14 @@ int timescaleEntityTemporalQuery(Tenant* tenantP, TroeQueryFilter* fP,
     const char* entityId   = corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 0));
     const char* entityType = PQgetisnull(eRes, r, 1) ? NULL : corAllocStrdup(&corRest.kalloc, PQgetvalue(eRes, r, 1));
 
+    if (fP->idsOnly)                                   // an EntityMap's ids - the selector chose the entity, its history is not read
+    {
+      CorNode* docP = corTreeObject(allocP, NULL);
+      corTreeChildAdd(docP, corTreeString(allocP, "id", entityId));
+      corTreeChildAdd(arrP, docP);
+      continue;
+    }
+
     CorNode* docP       = NULL;
     int64_t  docBytes   = 0;
     bool     first      = (arrP->value.head == NULL);

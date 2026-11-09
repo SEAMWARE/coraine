@@ -129,6 +129,10 @@ Recently built, and documented where it lives:
     first page, freezes its set of matching entities on the first page and serves the pages from it
     (the links carry the map's id); an entity that no longer matches is left out of its page
     ([EntityMaps](installation.md#entitymaps)).
+-   **The EntityMap of a temporal query** - `GET`, `HEAD` and `POST /ngsi-ld/v1/temporal/entityMaps` (TS 104-176
+    § 11.3): the entities a temporal query selects, with the maps of the Context Sources that support
+    `createEntityMapQueryTemporal`
+    ([EntityMaps](installation.md#the-entitymap-of-a-temporal-query)).
 -   **c³: the DDS mapping tool** - DDS topics, services and actions to entities and attributes, in
     Operate, beside the broker it maps for, and from Compile's Bridges: made from the bridge's inventory
     (`/admin/bridges/{bridge}/inventory`), with the DDS domain, the transport (UDP or shared memory) and
@@ -152,7 +156,10 @@ settles on.
 
 ## Short term
 
-Nothing at the moment - the next release ships what is under [Available now](#available-now).
+-   **The pages of a temporal EntityMap** - Query Temporal Evolution of Entities reading the map that
+    `/temporal/entityMaps` made (`entityMap=<id>`, `NGSILD-EntityMap`), each page's history fetched from where
+    the map says the entity lives, and `?entityMap=true` on `/temporal/entities` making one (TS 104-176
+    table 8.2.3.1-1). Today the parameter is accepted and ignored.
 
 ## Medium term
 

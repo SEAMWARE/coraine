@@ -1493,6 +1493,35 @@ query, `{_id: {$in: [...]}}`; corDB: the id index), and the ones of each Context
 In the build by default; `-DCOR_FEATURE_AUTO_ENTITY_MAP=OFF` leaves the automatic maps and
 `--autoEntityMaps` out (a map is then only made when a client asks for one).
 
+### The EntityMap of a temporal query
+
+`GET`, `HEAD` and `POST /ngsi-ld/v1/temporal/entityMaps` - Create EntityMap for Query Temporal Evolution of
+Entities (TS 104-176 § 11.3, TS 104-175 § 14.6). The parameters are those of `GET /temporal/entities`, and
+`splitEntities`; the `POST` takes a `Query` in the body, its `temporalQ` the time window. They are checked
+as a temporal query's are: no `timerel` / `timeAt` (no `temporalQ`) is 400, as is a query with neither
+`type`, `attrs`, `q`, `georel` nor `local=true`, and a linked-entity projection. `limit` and `offset` are
+ignored (§ 14.6.3) - the map is every match.
+
+The map holds the entities the temporal query selects - an entity with no instance in the window is not in
+it - read from the TRoE as ids only (`--troe timescale`: the entity selector alone, no instance read; a store
+that reads the history anyway is asked for one instance per attribute). A registration that matches the
+query and lists the operation `createEntityMapQueryTemporal` (no operation group has it) is asked for its own
+map, `GET /ngsi-ld/v1/temporal/entityMaps` with the query's selection, its window and its filters - from the
+URL or from the body: the map's id goes into `linkedMaps`, its entities into `entityMap` with the
+registration's id. A registration without the operation is not asked; a source that does not answer with a
+map is left out. With split entities (`splitEntities=true`, or the deployment's default) and a registration
+to ask, `q`, `scopeQ`, `attrs` and the GeoQuery are not applied, locally nor at the sources: the map holds the
+candidates, the entities of the selector with history in the window.
+
+The answer is that of `GET /entityMaps`: 201, the map, `NGSILD-EntityMap`. A `HEAD` makes the map and
+answers 204 with the same header (TS 104-176 § 5: a HEAD's success is 204). The map lives 5 minutes,
+counts in `--entityMapMemory` (403 `TooManyResults` when it does not fit), and `GET`, `PATCH` and
+`DELETE /entityMaps/{id}` serve it. `GET /temporal/entities` does not read a map: its `entityMap`
+parameter is accepted and ignored.
+
+In the build by default; `-DCOR_FEATURE_TEMPORAL_ENTITY_MAP=OFF` leaves the two routes out (7,786 bytes,
+release build).
+
 ## Health port
 
 With **`--healthPort <port>`** the broker answers health probes on a port of its own, served by a

@@ -198,20 +198,20 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [ ] **[14.5]** Split-mode local query restricts to id/type/idPattern only — No test exercises split-mode EntityMap creation to verify q/geo/scope/attr are NOT applied locally.
 - [ ] **[14.5]** Split-mode forwarding strips filters before forwarding — No test verifies q/geo/scope/attrs are stripped before forwarding in split-mode EntityMap creation.
 - [~] **[14.5]** ERROR: too-wide query → 400 BadRequestData — Too-wide rejection is asserted only on GET /entities, not on the /entityMaps create endpoint (GET/POST /entityMaps with no restriction -> 400 is untested).
-- [ ] **[14.6]** Create Entity Map for temporal query — success returns Entity Map + location — No test creates an EntityMap via the temporal query path; entityMap is explicitly NOT implemented for /temporal/entities (getEntitiesTemporal.c skips the entityMap param). Existing entitymap_*.test cover only the non-temporal /entityMaps + /entities?entityMap=true.
-- [ ] **[14.6]** Missing temporal query → 400 BadRequestData — troe_temporal_get_no_timerel asserts the OPPOSITE for single-entity GET (no timerel = return all). No test asserts 400 BadRequestData when timerel/timeAt is omitted on the multi-entity temporal create-entity-map query.
-- [ ] **[14.6]** Too-wide query: none of type/attrs/q/geoQ/local-scope provided → 400 — No test issues a temporal create-entity-map query lacking all restrictions to assert 400 BadRequestData (too wide).
+- [x] **[14.6]** Create Entity Map for temporal query — success returns Entity Map + location — troe_timescale_temporal_entitymap_create: GET, HEAD and POST /temporal/entityMaps answer 201 with the map and NGSILD-EntityMap (HEAD: 204, TS 104-176 § 5).
+- [x] **[14.6]** Missing temporal query → 400 BadRequestData — troe_timescale_temporal_entitymap_create: no timerel (GET), no temporalQ (POST) → 400 BadRequestData.
+- [x] **[14.6]** Too-wide query: none of type/attrs/q/geoQ/local-scope provided → 400 — troe_timescale_temporal_entitymap_create: id only → 400 BadRequestData.
 - [ ] **[14.6]** Attribute-name list with ONLY system attributes does NOT satisfy restriction → 400 — No test sends a temporal query whose only restriction is a system-attr-only attrs list to assert 400.
 - [ ] **[14.6]** NGSI-LD Query referencing ONLY system attributes does NOT satisfy restriction → 400 — No test sends a temporal q over only system attrs (as sole restriction) to assert 400.
 - [ ] **[14.6]** Invalid URI in Entity identifier list → 400 BadRequestData — temporal_create_errors covers POST-body id URI validation for entity creation, not an invalid id in the temporal query's id-list of the create-entity-map operation. No GET /temporal/entities?id=<bad> 400 assertion.
 - [ ] **[14.6]** Syntactically invalid q → 400 BadRequestData — No test sends a malformed q to the temporal query/entity-map operation to assert 400.
-- [ ] **[14.6]** Local Entity Map created from final result set S4 — No test verifies that a temporal EntityMap is built from the final filtered set; the operation is unimplemented for /temporal/entities.
-- [ ] **[14.6]** Distributed: forward to matching CSRs supporting createEntityMapQueryTemporal — Distributed temporal data queries forward to CSRs supporting queryTemporal (no-split federation only per source comment), but there is NO entity-map operation forwarded and NO createEntityMapQueryTemporal opt-in tested.
-- [ ] **[14.6]** Distributed split mode: filters stripped before forwarding — Source explicitly does NOT implement split mode for temporal (no entityMap, all filters forwarded verbatim). No test asserts filter-stripping before forwarding in split mode.
-- [ ] **[14.6]** Split mode local query returns all locally found entities meeting all conditions — Split mode is not implemented for the temporal path; no test of the split-mode local S4 branch for entity-map creation.
-- [ ] **[14.6]** Remote Entity Map merged: linkedMaps records CSR→EntityMap-Id — entitymap_linked_maps covers linkedMaps for the NON-temporal /entityMaps operation; no temporal entity-map merges remote maps into linkedMaps.
-- [ ] **[14.6]** Remote entity ids merged: entityMap records entityId→CSR — entityMap entityId→CSR mapping tested only for the non-temporal operation; not for the temporal create-entity-map.
-- [ ] **[14.6]** Local Entity Map stored and accessible by its identifier — Storage/retrieval-by-id is tested for non-temporal entity maps only; no temporal EntityMap is stored or GET-retrievable.
+- [x] **[14.6]** Local Entity Map created from final result set S4 — troe_timescale_temporal_entitymap_create: type, window (after, between) and q narrow the map.
+- [x] **[14.6]** Distributed: forward to matching CSRs supporting createEntityMapQueryTemporal — troe_timescale_temporal_entitymap_distop: the registration with the operation is asked, one with queryTemporal only is not.
+- [x] **[14.6]** Distributed split mode: filters stripped before forwarding — troe_timescale_temporal_entitymap_distop: q under split entities (default) gives the candidates, splitEntities=false applies it at the source.
+- [x] **[14.6]** Split mode local query returns all locally found entities meeting all conditions — troe_timescale_temporal_entitymap_distop: step 04, the local candidates without q.
+- [x] **[14.6]** Remote Entity Map merged: linkedMaps records CSR→EntityMap-Id — troe_timescale_temporal_entitymap_distop.
+- [x] **[14.6]** Remote entity ids merged: entityMap records entityId→CSR — troe_timescale_temporal_entitymap_distop: an entity at both is ["@none", csr].
+- [x] **[14.6]** Local Entity Map stored and accessible by its identifier — troe_timescale_temporal_entitymap_create: GET of the NGSILD-EntityMap URI.
 - [ ] **[14.6]** Entity Map usable for paginating temporal evolution of included entities — No test creates a temporal EntityMap and then paginates the temporal evolution of its entities via the map id.
 
 ### json-ld (4)
@@ -800,15 +800,15 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [ ] **[14.5]** ERROR: invalid Entity identifier URI in id list → 400 — No test for an invalid id URI in the id list on the EntityMap-create path.
 - [ ] **[14.5]** ERROR: syntactically invalid q → 400 — No test for a syntactically invalid q on the EntityMap-create path.
 - [ ] **[14.5]** ERROR: syntactically invalid geoquery → 400 — No test for an invalid geoquery (bad geometry/coords) on the EntityMap-create path.
-- [ ] **[14.6]** Entity Map always returned regardless of the location-return flag — No temporal-entity-map test exists, so the always-return-the-map behaviour for the temporal operation is unverified.
-- [ ] **[14.6]** limit parameter is ignored — limit/offset are tested for temporal pagination of DATA (troe_timescale_temporal_query) but never in an entity-map-creation context where it must be ignored.
+- [x] **[14.6]** Entity Map always returned regardless of the location-return flag — troe_timescale_temporal_entitymap_create.
+- [x] **[14.6]** limit parameter is ignored — troe_timescale_temporal_entitymap_create: limit=1&offset=1 → the whole map.
 - [ ] **[14.6]** location of existing Entity Map resource (entityMap input) is ignored — No test supplies an existing entityMap location on the temporal create-map operation to confirm it is ignored.
 - [~] **[14.6]** Restriction satisfied by selector of Entity Types → success — type=Vehicle temporal queries succeed, but they return temporal DATA, not an EntityMap; the restriction-satisfies rule is not asserted in the entity-map-creation operation.
 - [~] **[14.6]** Restriction satisfied by attribute-name list (non-system attr) → success — attrs=speed is exercised on temporal data queries, but not as a restriction satisfying the at-least-one-restriction rule in an entity-map create.
 - [~] **[14.6]** Restriction satisfied by NGSI-LD Query (non-system attr) → success — q=speed>50 is tested on temporal data, but not as a restriction-satisfier in entity-map creation.
 - [~] **[14.6]** Restriction satisfied by GeoQuery → success — GeoQuery is tested on temporal data filtering, but not validated as the at-least-one-restriction satisfier for an entity-map create (and no map is produced).
 - [~] **[14.6]** Restriction satisfied by local scope → success (no further restriction needed) — local=true temporal queries are tested, but never as a stand-in restriction permitting a no-type/no-attr entity-map create; entity-map not produced.
-- [ ] **[14.6]** Linked Entity retrieval indicated by projection attributes → 400 — No test triggers Linked Entity retrieval via projection attrs on the temporal operation to assert 400.
+- [x] **[14.6]** Linked Entity retrieval indicated by projection attributes → 400 — troe_timescale_temporal_entitymap_create: pick=speed{id} → 400.
 - [ ] **[14.6]** Linked Entity retrieval indicated by filter conditions → 400 — No test triggers Linked Entity retrieval via q on the temporal operation to assert 400.
 - [ ] **[14.6]** Syntactically invalid geoquery → 400 BadRequestData — No test sends a malformed geoquery to the temporal operation to assert 400 (geoq validation tested for non-temporal geoQ only).
 - [ ] **[14.6]** Syntactically invalid context source filter (csf) → 400 — No test sends a malformed csf to the temporal operation to assert 400.
@@ -828,7 +828,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [~] **[14.6]** Scope query → narrows result set (S4) — scopeQ narrows temporal DATA; S4 candidate-set narrowing for entity-map creation not asserted.
 - [ ] **[14.6]** Suggested expiry time for the Entity Map accepted — No test supplies a suggested expiry for a temporal EntityMap (operation unimplemented).
 - [ ] **[14.6]** context source filter (csf) accepted to filter Context Sources — No temporal query (or entity-map create) supplies a csf to filter CSRs.
-- [~] **[14.6]** Local scope: no forwarding, map from local entities only — local=true suppresses forwarding on temporal data queries, but no EntityMap is built; the local-only map-from-local-entities behaviour is not asserted.
+- [x] **[14.6]** Local scope: no forwarding, map from local entities only — troe_timescale_temporal_entitymap_distop: local=true, the source not asked.
 - [ ] **[14.6]** attrs list doubles as restriction-attrs and projection attributes — No test demonstrates a temporal attrs list serving both restriction and projection roles in the entity-map operation.
 - [ ] **[14.6]** splitEntities flag default behaviour follows deployment setting — splitEntities default behaviour for the temporal entity-map operation is untested (split mode unimplemented for temporal).
 
