@@ -463,6 +463,13 @@ bool postSubscriptions(void)
     ldSubCacheWrLock(subCacheP);
     if (subCacheP != NULL)
     {
+      //
+      // The subscription is in the database already, and with --high-availability the change event
+      // of that very write may have been applied to this cache in the meantime (haEventApply - it
+      // stores what it reads back). Whichever comes second replaces, under this one lock hold: a
+      // subscription cached twice notifies twice.
+      //
+      ldSubCacheItemRemove(subCacheP, idP->value.s);
       cachedP = ldSubCacheItemAdd(subCacheP, subP, NULL, notifFormat);   // parses the stored q
       if (cachedP != NULL)
         ldSubCacheItemPin(cachedP);
