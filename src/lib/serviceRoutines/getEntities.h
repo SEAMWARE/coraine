@@ -55,4 +55,14 @@ extern AutoEntityMaps autoEntityMaps;
 //
 extern bool getEntities(void);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// bindEntityMapFilters - a page of an EntityMap: its filters the map's (§ 9.6 "the same parameters") - a
+// different or a new one 400 (answered: true), one left out put back from the map
+//
+struct LdEntityMap;
+extern bool bindEntityMapFilters(struct LdEntityMap* mapP);
+
 #endif  // GET_ENTITIES_H

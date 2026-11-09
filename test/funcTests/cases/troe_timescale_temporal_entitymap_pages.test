@@ -1,0 +1,432 @@
+#
+# FILE            troe_timescale_temporal_entitymap_pages.test
+#
+# Copyright 2026 Seamware
+#
+# Query Temporal Evolution of Entities with an EntityMap (TS 104-176 table 8.2.3.1-1; TS 104-175 § 9.6):
+# ?entityMap=true makes a map and serves its first page from it (200, the map in NGSILD-EntityMap); a page
+# of a map (?entityMap=<id>, or the NGSILD-EntityMap request header) is served from the map, in the map's
+# temporal window and with its filters - a link of a page names the map only. A window that differs from
+# the map's is 400; a map that is gone with no query to make a new one from is 404. A map made by
+# POST /temporal/entityMaps (its temporalQ in the body) is paged in the body's window.
+#
+# Each Vehicle has one instance before the window (06:00) and one in it: a page shows the one in it.
+#
+--NAME--
+TRoE timescale - Query Temporal with an EntityMap: made by ?entityMap=true, paged by its id
+
+--TAGS--
+troe timescale postgres temporal entitymap
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. Seed V1..V5 (Vehicle): speed at 06:00 (before the window) and at 09:0N (in it); S1 (Sensor)"
+echo "==============================================================================================="
+for n in 1 2 3 4 5; do
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V'$n'","type":"Vehicle","speed":{"type":"Property","value":'$n',"observedAt":"2026-04-28T06:00:00Z"}}' > /dev/null
+  corCurl --url /ngsi-ld/v1/entities/urn:V$n/attrs/speed -X PATCH --payload '{"value":'$((n * 10))',"observedAt":"2026-04-28T09:0'$n':00Z"}' > /dev/null
+done
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22,"observedAt":"2026-04-28T09:00:00Z"}}' > /dev/null
+echo done
+echo
+echo
+
+
+echo "02. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 - 200, V1 and V2, the map in NGSILD-EntityMap"
+echo "==========================================================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z&entityMap=true&limit=2&options=temporalValues')
+echo "$out"
+mapUrl=$(echo "$out" | grep -i '^NGSILD-EntityMap:' | awk '{print $2}' | tr -d '\r\n')
+mapId=${mapUrl##*/}
+echo
+echo
+
+
+echo "03. Page 2 - entityMap=<id>, offset=2, limit=2, no window and no type: the map's - V3 and V4, the 09:0N instance only"
+echo "======================================================================================================================"
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=$mapId&offset=2&limit=2&options=temporalValues"
+echo
+echo
+
+
+echo "04. Page 3 - by the NGSILD-EntityMap request header, count=true: V5, no next link, NGSILD-Results-Count 5"
+echo "=========================================================================================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?offset=4&limit=2&count=true&options=temporalValues" -H "NGSILD-EntityMap: $mapUrl"
+echo
+echo
+
+
+echo "05. A page in another window (timeAt) than the map's - 400"
+echo "=========================================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=$mapId&timerel=after&timeAt=2026-04-28T05:00:00Z"
+echo
+echo
+
+
+echo "06. A page of a map that does not exist, nothing else in the request - 404"
+echo "=========================================================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=urn:ngsi-ld:EntityMap:nope"
+echo
+echo
+
+
+echo "07. A map that does not exist, with a complete query - a new map from the request, its first page"
+echo "================================================================================================"
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=urn:ngsi-ld:EntityMap:gone&type=Vehicle&timerel=after&timeAt=2026-04-28T09:03:00Z&limit=5&options=temporalValues"
+echo
+echo
+
+
+echo "08. POST /temporal/entityMaps, temporalQ in the body (after 09:02:30), then its first page by GET - V3, V4, V5"
+echo "=============================================================================================================="
+payload='{
+  "type": "Query",
+  "entities": [ { "type": "Vehicle" } ],
+  "temporalQ": { "timerel": "after", "timeAt": "2026-04-28T09:02:30Z" }
+}'
+out=$(corCurl --url /ngsi-ld/v1/temporal/entityMaps --payload "$payload")
+mapUrl=$(echo "$out" | grep -i '^NGSILD-EntityMap:' | awk '{print $2}' | tr -d '\r\n')
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=${mapUrl##*/}&options=temporalValues"
+echo
+echo
+
+
+echo "09. POST /temporal/entityOperations/query?entityMap=true&limit=1, the query in the body - 200, V1, the map in NGSILD-EntityMap"
+echo "============================================================================================================================"
+payload='{
+  "type": "Query",
+  "entities": [ { "type": "Vehicle" } ],
+  "temporalQ": { "timerel": "after", "timeAt": "2026-04-28T08:00:00Z" }
+}'
+out=$(corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?entityMap=true&limit=1&options=temporalValues' --payload "$payload")
+echo "$out"
+mapUrl=$(echo "$out" | grep -i '^NGSILD-EntityMap:' | awk '{print $2}' | tr -d '\r\n')
+echo
+echo
+
+
+echo "10. Its page 2 by GET, the map's window (the body's) - V2"
+echo "========================================================"
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=${mapUrl##*/}&offset=1&limit=1&options=temporalValues"
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1..V5 (Vehicle): speed at 06:00 (before the window) and at 09:0N (in it); S1 (Sensor)
+===============================================================================================
+done
+
+
+02. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 - 200, V1 and V2, the map in NGSILD-EntityMap
+===========================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=2>;rel="next";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=4>;rel="last";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 387
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-04-28T09:01:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          20,
+          "2026-04-28T09:02:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+03. Page 2 - entityMap=<id>, offset=2, limit=2, no window and no type: the map's - V3 and V4, the 09:0N instance only
+======================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=0>;rel="first";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=0>;rel="prev";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=4>;rel="next";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=4>;rel="last";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 387
+
+[
+  {
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          30,
+          "2026-04-28T09:03:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          40,
+          "2026-04-28T09:04:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. Page 3 - by the NGSILD-EntityMap request header, count=true: V5, no next link, NGSILD-Results-Count 5
+==========================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+NGSILD-Results-Count: 5
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&count=true\&limit=2\&offset=0>;rel="first";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&count=true\&limit=2\&offset=2>;rel="prev";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V5",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          50,
+          "2026-04-28T09:05:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. A page in another window (timeAt) than the map's - 400
+==========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 232
+
+{
+  "detail": "URL parameter 'timeAt' differs from the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)'",
+  "status": 400,
+  "title": "Bad Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+06. A page of a map that does not exist, nothing else in the request - 404
+==========================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 186
+
+{
+  "detail": "entity map 'urn:ngsi-ld:EntityMap:nope' not found or expired",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. A map that does not exist, with a complete query - a new map from the request, its first page
+================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 579
+
+[
+  {
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          30,
+          "2026-04-28T09:03:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          40,
+          "2026-04-28T09:04:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          50,
+          "2026-04-28T09:05:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+08. POST /temporal/entityMaps, temporalQ in the body (after 09:02:30), then its first page by GET - V3, V4, V5
+==============================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 579
+
+[
+  {
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          30,
+          "2026-04-28T09:03:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V4",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          40,
+          "2026-04-28T09:04:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V5",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          50,
+          "2026-04-28T09:05:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+09. POST /temporal/entityOperations/query?entityMap=true&limit=1, the query in the body - 200, V1, the map in NGSILD-EntityMap
+============================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&options=temporalValues\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&type=https://uri\.etsi\.org/ngsi\-ld/default\-context/Vehicle\&limit=1\&offset=1>;rel="next";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&options=temporalValues\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&type=https://uri\.etsi\.org/ngsi\-ld/default\-context/Vehicle\&limit=1\&offset=4>;rel="last";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-04-28T09:01:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+10. Its page 2 by GET, the map's window (the body's) - V2
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&options=temporalValues\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&type=https://uri\.etsi\.org/ngsi\-ld/default\-context/Vehicle\&limit=1\&offset=0>;rel="first";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&options=temporalValues\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&type=https://uri\.etsi\.org/ngsi\-ld/default\-context/Vehicle\&limit=1\&offset=0>;rel="prev";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&options=temporalValues\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&type=https://uri\.etsi\.org/ngsi\-ld/default\-context/Vehicle\&limit=1\&offset=2>;rel="next";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&options=temporalValues\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&type=https://uri\.etsi\.org/ngsi\-ld/default\-context/Vehicle\&limit=1\&offset=4>;rel="last";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          20,
+          "2026-04-28T09:02:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

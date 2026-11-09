@@ -1,0 +1,212 @@
+#
+# FILE            troe_timescale_temporal_entitymap_pages_distop.test
+#
+# Copyright 2026 Seamware
+#
+# Query Temporal Evolution of Entities with an EntityMap, distributed (TS 104-175 § 9.6): ?entityMap=true on
+# CB makes the map - its own entities and those of the Context Source CP1 - and serves the first page; each
+# page fetches every entity's history from where the map says it is: the local part from CB's store, the
+# remote part from the registration the map recorded (GET /temporal/entities?id=<its entities of the page>
+# at CP1), an entity in both merged.
+#
+#   CB:  urn:V1 (10 @ 09:00, 20 @ 10:00), urn:V2 (15 @ 09:30)   - local
+#   CP1: urn:V1 (30 @ 11:00), urn:V3 (50 @ 13:00)                - remote, one inclusive registration
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+TRoE timescale - Query Temporal with an EntityMap, distributed: each page from where the map says
+
+--TAGS--
+troe timescale postgres temporal entitymap distops registration
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist --troeSync
+coraineStart -role CP1 --troe timescale -dist --troeSync
+
+--RUN--
+
+echo "01. Register CP1 for Vehicle: createEntityMapQueryTemporal and queryTemporal (inclusive)"
+echo "========================================================================================"
+payload='{
+  "id":         "urn:CSR:CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "inclusive",
+  "operations": ["createEntityMapQueryTemporal", "queryTemporal"],
+  "information":[ { "entities": [{"type":"Vehicle"}] } ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed CB (V1, V2) and CP1 (V1, V3)"
+echo "====================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":15,"observedAt":"2026-04-28T09:30:00Z"}}' > /dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}' > /dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-28T13:00:00Z"}}' > /dev/null
+echo done
+echo
+echo
+
+
+echo "03. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 on CB - page 1: V1 (CB's and CP1's instances), V2"
+echo "================================================================================================================================"
+out=$(corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z&entityMap=true&limit=2&options=temporalValues')
+echo "$out"
+mapUrl=$(echo "$out" | grep -i '^NGSILD-EntityMap:' | awk '{print $2}' | tr -d '\r\n')
+echo
+echo
+
+
+echo "04. The map - V1 at CB (@none) and urn:CSR:CP1, V2 at CB, V3 at urn:CSR:CP1"
+echo "============================================================================"
+corCurl --url "$mapUrl"
+echo
+echo
+
+
+echo "05. Page 2 by the map's id - V3, from CP1"
+echo "========================================="
+corCurl --url "/ngsi-ld/v1/temporal/entities?entityMap=${mapUrl##*/}&offset=2&limit=2&options=temporalValues"
+echo
+echo
+
+
+--EXPECT--
+01. Register CP1 for Vehicle: createEntityMapQueryTemporal and queryTemporal (inclusive)
+========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CP1
+Content-Length: 0
+
+
+
+
+02. Seed CB (V1, V2) and CP1 (V1, V3)
+=====================================
+done
+
+
+03. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 on CB - page 1: V1 (CB's and CP1's instances), V2
+================================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=2>;rel="next";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=2>;rel="last";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 523
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          20,
+          "2026-04-28T10:00:00Z"
+        ],
+        [
+          30,
+          "2026-04-28T11:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          15,
+          "2026-04-28T09:30:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+04. The map - V1 at CB (@none) and urn:CSR:CP1, V2 at CB, V3 at urn:CSR:CP1
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none",
+      "urn:CSR:CP1"
+    ],
+    "urn:V2": [
+      "@none"
+    ],
+    "urn:V3": [
+      "urn:CSR:CP1"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {
+    "urn:CSR:CP1": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)"
+  },
+  "type": "EntityMap"
+}
+
+
+
+05. Page 2 by the map's id - V3, from CP1
+=========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+REGEX(Link:\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=0>;rel="first";type="application/json",\ </ngsi\-ld/v1/temporal/entities\?entityMap=urn:ngsi-ld:EntityMap:[0-9a-f]+\&type=Vehicle\&timerel=after\&timeAt=2026\-04\-28T08:00:00Z\&options=temporalValues\&limit=2\&offset=0>;rel="prev";type="application/json")
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V3",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          50,
+          "2026-04-28T13:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

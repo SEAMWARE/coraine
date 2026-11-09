@@ -306,9 +306,10 @@ read from the TRoE's history - [Timepoint](timepoint.md)). Off: the three routes
 
 #### `TEMPORAL_ENTITY_MAP`
 
-`GET`, `HEAD` and `POST /ngsi-ld/v1/temporal/entityMaps`: the EntityMap of a temporal query (TS 104-176 § 11.3,
-[EntityMaps](installation.md#the-entitymap-of-a-temporal-query)). Off: the two routes are not built. Size:
-7,786 bytes.
+`GET`, `HEAD` and `POST /ngsi-ld/v1/temporal/entityMaps`: the EntityMap of a temporal query (TS 104-176 § 11.3),
+and `entityMap` on Query Temporal - a map made, a page of one served
+([EntityMaps](installation.md#the-entitymap-of-a-temporal-query)). Off: the two routes are not built and Query
+Temporal refuses `entityMap` and `splitEntities` (400). Size: 11,392 bytes.
 
 #### `ICU_COLLATION`
 
@@ -525,7 +526,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_Q_PREFILTER=OFF` | 3,976 bytes of `mongoc.so` (release build); the broker 0 | no `q` pre-filter - a `q` value term reads the whole collection; storage format 1 ([q and the mongoc indexes](installation.md#q-and-the-mongoc-indexes)) |
 | `COR_FEATURE_DB_INDEXES=OFF` | 16,029 bytes of `mongoc.so`, 4,300 of `admin.so`, 23,616 of `corDB.so` (release build); the broker 0 | no declared indexes - no `--dbValueIndexes`, `/admin/indexes` answers 501 ([Declared indexes](installation.md#declared-indexes)) |
 | `COR_FEATURE_AUTO_ENTITY_MAP=OFF` | 3,680 bytes (release build) | no automatic EntityMaps and no `--autoEntityMaps` - a query paginated past its first page is paged by `offset` / `limit`, locally and forwarded; a map only when a client asks for one (`--entityMapMemory` still caps those) ([EntityMaps](installation.md#entitymaps)) |
-| `COR_FEATURE_TEMPORAL_ENTITY_MAP=OFF` | 7,786 bytes (release build) | no `/ngsi-ld/v1/temporal/entityMaps` - the routes are not built ([EntityMaps](installation.md#the-entitymap-of-a-temporal-query)) |
+| `COR_FEATURE_TEMPORAL_ENTITY_MAP=OFF` | 11,392 bytes (release build) | no `/ngsi-ld/v1/temporal/entityMaps` - the routes are not built; Query Temporal refuses `entityMap` and `splitEntities` ([EntityMaps](installation.md#the-entitymap-of-a-temporal-query)) |
 | `COR_WITH_GEOQ=0` (`GEOQ`) | in `mongoc.so`, `corDB.so` and `ramDB.so` 33 KiB stripped, and GEOS: libgeos_c and libgeos are not loaded (3.17 MiB); the broker grows 8 KiB (its refusals) | no geo-queries - `georel`, a `geoQ` in a query body, a subscription or a Service Execution object, ordering by distance are answered 501; corDB accepts any polygon |
 | `COR_FEATURE_DATA_CHANNELS=OFF` | 14,720 bytes (release build) | no DataChannels - a bridge's `dataChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/dataChannels` answers 501 ([DataChannels](bridge-channels.md#datachannels)) |
 | `COR_FEATURE_ASSET_CHANNELS=OFF` | 22,063 bytes (release build) | no AssetChannels - a bridge's `assetChannels` section in `--bridgeConfig` is warned about and ignored, `GET /ngsi-ld/v1/assetChannels` answers 501 ([AssetChannels](asset-channels.md)) |

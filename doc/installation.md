@@ -1516,11 +1516,28 @@ candidates, the entities of the selector with history in the window.
 The answer is that of `GET /entityMaps`: 201, the map, `NGSILD-EntityMap`. A `HEAD` makes the map and
 answers 204 with the same header (TS 104-176 § 5: a HEAD's success is 204). The map lives 5 minutes,
 counts in `--entityMapMemory` (403 `TooManyResults` when it does not fit), and `GET`, `PATCH` and
-`DELETE /entityMaps/{id}` serve it. `GET /temporal/entities` does not read a map: its `entityMap`
-parameter is accepted and ignored.
+`DELETE /entityMaps/{id}` serve it. The map records the query's time window with its other parameters, the
+`temporalQ` of a body too.
 
-In the build by default; `-DCOR_FEATURE_TEMPORAL_ENTITY_MAP=OFF` leaves the two routes out (7,786 bytes,
-release build).
+**Query Temporal with a map** - `GET /temporal/entities` and `POST /temporal/entityOperations/query`
+(TS 104-176 table 8.2.3.1-1, TS 104-175 § 9.6):
+
+- `entityMap=true` makes the map as `/temporal/entityMaps` would, and answers its first page: 200, the map
+  in `NGSILD-EntityMap`.
+- `entityMap=<id>` (or the `NGSILD-EntityMap` request header) answers the page `offset` / `limit` of the
+  map. Each entity's history comes from where the map says it is: the local ones from the TRoE, those of a
+  Context Source by the registration the map recorded - not matched again - in one
+  `GET /temporal/entities?id=<its entities of the page>` per source (100 ids a request), the parts of an
+  entity in more than one place merged. The page is in the map's order; an entity with no history in the
+  window any more is not on it. `NGSILD-Results-Count` is the map's size.
+- A page is in the map's window and with its filters: a `timerel`, `timeAt`, `endTimeAt`, `timeproperty`,
+  `type`, `q`, `scopeQ` or GeoQuery that differs from the map's is 400, one left out is the map's - the
+  page's links (`/temporal/entities?entityMap=<id>&...`) repeat the query. A map that is gone is made again
+  from a request that is a complete query; a request that is not one is 404.
+- Not with `NGSILD-Snapshot` (400).
+
+In the build by default; `-DCOR_FEATURE_TEMPORAL_ENTITY_MAP=OFF` leaves the two routes and the `entityMap`
+parameter of Query Temporal out (11,392 bytes, release build).
 
 ## Health port
 

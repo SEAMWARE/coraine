@@ -156,6 +156,19 @@
 #  define REGS(handler)   corNotInThisBuild
 #endif
 
+
+
+//
+// TEMPORAL_MAP_PARAMS - Query Temporal Evolution of Entities with an EntityMap: entityMap (=true: one made, the
+// first page served from it; =<id>: a page of it - the NGSILD-EntityMap request header the same), entityMapLifetime
+// and splitEntities (TS 104-176 table 8.2.3.1-1). Not in this build: refused as any unknown parameter is
+//
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+#  define TEMPORAL_MAP_PARAMS   (LD_PARAM_ENTITY_MAP | LD_PARAM_SPLIT_ENTITIES)
+#else
+#  define TEMPORAL_MAP_PARAMS   0
+#endif
+
 #if COR_FEATURE_SERVICE_EXECUTION
 #  define SVCX(handler)   handler
 #else
@@ -355,9 +368,9 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbPost,   "/ngsi-ld/v1/temporal/entities/*/attrs",          postEntityTemporalAttrs,       0,                                 LdOpAppendAttrsTemporal },
   { CorVerbGet,    "/ngsi-ld/v1/temporal/entities/*",                getEntityTemporal,             LD_PARAMS_GET_TEMPORAL_ENTITY,     LdOpRetrieveTemporal },
   { CorVerbDelete, "/ngsi-ld/v1/temporal/entities/*",                deleteEntityTemporal,          0,                                 LdOpDeleteTemporal },
-  { CorVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
+  { CorVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES | TEMPORAL_MAP_PARAMS, LdOpQueryTemporal },
   { CorVerbPost,   "/ngsi-ld/v1/temporal/entities",                  postEntitiesTemporal,          0,                                 LdOpUpsertTemporal },
-  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal, ldQueryBodyCheck },
+  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES | TEMPORAL_MAP_PARAMS, LdOpQueryTemporal, ldQueryBodyCheck },
 
 #if COR_FEATURE_TEMPORAL_ENTITY_MAP
   // Create EntityMap for Query Temporal Evolution of Entities (TS 104-176 § 11.3, TS 104-175 § 14.6) - a HEAD as the GET
