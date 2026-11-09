@@ -131,7 +131,8 @@ Recently built, and documented where it lives:
     ([EntityMaps](installation.md#entitymaps)).
 -   **The EntityMap of a temporal query** - `GET`, `HEAD` and `POST /ngsi-ld/v1/temporal/entityMaps` (TS 104-176
     § 11.3): the entities a temporal query selects, with the maps of the Context Sources that support
-    `createEntityMapQueryTemporal`
+    `createEntityMapQueryTemporal`; Query Temporal makes one (`entityMap=true`) and pages one
+    (`entityMap=<id>`, `NGSILD-EntityMap`), each entity's history from where the map says it is
     ([EntityMaps](installation.md#the-entitymap-of-a-temporal-query)).
 -   **c³: the DDS mapping tool** - DDS topics, services and actions to entities and attributes, in
     Operate, beside the broker it maps for, and from Compile's Bridges: made from the bridge's inventory
@@ -155,11 +156,6 @@ will realistically follow in 2027. coraine implements its own objects now and ad
 settles on.
 
 ## Short term
-
--   **The pages of a temporal EntityMap** - Query Temporal Evolution of Entities reading the map that
-    `/temporal/entityMaps` made (`entityMap=<id>`, `NGSILD-EntityMap`), each page's history fetched from where
-    the map says the entity lives, and `?entityMap=true` on `/temporal/entities` making one (TS 104-176
-    table 8.2.3.1-1). Today the parameter is accepted and ignored.
 
 ## Medium term
 

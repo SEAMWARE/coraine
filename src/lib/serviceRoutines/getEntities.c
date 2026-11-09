@@ -1363,7 +1363,7 @@ static const char* buildSplitForwardQueryString(CorLdContext* csrCtx, char** typ
 //
 // Returns true and raises the 400 on a conflict; false otherwise.
 //
-static bool bindEntityMapFilters(LdEntityMap* mapP)
+bool bindEntityMapFilters(LdEntityMap* mapP)
 {
   CorAlloc* kaP = &corRest.kalloc;
 

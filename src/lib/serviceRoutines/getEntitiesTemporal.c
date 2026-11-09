@@ -81,7 +81,10 @@
 #if COR_FEATURE_TEMPORAL_ENTITY_MAP
 #include "corHash/corHash.h"                         // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
 #include "corNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
-#include "corNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAdmit, ldEntityMapToTree
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAdmit, ldEntityMapToTree, ldEntityMapQueryParam[Add], ldEntityMapLookupPinned
+#include "corNgsild/ldCheckDateTime.h"                // ldIsoToNanoseconds
+#include "corJson/corJsonRenderSize.h"               // corJsonFastRenderSize
+#include "serviceRoutines/getEntities.h"             // bindEntityMapFilters
 #include "serviceRoutines/entityMapBuild.h"          // entityMapFill, entityMapHeader
 #endif
 #include "serviceRoutines/getEntitiesTemporal.h"     // Own interface
@@ -254,19 +257,26 @@ static char* nameList(char** v, CorLdContext* ctxP)
 //
 // parsedQueryQs - the query string a Context Source is asked with, built from the query AS PARSED, not from
 // the URL: a POST's Query is in the body (ldQueryBodyCheck turned it into the parsed fields). The names are
-// compacted with the @context the forward carries (its Link header).
+// compacted with the @context the forward carries (its Link header). ids: the entities asked for (a comma
+// separated list) instead of the request's id / idPattern.
 //
 // filters false: the entity selector and the temporal window only - q, the geo-query, scopeQ and attrs left
 // out (split entities, TS 104-175 § 14.6.4: the source answers the candidates). scopeQ false: not sent even
 // with the filters (Query Temporal applies it on the merged result).
 //
-static const char* parsedQueryQs(LdRegCacheItem* csr, bool filters, bool scopeQ)
+static const char* parsedQueryQs(LdRegCacheItem* csr, const char* ids, bool filters, bool scopeQ)
 {
   CorLdContext* ctxP = ldDistOpForwardContext(csr);
   char*         qs   = (char*) "";
 
-  qs = qsAdd(qs, "id",           (corNgsild.idV != NULL) ? corNgsild.id : NULL);
-  qs = qsAdd(qs, "idPattern",    corNgsild.idPattern);
+  if (ids != NULL)                    // a page of an EntityMap: its entities, not the request's selector
+    qs = qsAdd(qs, "id", ids);
+  else
+  {
+    qs = qsAdd(qs, "id",        (corNgsild.idV != NULL) ? corNgsild.id : NULL);
+    qs = qsAdd(qs, "idPattern", corNgsild.idPattern);
+  }
+
   qs = qsAdd(qs, "type",         nameList(corNgsild.typeV, ctxP));
   qs = qsAdd(qs, "timerel",      corNgsild.timerel);
   qs = qsAdd(qs, "timeAt",       corNgsild.timeAt);
@@ -309,6 +319,10 @@ static const char* parsedQueryQs(LdRegCacheItem* csr, bool filters, bool scopeQ)
 // queryInBody: a POST (/temporal/entityOperations/query) - the query is in the body, not the URL: the
 // keys parsedQueryQs builds from the parsed query are skipped here, the caller adds that part.
 //
+// mapPage: the request to a source for its entities of a page of an EntityMap - its parsed part
+// (parsedQueryQs, with the page's ids) the caller's, and no paging: not limit, offset, count, the map's
+// own parameters (splitEntities, entityMapLifetime).
+//
 static bool parsedKey(const char* k)
 {
   static const char* keys[] = { "id", "idPattern", "type", "attrs", "q", "timerel", "timeAt", "endTimeAt", "timeproperty",
@@ -323,7 +337,13 @@ static bool parsedKey(const char* k)
   return false;
 }
 
-static const char* buildTemporalQueryQs(CorAlloc* kaP, bool queryInBody)
+static bool pagingKey(const char* k)
+{
+  return (strcmp(k, "limit") == 0) || (strcmp(k, "offset") == 0) || (strcmp(k, "count") == 0) ||
+         (strcmp(k, "splitEntities") == 0) || (strcmp(k, "entityMapLifetime") == 0);
+}
+
+static const char* buildTemporalQueryQs(CorAlloc* kaP, bool queryInBody, bool mapPage)
 {
   // Worst-case length: each (key=value&) plus NUL, plus "&sysAttrs=true".
   int len = 1 + 15;
@@ -341,7 +361,8 @@ static const char* buildTemporalQueryQs(CorAlloc* kaP, bool queryInBody)
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
     if (strcmp(k, "sysAttrs")  == 0) continue;  // re-emitted below from the parsed flag
-    if (queryInBody && parsedKey(k)) continue;  // from the parsed query - parsedQueryQs
+    if ((queryInBody || mapPage) && parsedKey(k)) continue;  // from the parsed query - parsedQueryQs
+    if (mapPage && pagingKey(k)) continue;
 
     // 3x the value: a percent-encoded byte becomes three
     const char* v = corRest.in.uriParamV[i].value;
@@ -365,7 +386,8 @@ static const char* buildTemporalQueryQs(CorAlloc* kaP, bool queryInBody)
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
     if (strcmp(k, "sysAttrs")  == 0) continue;  // re-emitted below from the parsed flag
-    if (queryInBody && parsedKey(k)) continue;  // from the parsed query - parsedQueryQs
+    if ((queryInBody || mapPage) && parsedKey(k)) continue;  // from the parsed query - parsedQueryQs
+    if (mapPage && pagingKey(k)) continue;
 
     //
     // Encoded, not verbatim: the value arrived percent-DECODED and a raw '&'
@@ -560,6 +582,70 @@ static int srcCompare(const char* name, void* itemP)
 
 // -----------------------------------------------------------------------------
 //
+// temporalWindowRecord - the temporal window of the query into the map, with its other parameters (the URL's:
+// ldEntityMapSetQueryParams): a body's temporalQ is in no URL
+//
+static const char* windowKeyV[] = { "timerel", "timeAt", "endTimeAt", "timeproperty", NULL };
+
+static const char** windowValue(int ix)
+{
+  switch (ix)
+  {
+  case 0:  return (const char**) &corNgsild.timerel;
+  case 1:  return (const char**) &corNgsild.timeAt;
+  case 2:  return (const char**) &corNgsild.endTimeAt;
+  default: return (const char**) &corNgsild.timeproperty;
+  }
+}
+
+static void temporalWindowRecord(LdEntityMap* mapP)
+{
+  for (int ix = 0; windowKeyV[ix] != NULL; ix++)
+    ldEntityMapQueryParamAdd(mapP, windowKeyV[ix], *windowValue(ix));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// temporalWindowBind - a page of a map: its temporal window the map's
+//
+// A parameter of the window that differs from the map's is 400 (§ 9.6, "the same parameters"); one left out
+// is the map's. A map made by a query that was not temporal (/entityMaps) has none: the page's own.
+// Returns true when answered (the 400).
+//
+static bool temporalWindowBind(LdEntityMap* mapP)
+{
+  for (int ix = 0; windowKeyV[ix] != NULL; ix++)
+  {
+    const char*  bound  = ldEntityMapQueryParam(mapP, windowKeyV[ix]);
+    const char** valueP = windowValue(ix);
+
+    if (bound == NULL)
+      continue;
+
+    if (*valueP == NULL)
+      *valueP = bound;
+    else if (strcmp(*valueP, bound) != 0)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "URL parameter '%s' differs from the query that created entity map '%s'", windowKeyV[ix], corNgsild.entityMapId);
+      return true;
+    }
+  }
+
+  if (corNgsild.timeAt != NULL)
+    corNgsild.timeAtNs = ldIsoToNanoseconds(corNgsild.timeAt);
+  if (corNgsild.endTimeAt != NULL)
+    corNgsild.endTimeAtNs = ldIsoToNanoseconds(corNgsild.endTimeAt);
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // temporalEntityMap - Create EntityMap for Query Temporal Evolution of Entities (TS 104-175 § 14.6)
 //
 // The query has been validated as a temporal query is; fP is its store filter. The map is the ids of
@@ -574,7 +660,13 @@ static int srcCompare(const char* name, void* itemP)
 // Answered as GET and POST /entityMaps answer: 201, the map, and NGSILD-EntityMap. limit and offset
 // are ignored (§ 14.6.3): a map is never a page.
 //
-static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP)
+// servePP: ?entityMap=true on Query Temporal - the map made the same way, not answered: *servePP, for the
+// caller to serve its first page from (false: go on; true: answered, an error).
+//
+// The temporal window goes into the map with the rest of the query (temporalWindowRecord): a page of it
+// names the map only, and is served in the window the map was made in.
+//
+static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP, LdEntityMap** servePP)
 {
   Tenant* mapTenantP = (Tenant*) corNgsild.tenantP;
 
@@ -736,7 +828,7 @@ static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP)
     for (int i = 0; i < itemCount; i++)
     {
       const char* path    = "/ngsi-ld/v1/temporal/entityMaps?";
-      const char* qs      = parsedQueryQs(items[i].csr, split == false, true);
+      const char* qs      = parsedQueryQs(items[i].csr, NULL, split == false, true);
       int         size    = strlen(items[i].csr->endpoint) + strlen(path) + strlen(qs) + 1;
       char*       url     = (char*) corAlloc(&corRest.kalloc, size);
 
@@ -806,6 +898,8 @@ static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP)
 
   ldEntityMapRequestPin(mapP);   // created pinned; held (and filled, rendered) till the request ends
   entityMapFill(mapP, idArrayP, srcMap, linkedP);
+  temporalWindowRecord(mapP);
+  mapP->automatic = corNgsild.entityMapAuto;
 
   if (ldEntityMapAdmit(storeP, mapP) == false)
   {
@@ -815,10 +909,363 @@ static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP)
     return true;
   }
 
+  if (servePP != NULL)
+  {
+    *servePP = mapP;
+    return false;
+  }
+
   entityMapHeader(mapP);
   corRest.out.responseTree   = ldEntityMapToTree(mapP);
   corRest.out.httpStatusCode = 201;
   corNgsild.rawResponse      = true;
+
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// temporalMapOpen - ?entityMap=<id> (or the NGSILD-EntityMap request header) on Query Temporal: the map,
+// pinned for the request, the page's query made the map's (§ 9.6: "the same parameters")
+//
+// The map's filters (bindEntityMapFilters) and its temporal window (temporalWindowBind): a parameter that
+// differs from the map's is 400, one left out is the map's - a link of a page names the map only. A map
+// that is gone (expired, deleted) and a request that is a complete query: a new map, made from the request
+// (§ 9.6: "a new one shall be created"), *mapPP NULL and corNgsild.entityMapCreate set; a request that is
+// not one: 404. Returns true when answered (an error).
+//
+static bool temporalMapOpen(LdEntityMap** mapPP)
+{
+  Tenant* tP = (Tenant*) corNgsild.tenantP;
+
+  *mapPP = NULL;
+
+  LdEntityMap* mapP = ((tP != NULL) && (tP->entityMapStoreP != NULL))
+                        ? ldEntityMapLookupPinned((LdEntityMapStore*) tP->entityMapStoreP, corNgsild.entityMapId)
+                        : NULL;
+
+  if (mapP == NULL)
+  {
+    bool complete = (corNgsild.timerel != NULL) &&
+                    ((corNgsild.typeV != NULL) || (corNgsild.attrsV != NULL) || (corNgsild.qExpr != NULL) ||
+                     (corNgsild.georel != NULL) || (corNgsild.local == true));
+
+    if (complete == false)
+    {
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
+      return true;
+    }
+
+    corNgsild.entityMapId     = NULL;
+    corNgsild.entityMapCreate = true;
+    corNgsild.entityMapAuto   = true;
+    return false;
+  }
+
+  ldEntityMapRequestPin(mapP);     // unpinned when the response is out
+
+  if (bindEntityMapFilters(mapP) == true)
+    return true;
+
+  if (temporalWindowBind(mapP) == true)
+    return true;
+
+  //
+  // The map's type, put back by bindEntityMapFilters as an expression: the temporal query reads the list
+  //
+  if ((corNgsild.typeV == NULL) && (corNgsild.typeExpr != NULL) && corNgsild.typeExpr->isSimple)
+  {
+    int n = corNgsild.typeExpr->groupCount;
+
+    corNgsild.typeV = (char**) corAlloc(&corRest.kalloc, (n + 1) * sizeof(char*));
+    for (int ix = 0; ix < n; ix++)
+      corNgsild.typeV[ix] = corNgsild.typeExpr->groupV[ix].typeV[0];
+    corNgsild.typeV[n] = NULL;
+  }
+
+  ldEntityMapTouch(mapP);
+  *mapPP = mapP;
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// temporalMapPage - a page of an EntityMap, Query Temporal Evolution of Entities: the entries
+// [offset, offset + limit) of the map, each entity's history fetched from where the map says it is
+//
+// The local ones from the store (their ids, the query's filters and window), those of each Context Source
+// the map recorded in one request per source - GET /temporal/entities?id=<its entities of the page>&...
+// (100 ids a request), the registration looked up by the id the map holds, not matched again: the map is a
+// frozen set. The parts of an entity merged (an entity split across sources), the page in the map's order;
+// an entity with no history in the window is not on it. 200, the map in NGSILD-EntityMap, its links name
+// the map.
+//
+static bool temporalMapPage(LdEntityMap* mapP, Tenant* tenantP, TroeQueryFilter* fP)
+{
+  bool limitGiven = (corRest.in.uriParamMask & LD_PARAM_LIMIT) != 0;
+  int  limit      = limitGiven ? corNgsild.limit : ((corNgsild.limit > 0) ? corNgsild.limit : 20);
+  int  offset     = corNgsild.offset;
+
+  entityMapHeader(mapP);
+
+  //
+  // The slice
+  //
+  LdEntityMapEntry* entryP = mapP->head;
+
+  for (int ix = 0; (entryP != NULL) && (ix < offset); ix++)
+    entryP = entryP->next;
+
+  LdEntityMapEntry** sliceV = (LdEntityMapEntry**) corAlloc(&corRest.kalloc, sizeof(LdEntityMapEntry*) * (limit + 1));
+  int                sliceN = 0;
+
+  for (; (entryP != NULL) && (sliceN < limit); entryP = entryP->next)
+    sliceV[sliceN++] = entryP;
+
+  //
+  // The local entities: the store, asked for these ids
+  //
+  CorNode* result = NULL;
+  char**   localV = (char**) corAlloc(&corRest.kalloc, sizeof(char*) * (sliceN + 1));
+  int      localN = 0;
+
+  for (int i = 0; i < sliceN; i++)
+  {
+    for (int s = 0; s < sliceV[i]->sourceCount; s++)
+    {
+      if (strcmp(sliceV[i]->sourceIdV[s], "@none") == 0)
+      {
+        localV[localN++] = sliceV[i]->entityId;
+        break;
+      }
+    }
+  }
+  localV[localN] = NULL;
+
+  if (localN > 0)
+  {
+    TroeQueryFilter local = *fP;
+    TroeRangeInfo   range;
+
+    memset(&range, 0, sizeof(range));
+    local.idV          = localV;
+    local.idPattern    = NULL;
+    local.limit        = localN;
+    local.limitGiven   = true;
+    local.offset       = 0;
+    local.count        = false;
+    local.aggrPushdown = false;    // a source's part is merged instance by instance
+    local.maxBytes     = 0;        // the budget is the page's, below
+
+    if (troe.entityTemporalQuery(tenantP, &local, &result, &range) != TROE_OK)
+    {
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "temporal query failed");
+      return true;
+    }
+  }
+
+  if (result == NULL)
+    result = corTreeArray(corRest.kallocP, NULL);
+
+  //
+  // The remote ones: per registration the map recorded, its entities of the page
+  //
+  const char* ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
+  LdRegCache* rcP      = (LdRegCache*) tenantP->regCacheP;
+  int         maxReqs  = 0;
+
+  for (int i = 0; i < sliceN; i++)
+    maxReqs += sliceV[i]->sourceCount;
+
+  const char**       regV   = (const char**) corAlloc(&corRest.kalloc, sizeof(char*) * (maxReqs + 1));
+  LdRegCacheItem**   csrV   = (LdRegCacheItem**) corAlloc(&corRest.kalloc, sizeof(LdRegCacheItem*) * (maxReqs + 1));
+  int                regN   = 0;
+
+  for (int i = 0; i < sliceN; i++)
+  {
+    for (int s = 0; s < sliceV[i]->sourceCount; s++)
+    {
+      const char* regId = sliceV[i]->sourceIdV[s];
+      int         ix    = 0;
+
+      if (strcmp(regId, "@none") == 0)
+        continue;
+
+      while ((ix < regN) && (strcmp(regV[ix], regId) != 0))
+        ix++;
+
+      if (ix == regN)
+        regV[regN++] = regId;
+    }
+  }
+
+  if ((regN > 0) && (rcP != NULL))
+  {
+    ldRegCacheRdLock(rcP);
+    for (int ix = 0; ix < regN; ix++)
+    {
+      csrV[ix] = ldRegCacheItemLookup(rcP, regV[ix]);
+      if (csrV[ix] != NULL)
+        ldRegCacheItemPin(csrV[ix]);
+    }
+    ldRegCacheUnlock(rcP);
+
+    const char*          fwdQs   = buildTemporalQueryQs(&corRest.kalloc, true, true);
+    const char*          tpath   = "/ngsi-ld/v1/temporal/entities?";
+    LdDistOpBatchItem*   items   = (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, sizeof(LdDistOpBatchItem)   * (sliceN + regN + 1));
+    LdDistOpBatchResult* results = (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, sizeof(LdDistOpBatchResult) * (sliceN + regN + 1));
+    int                  itemN   = 0;
+
+    memset(items,   0, sizeof(LdDistOpBatchItem)   * (sliceN + regN + 1));
+    memset(results, 0, sizeof(LdDistOpBatchResult) * (sliceN + regN + 1));
+
+    for (int ix = 0; ix < regN; ix++)
+    {
+      LdRegCacheItem* csr = csrV[ix];
+
+      if ((csr == NULL) || (csr->endpoint == NULL))    // the registration is gone: its parts are not on the page
+        continue;
+
+      int i = 0;
+
+      while (i < sliceN)
+      {
+        int   idsSize = 8192;
+        char* ids     = (char*) corAlloc(&corRest.kalloc, idsSize);
+        int   pos     = 0;
+        int   n       = 0;
+
+        ids[0] = 0;
+
+        for (; (i < sliceN) && (n < 100); i++)
+        {
+          bool fromHere = false;
+
+          for (int s = 0; s < sliceV[i]->sourceCount; s++)
+            fromHere = fromHere || (strcmp(sliceV[i]->sourceIdV[s], regV[ix]) == 0);
+
+          if (fromHere == false)
+            continue;
+
+          int len = strlen(sliceV[i]->entityId);
+
+          if ((n > 0) && (pos + len + 2 > idsSize))
+            break;                                     // the next request takes it
+
+          pos += snprintf(ids + pos, idsSize - pos, "%s%s", (n > 0) ? "," : "", sliceV[i]->entityId);
+          n++;
+        }
+
+        if (n == 0)
+          continue;
+
+        const char* parsedQs = parsedQueryQs(csr, ids, true, false);
+        int         urlSize  = strlen(csr->endpoint) + strlen(tpath) + strlen(parsedQs) + strlen(fwdQs) + 2;
+        char*       url      = (char*) corAlloc(&corRest.kalloc, urlSize);
+
+        snprintf(url, urlSize, "%s%s%s%s%s", csr->endpoint, tpath, parsedQs, (fwdQs[0] != 0) ? "&" : "", fwdQs);
+
+        items[itemN].csr = csr;
+        items[itemN].url = url;
+        itemN++;
+      }
+    }
+
+    if (itemN > 0)
+      ldDistOpSendMulti(items, itemN, CorVerbGet, ownAlias, results);
+
+    for (int i = 0; i < itemN; i++)
+    {
+      CorNode* remoteArray = results[i].responseTree;
+
+      if ((results[i].statusCode < 200) || (results[i].statusCode >= 300) || (remoteArray == NULL) || (remoteArray->type != CorArray))
+        continue;                                      // a source that does not answer: its parts are not on the page
+
+      corLdExpandTree(remoteArray, corNgsild.contextP, &corRest.kalloc);
+      ldStripAtContext(remoteArray);
+      mergeRemoteArray(result, remoteArray, false);
+    }
+
+    for (int ix = 0; ix < regN; ix++)
+    {
+      if (csrV[ix] != NULL)
+        ldRegCacheItemUnpin(csrV[ix]);
+    }
+  }
+
+  //
+  // The page, in the map's order - and within the byte budget: it ends before the entity that would pass it
+  //
+  CorNode* pageP = corTreeArray(corRest.kallocP, NULL);
+  int      added = 0;
+#if COR_FEATURE_RESPONSE_BUDGET
+  int64_t  bytes = 0;
+#endif
+
+  for (int i = 0; i < sliceN; i++)
+  {
+    CorNode* eP = findEntityById(result, sliceV[i]->entityId);
+
+    if (eP != NULL)
+    {
+#if COR_FEATURE_RESPONSE_BUDGET
+      if (responseBudgetBytes > 0)
+      {
+        int64_t size = corJsonFastRenderSize(eP);
+
+        if (bytes + size > responseBudgetBytes)
+        {
+          if (added == 0)
+          {
+            responseBudgetTooMany("the next entity's temporal representation of the EntityMap");
+            return true;
+          }
+
+          break;
+        }
+
+        bytes += size;
+      }
+#endif
+
+      corTreeChildRemove(result, eP);
+      corTreeChildAdd(pageP, eP);
+    }
+
+    added++;    // an entity of the map with no history in the window is passed, as the page's
+  }
+
+  scopeFilter(pageP, tenantP);
+
+#if COR_FEATURE_AUTH
+  if (authEntityArrayFilter(pageP) == false)       // the entities the request may not read are left out - before a projection
+    return true;
+#endif
+
+  if ((corNgsild.pickV != NULL) || (corNgsild.omitV != NULL))
+  {
+    for (CorNode* ep = pageP->value.head; ep != NULL; ep = ep->next)
+      ldPickOmit(ep, corNgsild.pickV, corNgsild.omitV);
+  }
+
+  if (corNgsild.count)
+  {
+    char* countStr = (char*) corAlloc(&corRest.kalloc, 32);
+    snprintf(countStr, 32, "%d", mapP->entryCount);
+    corRestOutHeaderAdd("NGSILD-Results-Count", countStr);
+  }
+
+  int nextOffset = offset + added;
+
+  ldPaginationEntityMapLinkHeader(mapP, offset, limit, nextOffset, mapP->entryCount, nextOffset < mapP->entryCount);
+
+  corRest.out.responseTree   = pageP;
+  corRest.out.httpStatusCode = 200;
 
   return true;
 }
@@ -916,6 +1363,27 @@ static bool temporalQuery(bool mapCreate)
   LdSnapshotCacheItem* snapItem = ldSnapshotItemFromHeader(&snapSeen);
   if (snapSeen && snapItem == NULL)
     return true;
+
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+  //
+  // An EntityMap: ?entityMap=true makes one, ?entityMap=<id> (or NGSILD-EntityMap) pages one. Bound before
+  // the checks below: a link of a page names the map, and its window and filters are the map's.
+  //
+  LdEntityMap* pageMapP = NULL;
+
+  if ((mapCreate == false) && ((corNgsild.entityMapId != NULL) || corNgsild.entityMapCreate))
+  {
+    if (snapItem != NULL)
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+              "an EntityMap is not used with NGSILD-Snapshot - a Snapshot is a frozen set of its own");
+      return true;
+    }
+
+    if ((corNgsild.entityMapId != NULL) && (temporalMapOpen(&pageMapP) == true))
+      return true;
+  }
+#endif
 
   // § 6.18.3.2: timerel is mandatory on the multi-entity GET (unlike the
   // single-entity retrieve, where it's optional). When present, timeAt
@@ -1096,7 +1564,18 @@ static bool temporalQuery(bool mapCreate)
 
 #if COR_FEATURE_TEMPORAL_ENTITY_MAP
   if (mapCreate)
-    return temporalEntityMap(tenantP, &filter);
+    return temporalEntityMap(tenantP, &filter, NULL);
+
+  if ((pageMapP == NULL) && corNgsild.entityMapCreate)
+  {
+    TroeQueryFilter mapFilter = filter;              // the map's collection rewrites its filter; the page reads this one
+
+    if (temporalEntityMap(tenantP, &mapFilter, &pageMapP) == true)
+      return true;
+  }
+
+  if (pageMapP != NULL)
+    return temporalMapPage(pageMapP, tenantP, &filter);
 #endif
 
   TroeRangeInfo rangeInfo;
@@ -1139,7 +1618,7 @@ static bool temporalQuery(bool mapCreate)
     {
       LdRegMode   modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
       bool        queryInBody = (corRest.in.verb == CorVerbPost);
-      const char* fwdQs       = buildTemporalQueryQs(&corRest.kalloc, queryInBody);
+      const char* fwdQs       = buildTemporalQueryQs(&corRest.kalloc, queryInBody, false);
 
       LdRegCacheItem** matchV[4] = { NULL, NULL, NULL, NULL };
       int              matchN[4] = { 0, 0, 0, 0 };
@@ -1199,7 +1678,7 @@ static bool temporalQuery(bool mapCreate)
 
           if (queryInBody == true)
           {
-            const char* bodyQs = parsedQueryQs(csr, true, false);
+            const char* bodyQs = parsedQueryQs(csr, NULL, true, false);
             int         size   = qsLen + strlen(bodyQs) + 2;
             char*       both   = (char*) corAlloc(&corRest.kalloc, size);
 

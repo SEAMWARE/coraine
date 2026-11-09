@@ -212,7 +212,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [x] **[14.6]** Remote Entity Map merged: linkedMaps records CSR→EntityMap-Id — troe_timescale_temporal_entitymap_distop.
 - [x] **[14.6]** Remote entity ids merged: entityMap records entityId→CSR — troe_timescale_temporal_entitymap_distop: an entity at both is ["@none", csr].
 - [x] **[14.6]** Local Entity Map stored and accessible by its identifier — troe_timescale_temporal_entitymap_create: GET of the NGSILD-EntityMap URI.
-- [ ] **[14.6]** Entity Map usable for paginating temporal evolution of included entities — No test creates a temporal EntityMap and then paginates the temporal evolution of its entities via the map id.
+- [x] **[14.6]** Entity Map usable for paginating temporal evolution of included entities — troe_timescale_temporal_entitymap_pages: a map made by ?entityMap=true and by POST /temporal/entityMaps, paged by ?entityMap=<id> and the NGSILD-EntityMap header in the map's window; troe_timescale_temporal_entitymap_pages_distop: the pages fetch a Context Source's entities from the registration the map recorded.
 
 ### json-ld (4)
 
