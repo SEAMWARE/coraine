@@ -1,0 +1,243 @@
+#
+# FILE            troe_timescale_temporal_distop_query_post.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Distop dispatch on Query Temporal Evolution of Entities via POST (TS 104-175 § 5.7.4 / § 5.7.5; the
+# POST binding is TS 104-176 § 11.4: /temporal/entityOperations/query). The query is in the BODY - its
+# entities, temporalQ, q and attrs must reach the Context Source as the forwarded GET's URL parameters.
+#
+# CB has an INCLUSIVE registration pointing at CP1 for Vehicle/speed, queryTemporal:
+#   CB:  urn:V1 (speed=10,20), urn:V2 (speed=15,25)   - local
+#   CP1: urn:V1 (speed=30,40), urn:V3 (speed=50,60)   - remote
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+TRoE timescale - temporal distop query via POST: the body's query forwarded
+
+--TAGS--
+troe timescale postgres temporal distops registration post
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corTroeInit
+corTroeInit -role CP1
+coraineStart        --troe timescale -dist --troeSync
+coraineStart -role CP1 --troe timescale -dist --troeSync
+
+--RUN--
+
+echo "01. Register CB → CP1 (inclusive, queryTemporal) for any Vehicle/speed"
+echo "======================================================================"
+payload='{
+  "id":         "urn:CSR:CB-CP1",
+  "type":       "ContextSourceRegistration",
+  "endpoint":   "http://localhost:'"$CP1_PORT"'",
+  "mode":       "inclusive",
+  "operations": ["queryTemporal"],
+  "information":[
+    {
+      "entities":   [{"type":"Vehicle"}],
+      "propertyNames": ["speed"]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload"
+echo
+echo
+
+
+echo "02. Seed CB with urn:V1 + urn:V2 (2 instances each)"
+echo "==================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' >/dev/null
+payload='{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":15,"observedAt":"2026-04-28T09:30:00Z"}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":25,"observedAt":"2026-04-28T10:30:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "03. Seed CP1 with urn:V1 + urn:V3 (2 instances each)"
+echo "===================================================="
+payload='{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T11:00:00Z"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":40,"observedAt":"2026-04-28T12:00:00Z"}' >/dev/null
+payload='{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":50,"observedAt":"2026-04-28T13:00:00Z"}}'
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload "$payload" >/dev/null
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities/urn:V3/attrs/speed -X PATCH --payload '{"value":60,"observedAt":"2026-04-28T14:00:00Z"}' >/dev/null
+echo done
+echo
+echo
+
+
+echo "04. POST /temporal/entityOperations/query - entities + temporalQ in the body: 3 entities, V1 merged"
+echo "==================================================================================================="
+payload='{
+  "type":      "Query",
+  "entities":  [ { "type": "Vehicle" } ],
+  "temporalQ": { "timerel": "after", "timeAt": "2026-04-28T00:00:00Z" }
+}'
+corCurl --url /ngsi-ld/v1/temporal/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+echo "05. The same with q=speed>45 and attrs=speed in the body - only CP1's urn:V3 matches"
+echo "===================================================================================="
+payload='{
+  "type":      "Query",
+  "entities":  [ { "type": "Vehicle" } ],
+  "attrs":     [ "speed" ],
+  "q":         "speed>45",
+  "temporalQ": { "timerel": "after", "timeAt": "2026-04-28T00:00:00Z" }
+}'
+corCurl --url /ngsi-ld/v1/temporal/entityOperations/query --payload "$payload"
+echo
+echo
+
+
+--EXPECT--
+01. Register CB → CP1 (inclusive, queryTemporal) for any Vehicle/speed
+======================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:CB-CP1
+Content-Length: 0
+
+
+
+
+02. Seed CB with urn:V1 + urn:V2 (2 instances each)
+===================================================
+done
+
+
+03. Seed CP1 with urn:V1 + urn:V3 (2 instances each)
+====================================================
+done
+
+
+04. POST /temporal/entityOperations/query - entities + temporalQ in the body: 3 entities, V1 merged
+===================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V1",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T09:00:00Z",
+        "type": "Property",
+        "value": 10
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T10:00:00Z",
+        "type": "Property",
+        "value": 20
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T11:00:00Z",
+        "type": "Property",
+        "value": 30
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T12:00:00Z",
+        "type": "Property",
+        "value": 40
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V2",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T09:30:00Z",
+        "type": "Property",
+        "value": 15
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T10:30:00Z",
+        "type": "Property",
+        "value": 25
+      }
+    ],
+    "type": "Vehicle"
+  },
+  {
+    "id": "urn:V3",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T13:00:00Z",
+        "type": "Property",
+        "value": 50
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T14:00:00Z",
+        "type": "Property",
+        "value": 60
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+05. The same with q=speed>45 and attrs=speed in the body - only CP1's urn:V3 matches
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+[
+  {
+    "id": "urn:V3",
+    "speed": [
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T13:00:00Z",
+        "type": "Property",
+        "value": 50
+      },
+      {
+        "instanceId": "urn:ngsi-ld:Instance:REGEX(([0-9a-f-]{36}|[0-9a-f]+:[0-9a-f]{4,}))",
+        "observedAt": "2026-04-28T14:00:00Z",
+        "type": "Property",
+        "value": 60
+      }
+    ],
+    "type": "Vehicle"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1
+corTroeDrop
+corTroeDrop -role CP1

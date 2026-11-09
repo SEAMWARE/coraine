@@ -62,6 +62,7 @@
 #include "corNgsild/ldDistOp.h"                       // ldDistOpSendReceive, ldDistOpLoopDetected, ldDistOpCsrWouldLoop
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
+#include "corNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
 
 #include "troe/TroeDriver.h"                         // troe, TroeQueryFilter, TroeRangeInfo
 #include "troe/troeQTreeToSql.h"                     // troeQTreeToSql, troeQTreeToRowSql
@@ -79,7 +80,6 @@
 #endif
 #if COR_FEATURE_TEMPORAL_ENTITY_MAP
 #include "corHash/corHash.h"                         // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
-#include "corNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
 #include "corNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
 #include "corNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAdmit, ldEntityMapToTree
 #include "serviceRoutines/entityMapBuild.h"          // entityMapFill, entityMapHeader
@@ -199,13 +199,131 @@ static void mergeTemporalEntity(CorNode* destP, CorNode* upP, bool keepOnlyMissi
 
 // -----------------------------------------------------------------------------
 //
+// qsAdd - key=value onto a query string (the value URL-encoded); a NULL value adds nothing
+//
+static char* qsAdd(char* qs, const char* key, const char* value)
+{
+  if ((value == NULL) || (value[0] == 0))
+    return qs;
+
+  const char* enc  = corRestUrlValueEncode(value, &corRest.kalloc);
+  int         size = strlen(qs) + strlen(key) + strlen(enc) + 3;
+  char*       out  = (char*) corAlloc(&corRest.kalloc, size);
+
+  snprintf(out, size, "%s%s%s=%s", qs, (qs[0] != 0) ? "&" : "", key, enc);
+  return out;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// nameList - a list of IRIs as the comma separated list of a URL parameter, each compacted with the
+// forward @context (one it does not compact stays the IRI)
+//
+static char* nameList(char** v, CorLdContext* ctxP)
+{
+  if ((v == NULL) || (v[0] == NULL))
+    return NULL;
+
+  int n = 1;
+  for (int ix = 0; v[ix] != NULL; ix++)
+    n += strlen(ldCompactOrEncode(v[ix], ctxP, &corRest.kalloc, false)) + 1;
+
+  char* out = (char*) corAlloc(&corRest.kalloc, n);
+  int   pos = 0;
+
+  for (int ix = 0; v[ix] != NULL; ix++)
+  {
+    const char* s = ldCompactOrEncode(v[ix], ctxP, &corRest.kalloc, false);
+
+    if (ix > 0)
+      out[pos++] = ',';
+
+    strcpy(&out[pos], s);
+    pos += strlen(s);
+  }
+
+  out[pos] = 0;
+  return out;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// parsedQueryQs - the query string a Context Source is asked with, built from the query AS PARSED, not from
+// the URL: a POST's Query is in the body (ldQueryBodyCheck turned it into the parsed fields). The names are
+// compacted with the @context the forward carries (its Link header).
+//
+// filters false: the entity selector and the temporal window only - q, the geo-query, scopeQ and attrs left
+// out (split entities, TS 104-175 § 14.6.4: the source answers the candidates). scopeQ false: not sent even
+// with the filters (Query Temporal applies it on the merged result).
+//
+static const char* parsedQueryQs(LdRegCacheItem* csr, bool filters, bool scopeQ)
+{
+  CorLdContext* ctxP = ldDistOpForwardContext(csr);
+  char*         qs   = (char*) "";
+
+  qs = qsAdd(qs, "id",           (corNgsild.idV != NULL) ? corNgsild.id : NULL);
+  qs = qsAdd(qs, "idPattern",    corNgsild.idPattern);
+  qs = qsAdd(qs, "type",         nameList(corNgsild.typeV, ctxP));
+  qs = qsAdd(qs, "timerel",      corNgsild.timerel);
+  qs = qsAdd(qs, "timeAt",       corNgsild.timeAt);
+  qs = qsAdd(qs, "endTimeAt",    corNgsild.endTimeAt);
+  qs = qsAdd(qs, "timeproperty", corNgsild.timeproperty);
+  qs = qsAdd(qs, "datasetId",    corNgsild.datasetId);
+
+  if (filters == true)
+  {
+    qs = qsAdd(qs, "attrs",  nameList(corNgsild.attrsV, ctxP));
+    qs = qsAdd(qs, "q",      (corNgsild.qExpr != NULL) ? ldQRender(corNgsild.qExpr, ctxP, &corRest.kalloc, false) : NULL);
+
+    if (scopeQ == true)
+      qs = qsAdd(qs, "scopeQ", corNgsild.scopeQ);
+
+    if (corNgsild.georel != NULL)
+    {
+      qs = qsAdd(qs, "georel",      corNgsild.georel);
+      qs = qsAdd(qs, "geometry",    corNgsild.geometry);
+      qs = qsAdd(qs, "coordinates", corNgsild.coordinates);
+
+      if (corNgsild.geoproperty != NULL)
+        qs = qsAdd(qs, "geoproperty", ldCompactOrEncode(corNgsild.geoproperty, ctxP, &corRest.kalloc, false));
+    }
+  }
+
+  return qs;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // buildTemporalQueryQs - rebuild the forwarded query string.
 //
 // Forwards every URL param except output-shaping ones (pick/omit/lang/format/
 // orderBy/options/local/entityMap). Filters that constrain the candidate set
 // (id/idPattern/type/q/timerel/timeAt/.../georel/...) all forward verbatim.
 //
-static const char* buildTemporalQueryQs(CorAlloc* kaP)
+// queryInBody: a POST (/temporal/entityOperations/query) - the query is in the body, not the URL: the
+// keys parsedQueryQs builds from the parsed query are skipped here, the caller adds that part.
+//
+static bool parsedKey(const char* k)
+{
+  static const char* keys[] = { "id", "idPattern", "type", "attrs", "q", "timerel", "timeAt", "endTimeAt", "timeproperty",
+                                "datasetId", "georel", "geometry", "coordinates", "geoproperty", NULL };
+
+  for (int ix = 0; keys[ix] != NULL; ix++)
+  {
+    if (strcmp(k, keys[ix]) == 0)
+      return true;
+  }
+
+  return false;
+}
+
+static const char* buildTemporalQueryQs(CorAlloc* kaP, bool queryInBody)
 {
   // Worst-case length: each (key=value&) plus NUL, plus "&sysAttrs=true".
   int len = 1 + 15;
@@ -223,6 +341,7 @@ static const char* buildTemporalQueryQs(CorAlloc* kaP)
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
     if (strcmp(k, "sysAttrs")  == 0) continue;  // re-emitted below from the parsed flag
+    if (queryInBody && parsedKey(k)) continue;  // from the parsed query - parsedQueryQs
 
     // 3x the value: a percent-encoded byte becomes three
     const char* v = corRest.in.uriParamV[i].value;
@@ -246,6 +365,7 @@ static const char* buildTemporalQueryQs(CorAlloc* kaP)
     if (strcmp(k, "lang")      == 0) continue;
     if (strcmp(k, "scopeQ")    == 0) continue;
     if (strcmp(k, "sysAttrs")  == 0) continue;  // re-emitted below from the parsed flag
+    if (queryInBody && parsedKey(k)) continue;  // from the parsed query - parsedQueryQs
 
     //
     // Encoded, not verbatim: the value arrived percent-DECODED and a raw '&'
@@ -440,104 +560,6 @@ static int srcCompare(const char* name, void* itemP)
 
 // -----------------------------------------------------------------------------
 //
-// qsAdd - key=value onto a query string (the value URL-encoded); a NULL value adds nothing
-//
-static char* qsAdd(char* qs, const char* key, const char* value)
-{
-  if ((value == NULL) || (value[0] == 0))
-    return qs;
-
-  const char* enc  = corRestUrlValueEncode(value, &corRest.kalloc);
-  int         size = strlen(qs) + strlen(key) + strlen(enc) + 3;
-  char*       out  = (char*) corAlloc(&corRest.kalloc, size);
-
-  snprintf(out, size, "%s%s%s=%s", qs, (qs[0] != 0) ? "&" : "", key, enc);
-  return out;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// nameList - a list of IRIs as the comma separated list of a URL parameter, each compacted with the
-// forward @context (one it does not compact stays the IRI)
-//
-static char* nameList(char** v, CorLdContext* ctxP)
-{
-  if ((v == NULL) || (v[0] == NULL))
-    return NULL;
-
-  int n = 1;
-  for (int ix = 0; v[ix] != NULL; ix++)
-    n += strlen(ldCompactOrEncode(v[ix], ctxP, &corRest.kalloc, false)) + 1;
-
-  char* out = (char*) corAlloc(&corRest.kalloc, n);
-  int   pos = 0;
-
-  for (int ix = 0; v[ix] != NULL; ix++)
-  {
-    const char* s = ldCompactOrEncode(v[ix], ctxP, &corRest.kalloc, false);
-
-    if (ix > 0)
-      out[pos++] = ',';
-
-    strcpy(&out[pos], s);
-    pos += strlen(s);
-  }
-
-  out[pos] = 0;
-  return out;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// mapForwardQs - the query a Context Source is asked for its EntityMap (GET /temporal/entityMaps)
-//
-// Built from the query as parsed, not from the URL: a POST's Query is in the body. The names are
-// compacted with the @context the forward carries (its Link header). Under split entities the filters
-// are not sent (TS 104-175 § 14.6.4): q, the geo-query, scopeQ and attrs - the source answers the
-// candidates, the entities of the selector with history in the window.
-//
-static const char* mapForwardQs(LdRegCacheItem* csr, bool split)
-{
-  CorLdContext* ctxP = ldDistOpForwardContext(csr);
-  char*         qs   = (char*) "";
-
-  qs = qsAdd(qs, "id",           (corNgsild.idV != NULL) ? corNgsild.id : NULL);
-  qs = qsAdd(qs, "idPattern",    corNgsild.idPattern);
-  qs = qsAdd(qs, "type",         nameList(corNgsild.typeV, ctxP));
-  qs = qsAdd(qs, "timerel",      corNgsild.timerel);
-  qs = qsAdd(qs, "timeAt",       corNgsild.timeAt);
-  qs = qsAdd(qs, "endTimeAt",    corNgsild.endTimeAt);
-  qs = qsAdd(qs, "timeproperty", corNgsild.timeproperty);
-  qs = qsAdd(qs, "datasetId",    corNgsild.datasetId);
-
-  if (split == false)
-  {
-    qs = qsAdd(qs, "attrs",  nameList(corNgsild.attrsV, ctxP));
-    qs = qsAdd(qs, "q",      (corNgsild.qExpr != NULL) ? ldQRender(corNgsild.qExpr, ctxP, &corRest.kalloc, false) : NULL);
-    qs = qsAdd(qs, "scopeQ", corNgsild.scopeQ);
-
-    if (corNgsild.georel != NULL)
-    {
-      qs = qsAdd(qs, "georel",      corNgsild.georel);
-      qs = qsAdd(qs, "geometry",    corNgsild.geometry);
-      qs = qsAdd(qs, "coordinates", corNgsild.coordinates);
-
-      if (corNgsild.geoproperty != NULL)
-        qs = qsAdd(qs, "geoproperty", ldCompactOrEncode(corNgsild.geoproperty, ctxP, &corRest.kalloc, false));
-    }
-  }
-
-  return qs;
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
 // temporalEntityMap - Create EntityMap for Query Temporal Evolution of Entities (TS 104-175 § 14.6)
 //
 // The query has been validated as a temporal query is; fP is its store filter. The map is the ids of
@@ -714,7 +736,7 @@ static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP)
     for (int i = 0; i < itemCount; i++)
     {
       const char* path    = "/ngsi-ld/v1/temporal/entityMaps?";
-      const char* qs      = mapForwardQs(items[i].csr, split);
+      const char* qs      = parsedQueryQs(items[i].csr, split == false, true);
       int         size    = strlen(items[i].csr->endpoint) + strlen(path) + strlen(qs) + 1;
       char*       url     = (char*) corAlloc(&corRest.kalloc, size);
 
@@ -1116,7 +1138,8 @@ static bool temporalQuery(bool mapCreate)
     if (!ldDistOpLoopDetected(ownAlias))
     {
       LdRegMode   modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
-      const char* fwdQs   = buildTemporalQueryQs(&corRest.kalloc);
+      bool        queryInBody = (corRest.in.verb == CorVerbPost);
+      const char* fwdQs       = buildTemporalQueryQs(&corRest.kalloc, queryInBody);
 
       LdRegCacheItem** matchV[4] = { NULL, NULL, NULL, NULL };
       int              matchN[4] = { 0, 0, 0, 0 };
@@ -1168,14 +1191,31 @@ static bool temporalQuery(bool mapCreate)
           if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
           if (!csfCsrMatch(csr)) continue;
 
+          //
+          // A POST's query (the body) - per source: its names compacted with that source's forward @context
+          //
+          const char* qs    = fwdQs;
+          int         qsN   = qsLen;
+
+          if (queryInBody == true)
+          {
+            const char* bodyQs = parsedQueryQs(csr, true, false);
+            int         size   = qsLen + strlen(bodyQs) + 2;
+            char*       both   = (char*) corAlloc(&corRest.kalloc, size);
+
+            snprintf(both, size, "%s%s%s", (qsLen > 0) ? fwdQs : "", ((qsLen > 0) && (bodyQs[0] != 0)) ? "&" : "", bodyQs);
+            qs  = both;
+            qsN = strlen(both);
+          }
+
           int baseLen = strlen(csr->endpoint);
-          char* url = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsLen + 1);
+          char* url = (char*) corAlloc(&corRest.kalloc, baseLen + pathLen + 1 + qsN + 1);
           strcpy(url, csr->endpoint);
           strcpy(url + baseLen, tpath);
-          if (qsLen > 0)
+          if (qsN > 0)
           {
             url[baseLen + pathLen] = '?';
-            strcpy(url + baseLen + pathLen + 1, fwdQs);
+            strcpy(url + baseLen + pathLen + 1, qs);
           }
           else
             url[baseLen + pathLen] = 0;
