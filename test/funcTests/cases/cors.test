@@ -20,6 +20,11 @@ coraineStart --corsOrigin __ALL
 # 01. GET request - CORS headers present
 # 02. OPTIONS preflight - full CORS response
 # 03. OPTIONS on wildcard URL - CORS + Allow
+# 04. OPTIONS /jsonldContexts - GET + POST
+# 05. OPTIONS /jsonldContexts/{id} - GET + DELETE
+# 06. OPTIONS /entityOperations/upsert?options=replace - the preflight of a browser's batch upsert: 204
+# 07. OPTIONS /entities?type=Room&notAParam=1 - a preflight checks no URL parameter: 204
+# 08. GET /entities?type=Room&notAParam=1 - the request itself does: 400
 #
 
 echo "01. GET request - CORS headers present"
@@ -53,6 +58,27 @@ echo
 echo "05. OPTIONS /jsonldContexts/{id} - GET + DELETE"
 echo "==============================================="
 corCurl -X OPTIONS --url /ngsi-ld/v1/jsonldContexts/anyId
+echo
+echo
+
+
+echo "06. OPTIONS /entityOperations/upsert?options=replace - the preflight of a browser's batch upsert: 204"
+echo "======================================================================================================"
+corCurl -X OPTIONS --url '/ngsi-ld/v1/entityOperations/upsert?options=replace'
+echo
+echo
+
+
+echo "07. OPTIONS /entities?type=Room&notAParam=1 - a preflight checks no URL parameter: 204"
+echo "======================================================================================"
+corCurl -X OPTIONS --url '/ngsi-ld/v1/entities?type=Room&notAParam=1'
+echo
+echo
+
+
+echo "08. GET /entities?type=Room&notAParam=1 - the request itself does: 400"
+echo "======================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Room&notAParam=1'
 echo
 echo
 
@@ -125,6 +151,52 @@ Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-
 Access-Control-Max-Age: 86400
 Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
 
+
+
+
+06. OPTIONS /entityOperations/upsert?options=replace - the preflight of a browser's batch upsert: 204
+======================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Allow: POST, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
+
+
+
+
+07. OPTIONS /entities?type=Room&notAParam=1 - a preflight checks no URL parameter: 204
+======================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Allow: GET, POST, DELETE, HEAD, OPTIONS
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, HEAD, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
+
+
+
+
+08. GET /entities?type=Room&notAParam=1 - the request itself does: 400
+======================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location, NGSILD-Results-Count, Link, NGSILD-Tenant, NGSILD-Warning, Service-Execution
+Content-Length: 174
+
+{
+  "detail": "Unknown/unsupported URL parameter: notAParam",
+  "status": 400,
+  "title": "Invalid Request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
+}
 
 
 
