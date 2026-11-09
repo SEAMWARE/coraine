@@ -22,6 +22,7 @@ option(COR_FEATURE_REGISTRATIONS   "Enable Context Source Registration CRUD (§ 
 option(COR_FEATURE_AUTO_ENTITY_MAP "Enable automatic EntityMaps: a query of more than one page - distributed by default, local too with --autoEntityMaps all - freezes its set of matches and serves its pages from it (--entityMapMemory)" ON)
 option(COR_FEATURE_RESPONSE_BUDGET "Enable the byte budget of an entity query (--maxResponseSize): a shorter page, or 403 TooManyResults" ON)
 option(COR_FEATURE_TIMEPOINT       "Enable the timepoint resources: an entity, a query, as it was at timeAt (/temporal/timepoint/..., from the TRoE's history)" ON)
+option(COR_FEATURE_TEMPORAL_ENTITY_MAP "Enable /temporal/entityMaps - Create EntityMap for Query Temporal Evolution of Entities: GET, HEAD and POST (TS 104-176 § 11.3)" ON)
 #
 # OFF, alone among these. ON links libicu: three shared libraries and 39.2 MiB,
 # of which libicudata is 31.6 MiB - nine times the size of the whole broker, for
@@ -91,7 +92,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.

@@ -100,6 +100,9 @@
 #endif
 #include "serviceRoutines/getEntitiesTemporal.h"       // getEntitiesTemporal
 #include "serviceRoutines/postTemporalEntityBatchQuery.h" // postTemporalEntityBatchQuery
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+#include "serviceRoutines/postTemporalEntityMap.h"  // postTemporalEntityMap
+#endif
 #include "serviceRoutines/deleteEntityTemporal.h"      // deleteEntityTemporal
 #include "serviceRoutines/deleteEntityTemporalAttr.h"  // deleteEntityTemporalAttr
 #include "serviceRoutines/postEntitiesTemporal.h"      // postEntitiesTemporal
@@ -355,6 +358,12 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/temporal/entities",                  getEntitiesTemporal,           LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal },
   { CorVerbPost,   "/ngsi-ld/v1/temporal/entities",                  postEntitiesTemporal,          0,                                 LdOpUpsertTemporal },
   { CorVerbPost,   "/ngsi-ld/v1/temporal/entityOperations/query",    postTemporalEntityBatchQuery,  LD_PARAMS_QUERY_TEMPORAL_ENTITIES, LdOpQueryTemporal, ldQueryBodyCheck },
+
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+  // Create EntityMap for Query Temporal Evolution of Entities (TS 104-176 § 11.3, TS 104-175 § 14.6) - a HEAD as the GET
+  { CorVerbGet,    "/ngsi-ld/v1/temporal/entityMaps",                REGS(createTemporalEntityMap), LD_PARAMS_QUERY_TEMPORAL_ENTITIES | LD_PARAM_SPLIT_ENTITIES, LdOpNone },
+  { CorVerbPost,   "/ngsi-ld/v1/temporal/entityMaps",                REGS(postTemporalEntityMap),   LD_PARAMS_QUERY_TEMPORAL_ENTITIES | LD_PARAM_SPLIT_ENTITIES, LdOpNone, ldQueryBodyCheck },
+#endif
 
   // Snapshots — § 5.16
   { CorVerbPost,   "/ngsi-ld/v1/snapshots",                          postSnapshot,                  LD_PARAMS_POST_SNAPSHOT,           LdOpCreateSnapshot   },

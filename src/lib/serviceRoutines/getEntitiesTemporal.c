@@ -77,6 +77,13 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityArrayFilter
 #endif
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+#include "corHash/corHash.h"                         // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
+#include "corNgsild/ldQRender.h"                      // ldQRender, ldCompactOrEncode
+#include "corNgsild/LdEntityMap.h"                    // LdEntityMap, LdEntityMapStore
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapCreate, ldEntityMapAdmit, ldEntityMapToTree
+#include "serviceRoutines/entityMapBuild.h"          // entityMapFill, entityMapHeader
+#endif
 #include "serviceRoutines/getEntitiesTemporal.h"     // Own interface
 
 
@@ -375,6 +382,430 @@ static void stripInfoAttrsFromArray(CorNode* arrayP, LdRegInfo* riP)
 
 // -----------------------------------------------------------------------------
 //
+// scopeFilter - the entities of arrayP whose Scope (their current one, from the store) does not match
+// scopeQ are taken out
+//
+static void scopeFilter(CorNode* arrayP, Tenant* tenantP)
+{
+  if ((corNgsild.scopeExpr == NULL) || (db.entityRetrieve == NULL))
+    return;
+
+  CorNode* ep = arrayP->value.head;
+  while (ep != NULL)
+  {
+    CorNode* nextEp = ep->next;
+    CorNode* idP   = corTreeLookup(ep, "id");
+    bool    keep   = false;
+
+    CorNode* curEntity = NULL;
+    if (idP != NULL && idP->type == CorString)
+      db.entityRetrieve(tenantP, idP->value.s, &curEntity);
+
+    if (curEntity != NULL)
+    {
+      CorNode* scopeP = corTreeLookup(curEntity, "scope");
+      keep = ldEntityMatchScope(scopeP, corNgsild.scopeExpr);
+    }
+
+    if (!keep)
+      corTreeChildRemove(arrayP, ep);
+
+    ep = nextEp;
+  }
+}
+
+
+
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+// -----------------------------------------------------------------------------
+//
+// idHash / srcCompare - a hash of srcMap's arrays, by entity id (the array's name)
+//
+static unsigned int idHash(const char* name)
+{
+  unsigned int h = 5381;
+
+  while (*name != 0)
+    h = (h * 33) ^ (unsigned char) *name++;
+
+  return h;
+}
+
+static int srcCompare(const char* name, void* itemP)
+{
+  return strcmp(name, ((CorNode*) itemP)->name);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// qsAdd - key=value onto a query string (the value URL-encoded); a NULL value adds nothing
+//
+static char* qsAdd(char* qs, const char* key, const char* value)
+{
+  if ((value == NULL) || (value[0] == 0))
+    return qs;
+
+  const char* enc  = corRestUrlValueEncode(value, &corRest.kalloc);
+  int         size = strlen(qs) + strlen(key) + strlen(enc) + 3;
+  char*       out  = (char*) corAlloc(&corRest.kalloc, size);
+
+  snprintf(out, size, "%s%s%s=%s", qs, (qs[0] != 0) ? "&" : "", key, enc);
+  return out;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// nameList - a list of IRIs as the comma separated list of a URL parameter, each compacted with the
+// forward @context (one it does not compact stays the IRI)
+//
+static char* nameList(char** v, CorLdContext* ctxP)
+{
+  if ((v == NULL) || (v[0] == NULL))
+    return NULL;
+
+  int n = 1;
+  for (int ix = 0; v[ix] != NULL; ix++)
+    n += strlen(ldCompactOrEncode(v[ix], ctxP, &corRest.kalloc, false)) + 1;
+
+  char* out = (char*) corAlloc(&corRest.kalloc, n);
+  int   pos = 0;
+
+  for (int ix = 0; v[ix] != NULL; ix++)
+  {
+    const char* s = ldCompactOrEncode(v[ix], ctxP, &corRest.kalloc, false);
+
+    if (ix > 0)
+      out[pos++] = ',';
+
+    strcpy(&out[pos], s);
+    pos += strlen(s);
+  }
+
+  out[pos] = 0;
+  return out;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// mapForwardQs - the query a Context Source is asked for its EntityMap (GET /temporal/entityMaps)
+//
+// Built from the query as parsed, not from the URL: a POST's Query is in the body. The names are
+// compacted with the @context the forward carries (its Link header). Under split entities the filters
+// are not sent (TS 104-175 § 14.6.4): q, the geo-query, scopeQ and attrs - the source answers the
+// candidates, the entities of the selector with history in the window.
+//
+static const char* mapForwardQs(LdRegCacheItem* csr, bool split)
+{
+  CorLdContext* ctxP = ldDistOpForwardContext(csr);
+  char*         qs   = (char*) "";
+
+  qs = qsAdd(qs, "id",           (corNgsild.idV != NULL) ? corNgsild.id : NULL);
+  qs = qsAdd(qs, "idPattern",    corNgsild.idPattern);
+  qs = qsAdd(qs, "type",         nameList(corNgsild.typeV, ctxP));
+  qs = qsAdd(qs, "timerel",      corNgsild.timerel);
+  qs = qsAdd(qs, "timeAt",       corNgsild.timeAt);
+  qs = qsAdd(qs, "endTimeAt",    corNgsild.endTimeAt);
+  qs = qsAdd(qs, "timeproperty", corNgsild.timeproperty);
+  qs = qsAdd(qs, "datasetId",    corNgsild.datasetId);
+
+  if (split == false)
+  {
+    qs = qsAdd(qs, "attrs",  nameList(corNgsild.attrsV, ctxP));
+    qs = qsAdd(qs, "q",      (corNgsild.qExpr != NULL) ? ldQRender(corNgsild.qExpr, ctxP, &corRest.kalloc, false) : NULL);
+    qs = qsAdd(qs, "scopeQ", corNgsild.scopeQ);
+
+    if (corNgsild.georel != NULL)
+    {
+      qs = qsAdd(qs, "georel",      corNgsild.georel);
+      qs = qsAdd(qs, "geometry",    corNgsild.geometry);
+      qs = qsAdd(qs, "coordinates", corNgsild.coordinates);
+
+      if (corNgsild.geoproperty != NULL)
+        qs = qsAdd(qs, "geoproperty", ldCompactOrEncode(corNgsild.geoproperty, ctxP, &corRest.kalloc, false));
+    }
+  }
+
+  return qs;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// temporalEntityMap - Create EntityMap for Query Temporal Evolution of Entities (TS 104-175 § 14.6)
+//
+// The query has been validated as a temporal query is; fP is its store filter. The map is the ids of
+// the matching entities - the local ones from the store (its entity selector, read page by page, no
+// history), then those of every Context Source whose registration matches and supports
+// createEntityMapQueryTemporal: each is asked for an EntityMap of its own (GET /temporal/entityMaps),
+// whose id goes into linkedMaps and whose entities into entityMap, with the source's registration.
+//
+// Split entities (the deployment's default, or splitEntities=true), with a source to ask: the filters
+// are left out, locally as well as at the sources (§ 14.6.4) - the map holds the candidates.
+//
+// Answered as GET and POST /entityMaps answer: 201, the map, and NGSILD-EntityMap. limit and offset
+// are ignored (§ 14.6.3): a map is never a page.
+//
+static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP)
+{
+  Tenant* mapTenantP = (Tenant*) corNgsild.tenantP;
+
+  if ((mapTenantP == NULL) || (mapTenantP->entityMapStoreP == NULL))
+  {
+    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "the tenant has no EntityMap store");
+    return true;
+  }
+
+#if COR_FEATURE_AUTH
+  //
+  // The map is the ids of every matching entity - not decided entity by entity: refused
+  //
+  if (authEntityWanted() == true)
+  {
+    authEntityDeny("an EntityMap names entities without asking about each - query the entities instead");
+    return true;
+  }
+#endif
+
+  //
+  // The Context Sources to ask - before the local query: whether one matches decides split
+  //
+  const char*      ownAlias = NULL;
+  LdRegCacheItem** matchV[4] = { NULL, NULL, NULL, NULL };
+  int              matchN[4] = { 0, 0, 0, 0 };
+  int              total     = 0;
+
+  if (!corNgsild.local && (tenantP != NULL) && (tenantP->regCacheP != NULL) && (tenantP == mapTenantP))
+  {
+    ownAlias = ldCsourceAliasForTenant(tenantP->name, &corRest.kalloc);
+
+    if (!ldDistOpLoopDetected(ownAlias))
+    {
+      LdRegMode modes[] = { LdRegModeExclusive, LdRegModeRedirect, LdRegModeInclusive, LdRegModeAuxiliary };
+
+      for (int m = 0; m < 4; m++)
+      {
+        const char** typeFilterV = (modes[m] == LdRegModeAuxiliary) ? NULL : (const char**) corNgsild.typeV;
+
+        matchN[m] = ldRegCacheMatchForQuery((LdRegCache*) tenantP->regCacheP, corNgsild.idV, corNgsild.idPattern,
+                                            (char**) typeFilterV, modes[m], &matchV[m]);
+        total += matchN[m];
+      }
+    }
+  }
+
+  LdDistOpBatchItem*   items     = (total > 0) ? (LdDistOpBatchItem*)   corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchItem))   : NULL;
+  LdDistOpBatchResult* results   = (total > 0) ? (LdDistOpBatchResult*) corAlloc(&corRest.kalloc, total * sizeof(LdDistOpBatchResult)) : NULL;
+  int                  itemCount = 0;
+
+  for (int m = 0; m < 4; m++)
+  {
+    for (int i = 0; i < matchN[m]; i++)
+    {
+      LdRegCacheItem* csr = matchV[m][i];
+
+      if (csr->endpoint == NULL)                                   continue;
+      if (!ldRegOpSupported(csr, LdOpCreateEntityMapQueryTemporal)) continue;
+      if (ldDistOpCsrWouldLoop(csr, ownAlias))                     continue;
+      if (!csfCsrMatch(csr))                                       continue;
+
+      memset(&items[itemCount],   0, sizeof(LdDistOpBatchItem));
+      memset(&results[itemCount], 0, sizeof(LdDistOpBatchResult));
+      items[itemCount].csr = csr;   // the URL below, once split is known
+      ++itemCount;
+    }
+  }
+
+  bool split = (itemCount > 0) && (corNgsild.splitEntitiesSet ? corNgsild.splitEntitiesVal : ldSplitEntities);
+
+  //
+  // The local entities: the store's selector, page by page, ids only
+  //
+  if (split)
+  {
+    fP->qSqlPredicate  = NULL;
+    fP->qRowPredicate  = NULL;
+    fP->qTree          = NULL;
+    fP->geoRelType     = 0;
+    fP->geoGeometry    = NULL;
+    fP->geoCoordinates = NULL;
+    fP->geoProperty    = NULL;
+  }
+
+  fP->idsOnly      = true;
+  fP->limit        = 10000;
+  fP->limitGiven   = true;
+  fP->offset       = 0;
+  fP->count        = false;
+  fP->lastN        = 1;      // a store that answers the history anyway: as little of it as possible
+  fP->firstN       = 0;
+  fP->offsetN      = 0;
+  fP->aggrPushdown = false;
+#if COR_FEATURE_RESPONSE_BUDGET
+  fP->maxBytes     = 0;      // what bounds a map is the maps' memory (ldEntityMapAdmit)
+#endif
+
+  CorNode*      idArrayP = corTreeArray(corRest.kallocP, NULL);
+  CorNode*      srcMap   = corTreeObject(corRest.kallocP, NULL);
+  CorNode*      linkedP  = corTreeObject(corRest.kallocP, NULL);
+  CorHashTable* srcHashP = corHashTableCreate(&corRest.kalloc, idHash, srcCompare, 1024);
+
+  while (1)
+  {
+    TroeRangeInfo rangeInfo;
+    CorNode*      pageP = NULL;
+
+    memset(&rangeInfo, 0, sizeof(rangeInfo));
+
+    if (troe.entityTemporalQuery(tenantP, fP, &pageP, &rangeInfo) != TROE_OK)
+    {
+      ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "temporal query failed");
+      for (int m = 0; m < 4; m++)
+        ldRegCacheMatchRelease(matchV[m], matchN[m]);
+      return true;
+    }
+
+    CorNode* eP = (pageP != NULL) ? pageP->value.head : NULL;
+    while (eP != NULL)
+    {
+      CorNode* nextP = eP->next;
+      CorNode* idP   = corTreeLookup(eP, "id");
+
+      if ((idP != NULL) && (idP->type == CorString))
+      {
+        CorNode* entryP = corTreeObject(corRest.kallocP, NULL);
+        corTreeChildAdd(entryP, corTreeString(corRest.kallocP, "id", idP->value.s));
+        corTreeChildAdd(idArrayP, entryP);
+      }
+
+      eP = nextP;
+    }
+
+    if (rangeInfo.moreEntities == false)
+      break;
+
+    fP->offset += fP->limit;
+  }
+
+  if (split == false)
+    scopeFilter(idArrayP, tenantP);
+
+  for (CorNode* eP = idArrayP->value.head; eP != NULL; eP = eP->next)
+  {
+    const char* id   = corTreeLookup(eP, "id")->value.s;
+    CorNode*    srcP = corTreeArray(corRest.kallocP, id);
+
+    corTreeChildAdd(srcP, corTreeString(corRest.kallocP, NULL, "@none"));
+    corTreeChildAdd(srcMap, srcP);
+    corHashItemAdd(srcHashP, srcP->name, srcP);
+  }
+
+  //
+  // The Context Sources' maps
+  //
+  if (itemCount > 0)
+  {
+    for (int i = 0; i < itemCount; i++)
+    {
+      const char* path    = "/ngsi-ld/v1/temporal/entityMaps?";
+      const char* qs      = mapForwardQs(items[i].csr, split);
+      int         size    = strlen(items[i].csr->endpoint) + strlen(path) + strlen(qs) + 1;
+      char*       url     = (char*) corAlloc(&corRest.kalloc, size);
+
+      snprintf(url, size, "%s%s%s", items[i].csr->endpoint, path, qs);
+      items[i].url = url;
+    }
+
+    ldDistOpSendMultiMax(items, itemCount, CorVerbGet, ownAlias, results, ldEntityMapMaxBytes);
+
+    for (int i = 0; i < itemCount; i++)
+    {
+      CorNode* treeP = results[i].responseTree;
+
+      if ((results[i].statusCode < 200) || (results[i].statusCode >= 300) || (treeP == NULL) || (treeP->type != CorObject))
+        continue;   // a source without the map: not in it (§ 9.6, a source declines by not returning one)
+
+      CorNode*    mapIdP = corTreeLookup(treeP, "id");
+      CorNode*    emP    = corTreeLookup(treeP, "entityMap");
+      const char* regId  = items[i].csr->regId;
+
+      if ((emP == NULL) || (emP->type != CorObject) || (regId == NULL))
+        continue;
+
+      if ((mapIdP != NULL) && (mapIdP->type == CorString))
+        corTreeChildAdd(linkedP, corTreeString(corRest.kallocP, regId, mapIdP->value.s));
+
+      for (CorNode* entryP = emP->value.head; entryP != NULL; entryP = entryP->next)
+      {
+        if (entryP->name == NULL)
+          continue;
+
+        CorNode* srcP = (CorNode*) corHashItemLookup(srcHashP, entryP->name);
+
+        if (srcP == NULL)
+        {
+          CorNode* idEntryP = corTreeObject(corRest.kallocP, NULL);
+          corTreeChildAdd(idEntryP, corTreeString(corRest.kallocP, "id", entryP->name));
+          corTreeChildAdd(idArrayP, idEntryP);
+
+          srcP = corTreeArray(corRest.kallocP, entryP->name);
+          corTreeChildAdd(srcMap, srcP);
+          corHashItemAdd(srcHashP, srcP->name, srcP);
+        }
+
+        corTreeChildAdd(srcP, corTreeString(corRest.kallocP, NULL, regId));
+      }
+    }
+  }
+
+  for (int m = 0; m < 4; m++)
+    ldRegCacheMatchRelease(matchV[m], matchN[m]);
+
+  //
+  // The map - as GET / POST /entityMaps make it (getEntities.c)
+  //
+  LdEntityMapStore* storeP = (LdEntityMapStore*) mapTenantP->entityMapStoreP;
+
+  ldEntityMapPurgeExpired(storeP);
+
+  LdEntityMap* mapP = ldEntityMapCreate(storeP, 5ULL * 60 * 1000000000ULL, mapTenantP);   // the default lifetime: 5 minutes
+
+  if (mapP == NULL)
+  {
+    ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "out of memory creating an EntityMap");
+    return true;
+  }
+
+  ldEntityMapRequestPin(mapP);   // created pinned; held (and filled, rendered) till the request ends
+  entityMapFill(mapP, idArrayP, srcMap, linkedP);
+
+  if (ldEntityMapAdmit(storeP, mapP) == false)
+  {
+    ldError(403, LD_ERROR_TOO_MANY_RESULTS, "Too Many Results",
+            "the %d matching entities do not fit in the memory of the EntityMaps (--entityMapMemory %lld MiB) - narrow the query",
+            mapP->entryCount, (long long) (ldEntityMapMaxBytes >> 20));
+    return true;
+  }
+
+  entityMapHeader(mapP);
+  corRest.out.responseTree   = ldEntityMapToTree(mapP);
+  corRest.out.httpStatusCode = 201;
+  corNgsild.rawResponse      = true;
+
+  return true;
+}
+#endif
+
+
+
+// -----------------------------------------------------------------------------
+//
 // distOpsPossible - can a registration contribute to this query's answer?
 //
 // The same gate as the distop dispatch below, plus: an empty registration cache
@@ -396,7 +827,12 @@ static bool distOpsPossible(void* snapItem, Tenant* tenantP)
 
 
 
-bool getEntitiesTemporal(void)
+// -----------------------------------------------------------------------------
+//
+// temporalQuery - the temporal query (mapCreate: false), or the EntityMap of one (mapCreate: true) -
+// the same parameters, the same validation (TS 104-175 § 14.6.3)
+//
+static bool temporalQuery(bool mapCreate)
 {
   // § 4.21 / § 6.4.3 — cross-parameter projection validation
   // (pick ∩ omit, pick + attrs, omit + attrs, etc).
@@ -524,7 +960,7 @@ bool getEntitiesTemporal(void)
   // count-only request). The present-params bitmask distinguishes an explicit
   // 0 from an absent limit (absent → broker default page size).
   bool limitGiven = (corRest.in.uriParamMask & LD_PARAM_LIMIT) != 0;
-  if (limitGiven && corNgsild.limit == 0 && corNgsild.count == false)
+  if (!mapCreate && limitGiven && corNgsild.limit == 0 && corNgsild.count == false)
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid URL Parameter",
             "'limit' of 0 is only allowed together with 'count'");
@@ -634,6 +1070,11 @@ bool getEntitiesTemporal(void)
   // does not fit, and a first entity that does not fit whole comes with fewer instances per attribute
   //
   filter.maxBytes = responseBudgetBytes;
+#endif
+
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+  if (mapCreate)
+    return temporalEntityMap(tenantP, &filter);
 #endif
 
   TroeRangeInfo rangeInfo;
@@ -841,31 +1282,7 @@ bool getEntitiesTemporal(void)
   // state (looked up from the current-state DB). Temporal entities that no
   // longer exist in current state can't satisfy a current-state filter and
   // are dropped.
-  if (corNgsild.scopeExpr != NULL && db.entityRetrieve != NULL)
-  {
-    CorNode* ep = result->value.head;
-    while (ep != NULL)
-    {
-      CorNode* nextEp = ep->next;
-      CorNode* idP   = corTreeLookup(ep, "id");
-      bool    keep   = false;
-
-      CorNode* curEntity = NULL;
-      if (idP != NULL && idP->type == CorString)
-        db.entityRetrieve(tenantP, idP->value.s, &curEntity);
-
-      if (curEntity != NULL)
-      {
-        CorNode* scopeP = corTreeLookup(curEntity, "scope");
-        keep = ldEntityMatchScope(scopeP, corNgsild.scopeExpr);
-      }
-
-      if (!keep)
-        corTreeChildRemove(result, ep);
-
-      ep = nextEp;
-    }
-  }
+  scopeFilter(result, tenantP);
 
   // § 4.23: orderBy. For temporal output the sorter picks the most-recent
   // instance value per entity (see ldOrderSort.c::temporalLatestValue).
@@ -922,3 +1339,28 @@ bool getEntitiesTemporal(void)
 
   return true;
 }
+
+
+
+// -----------------------------------------------------------------------------
+//
+// getEntitiesTemporal - Query Temporal Evolution of Entities (GET /temporal/entities, and the POST Query)
+//
+bool getEntitiesTemporal(void)
+{
+  return temporalQuery(false);
+}
+
+
+
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+// -----------------------------------------------------------------------------
+//
+// createTemporalEntityMap - GET /temporal/entityMaps: Create EntityMap for Query Temporal Evolution of
+// Entities (TS 104-176 § 11.3.3.1, TS 104-175 § 14.6)
+//
+bool createTemporalEntityMap(void)
+{
+  return temporalQuery(true);
+}
+#endif

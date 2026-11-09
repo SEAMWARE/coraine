@@ -17,4 +17,15 @@
 
 extern bool getEntitiesTemporal(void);
 
+
+
+#if COR_FEATURE_TEMPORAL_ENTITY_MAP
+// -----------------------------------------------------------------------------
+//
+// createTemporalEntityMap - GET /temporal/entityMaps (TS 104-176 § 11.3.3.1): the EntityMap of a temporal
+// query, 201 and NGSILD-EntityMap
+//
+extern bool createTemporalEntityMap(void);
+#endif
+
 #endif  // SERVICEROUTINES_GETENTITIESTEMPORAL_H_

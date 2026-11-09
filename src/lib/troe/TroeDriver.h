@@ -219,6 +219,15 @@ typedef struct TroeQueryFilter
   int64_t      maxBytes;         // input: 0 = no budget
   bool         budgetHit;        // OUTPUT: the budget ended the page or cut the entity's instances
   int          budgetFetched;    // OUTPUT (query): result-set positions the page took - set when budgetHit
+
+  //
+  // idsOnly - the caller wants the matching ENTITIES, not their history: an EntityMap of a temporal query
+  // (/temporal/entityMaps) - its entity ids. A store may then answer each entity as { "id" } (and
+  // "type") without reading its attribute instances; a store that does not look at the flag answers the
+  // whole temporal representation, and the caller takes the ids from that. The page's selection is the
+  // same either way: the entity selector, the window, q, geo.
+  //
+  bool         idsOnly;
 } TroeQueryFilter;
 
 

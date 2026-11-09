@@ -7,6 +7,7 @@ SET(SOURCES
   subscriptionQExpand.c
   getBuild.c
   getEntities.c
+  entityMapBuild.c
   getEntity.c
   postEntities.c
   deleteEntity.c
@@ -114,6 +115,12 @@ ENDIF()
 IF (COR_FEATURE_RESPONSE_BUDGET)
   LIST(APPEND SOURCES
     responseBudget.c
+  )
+ENDIF()
+
+IF (COR_FEATURE_TEMPORAL_ENTITY_MAP)
+  LIST(APPEND SOURCES
+    postTemporalEntityMap.c
   )
 ENDIF()
 

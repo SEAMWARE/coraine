@@ -1,0 +1,358 @@
+#
+# FILE            troe_timescale_temporal_entitymap_create.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# /temporal/entityMaps - Create EntityMap for Query Temporal Evolution of Entities (TS 104-176 § 11.3,
+# TS 104-175 § 14.6), one broker. The map is the ids of the entities the temporal query selects: the
+# type, the window, q - an entity with no instance in the window is not in it.
+#
+#   urn:V1  speed 10 (09:00), 20 (10:00)
+#   urn:V2  speed 15 (09:30), 25 (10:30)
+#   urn:V3  speed 30 (06:00) - nothing after 08:00
+#   urn:S1  a Sensor, temp 22 (09:00)
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+# REQUIRE_FEATURE: TEMPORAL_ENTITY_MAP
+#
+--NAME--
+TRoE timescale - /temporal/entityMaps, GET, HEAD and POST
+
+--TAGS--
+troe timescale postgres temporal entitymap
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+echo "01. Seed V1, V2, V3 (Vehicle, two instances each but V3) and S1 (Sensor)"
+echo "========================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":15,"observedAt":"2026-04-28T09:30:00Z"}}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities/urn:V2/attrs/speed -X PATCH --payload '{"value":25,"observedAt":"2026-04-28T10:30:00Z"}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V3","type":"Vehicle","speed":{"type":"Property","value":30,"observedAt":"2026-04-28T06:00:00Z"}}' > /dev/null
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:S1","type":"Sensor","temp":{"type":"Property","value":22,"observedAt":"2026-04-28T09:00:00Z"}}' > /dev/null
+echo done
+echo
+echo
+
+
+echo "02. GET /temporal/entityMaps?type=Vehicle, after 08:00 - V1 and V2 (V3 has no instance in the window)"
+echo "======================================================================================================"
+out=$(corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z')
+echo "$out"
+mapUrl=$(echo "$out" | grep -i '^NGSILD-EntityMap:' | awk '{print $2}' | tr -d '\r\n')
+echo
+echo
+
+
+echo "03. GET the map of step 02 by its NGSILD-EntityMap - the same map"
+echo "================================================================="
+corCurl --url "$mapUrl"
+echo
+echo
+
+
+echo "04. GET /temporal/entityMaps, q=speed>22 - an instance in the window meets it: V2 (25)"
+echo "======================================================================================"
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z&q=speed>22'
+echo
+echo
+
+
+echo "05. GET /temporal/entityMaps, between 05:00 and 07:00 - V3 only"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=between&timeAt=2026-04-28T05:00:00Z&endTimeAt=2026-04-28T07:00:00Z'
+echo
+echo
+
+
+echo "06. GET /temporal/entityMaps, limit=1 and offset=1 - ignored (§ 14.6.3): V1 and V2"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z&limit=1&offset=1'
+echo
+echo
+
+
+echo "07. HEAD /temporal/entityMaps - as the GET, no body"
+echo "==================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z' -X HEAD
+echo
+echo
+
+
+echo "08. POST /temporal/entityMaps, a Query with temporalQ and q - V2"
+echo "================================================================"
+payload='{
+  "type": "Query",
+  "entities": [ { "type": "Vehicle" } ],
+  "q": "speed>22",
+  "temporalQ": { "timerel": "after", "timeAt": "2026-04-28T08:00:00Z" }
+}'
+corCurl --url /ngsi-ld/v1/temporal/entityMaps --payload "$payload"
+echo
+echo
+
+
+echo "09. GET /temporal/entityMaps without timerel - 400"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle'
+echo
+echo
+
+
+echo "10. POST /temporal/entityMaps, a Query without temporalQ - 400"
+echo "=============================================================="
+payload='{
+  "type": "Query",
+  "entities": [ { "type": "Vehicle" } ]
+}'
+corCurl --url /ngsi-ld/v1/temporal/entityMaps --payload "$payload"
+echo
+echo
+
+
+echo "11. GET /temporal/entityMaps with neither type, attrs, q, georel nor local - 400 (too broad)"
+echo "==========================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?id=urn:V1&timerel=after&timeAt=2026-04-28T08:00:00Z'
+echo
+echo
+
+
+echo "12. GET /temporal/entityMaps, pick of a linked entity - 400"
+echo "==========================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z&pick=speed%7Bid%7D'
+echo
+echo
+
+
+--EXPECT--
+01. Seed V1, V2, V3 (Vehicle, two instances each but V3) and S1 (Sensor)
+========================================================================
+done
+
+
+02. GET /temporal/entityMaps?type=Vehicle, after 08:00 - V1 and V2 (V3 has no instance in the window)
+======================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+03. GET the map of step 02 by its NGSILD-EntityMap - the same map
+=================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+04. GET /temporal/entityMaps, q=speed>22 - an instance in the window meets it: V2 (25)
+======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+05. GET /temporal/entityMaps, between 05:00 and 07:00 - V3 only
+===============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V3": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+06. GET /temporal/entityMaps, limit=1 and offset=1 - ignored (§ 14.6.3): V1 and V2
+==================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+07. HEAD /temporal/entityMaps - as the GET, no body
+===================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+
+
+
+
+08. POST /temporal/entityMaps, a Query with temporalQ and q - V2
+================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+09. GET /temporal/entityMaps without timerel - 400
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 176
+
+{
+  "detail": "missing required URL parameter 'timerel'",
+  "status": 400,
+  "title": "Missing URL Parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. POST /temporal/entityMaps, a Query without temporalQ - 400
+==============================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 176
+
+{
+  "detail": "missing required URL parameter 'timerel'",
+  "status": 400,
+  "title": "Missing URL Parameter",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+11. GET /temporal/entityMaps with neither type, attrs, q, georel nor local - 400 (too broad)
+===========================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 242
+
+{
+  "detail": "at least one of 'type', 'attrs', 'q', 'georel', or 'local' must be supplied - a list of entity ids is not enough",
+  "status": 400,
+  "title": "Query Too Broad",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. GET /temporal/entityMaps, pick of a linked entity - 400
+===========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 226
+
+{
+  "detail": "'pick' uses a linked-entity projection ('speed{id}'), which a temporal query does not support",
+  "status": 400,
+  "title": "Invalid Projection",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop
