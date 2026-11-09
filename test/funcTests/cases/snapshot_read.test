@@ -140,7 +140,7 @@ Content-Length: REGEX(\d+)
 
 02. Create snapshot capturing both Vehicles
 ===========================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Frozen
 Content-Length: REGEX(\d+)

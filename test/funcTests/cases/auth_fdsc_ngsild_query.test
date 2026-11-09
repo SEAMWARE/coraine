@@ -134,7 +134,7 @@ join=flat, a builder: ['urn:E1', 'urn:E2', 'urn:ngsi-ld:EnergyReport:B1']
 
 06. A Snapshot of both types (the writer): read through NGSILD-Snapshot, each entity is the snapshot's and decided on its own
 ==============================================================================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 snapshot, a user, ?type=Building,EnergyReport   : ['urn:E1', 'urn:E2']
 snapshot, a builder, ?type=Building,EnergyReport: ['urn:E1', 'urn:E2', 'urn:ngsi-ld:EnergyReport:B1']
 snapshot, a user, GET the Building:    HTTP/1.1 403 Forbidden

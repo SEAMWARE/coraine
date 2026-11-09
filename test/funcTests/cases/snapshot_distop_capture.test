@@ -180,7 +180,7 @@ Content-Length: REGEX(\d+)
 
 04. Create snapshot on CB capturing Vehicles from local + both CPs
 ==================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
 Content-Length: REGEX(\d+)

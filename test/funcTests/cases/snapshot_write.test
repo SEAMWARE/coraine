@@ -101,7 +101,7 @@ echo
 =====================================================================================================
 HTTP/1.1 201 Created
 HTTP/1.1 201 Created
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 
 
 02. On S: POST /entities V3 - 201, NGSILD-Snapshot echoed; PATCH V1 speed 99 - 204; DELETE V2 - 204; batch upsert V4 - 201

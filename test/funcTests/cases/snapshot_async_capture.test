@@ -7,7 +7,7 @@
 #
 # § 5.16.1.4 — "the following is executed in the background".
 #
-# Broker started with --asyncSnapshot. POST /snapshots returns 201
+# Broker started with --asyncSnapshot. POST /snapshots returns 202
 # immediately with snapshotStatus="preparing"; a worker thread runs
 # the queries, updates the cache + persists the result + fires the
 # notification. The client polls /snapshots/{id} until status is
@@ -36,7 +36,7 @@ echo
 echo
 
 
-echo "02. POST /snapshots — returns 201 immediately (capture runs in background)"
+echo "02. POST /snapshots — returns 202 immediately (capture runs in background)"
 echo "=========================================================================="
 corCurl --url /ngsi-ld/v1/snapshots --payload '{
   "id": "urn:ngsi-ld:Snapshot:Bg",
@@ -134,9 +134,9 @@ Content-Length: 0
 
 
 
-02. POST /snapshots — returns 201 immediately (capture runs in background)
+02. POST /snapshots — returns 202 immediately (capture runs in background)
 ==========================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Bg
 Content-Length: 0

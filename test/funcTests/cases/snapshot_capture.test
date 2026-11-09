@@ -179,7 +179,7 @@ Content-Length: REGEX(\d+)
 
 02. Snapshot with one query matching Vehicles → success
 =======================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Vehicles
 Content-Length: REGEX(\d+)
@@ -223,7 +223,7 @@ Content-Length: REGEX(\d+)
 
 04. Snapshot with two queries, one match + one no-match → partial
 =================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Mixed
 Content-Length: REGEX(\d+)
@@ -278,7 +278,7 @@ Content-Length: REGEX(\d+)
 
 06. Snapshot whose query selects by id → captures only that entity
 ==================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:V1Only
 Content-Length: REGEX(\d+)
@@ -323,7 +323,7 @@ Content-Length: REGEX(\d+)
 
 08. Snapshot with q-filter speed>50 → matches V2 only → success
 ===============================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
 Content-Length: REGEX(\d+)
@@ -368,7 +368,7 @@ Content-Length: REGEX(\d+)
 
 10. Snapshot whose only query matches nothing → empty
 =====================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Empty
 Content-Length: REGEX(\d+)

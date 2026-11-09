@@ -144,14 +144,14 @@ Content-Length: REGEX(\d+)
 
 02. Create two snapshots
 ========================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:All
 Content-Length: REGEX(\d+)
 
 
 
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Fast
 Content-Length: REGEX(\d+)

@@ -179,7 +179,7 @@ Content-Length: REGEX(\d+)
 
 04. Snapshot in default (split) mode capturing Vehicles
 =======================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Merged
 Content-Length: REGEX(\d+)

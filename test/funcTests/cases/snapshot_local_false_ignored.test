@@ -86,7 +86,7 @@ HTTP/1.1 201 Created
 
 02. Create a snapshot capturing the Vehicle (before any CSR exists)
 ==================================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 
 
 03. Register a matching CSR (type Vehicle) at the mock receiver

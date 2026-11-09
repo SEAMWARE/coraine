@@ -149,7 +149,7 @@ Content-Length: REGEX(\d+)
 
 
 
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Quiet
 Content-Length: REGEX(\d+)
@@ -164,7 +164,7 @@ Content-Length: REGEX(\d+)
 
 03. Create snapshot WITH endpoint + receiverInfo
 ================================================
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 Date: REGEX(.*)
 Location: /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:Loud
 Content-Length: REGEX(\d+)

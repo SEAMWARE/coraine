@@ -100,8 +100,8 @@ echo
 --EXPECT--
 01. Create S1 (priority 3) + S2 (priority 8)
 ============================================
-HTTP/1.1 201 Created
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
+HTTP/1.1 202 Accepted
 
 
 02. DELETE /snapshots with no q → 400

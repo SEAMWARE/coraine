@@ -484,7 +484,7 @@ Date: REGEX(.*)
 
 
 HTTP/1.1 201 Created
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 
 
 14. Snapshot read - the frozen Entity carries the reconciled 2150
@@ -531,7 +531,7 @@ Date: REGEX(.*)
 
 
 HTTP/1.1 201 Created
-HTTP/1.1 201 Created
+HTTP/1.1 202 Accepted
 
 
 16. Snapshot read with sysAttrs - colour gone, doors present with its expiry
