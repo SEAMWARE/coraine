@@ -134,6 +134,7 @@ Content-Length: REGEX([0-9]+)
     "SNAPSHOT_WRITE": REGEX([a-z]+),
     "SSE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
+    "TEMPORAL_ENTITY_MAP": REGEX([a-z]+),
     "TIMEPOINT": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
   },
@@ -243,6 +244,7 @@ Content-Length: REGEX([0-9]+)
     "SNAPSHOT_WRITE": REGEX([a-z]+),
     "SSE": REGEX([a-z]+),
     "SUBSCRIPTIONS": REGEX([a-z]+),
+    "TEMPORAL_ENTITY_MAP": REGEX([a-z]+),
     "TIMEPOINT": REGEX([a-z]+),
     "TRANSPORTS": REGEX([a-z]+)
   },
