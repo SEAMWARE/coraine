@@ -1,0 +1,122 @@
+#
+# FILE            auth_cors_preflight.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A CORS preflight with an auth plugin: a browser never sends credentials on a preflight (Fetch, the
+# CORS-preflight request), and a preflight that is not a 2xx stops the request it asks for - so a web app on
+# another origin could not reach a broker with --auth at all (the preflight was a 401). The preflight is
+# answered without admission; the request itself is admitted as any other. An OPTIONS that is no preflight
+# (no Origin, or no Access-Control-Request-Method) is admitted as before.
+#
+# REQUIRE_FEATURE: AUTH_OIDC
+#
+--NAME--
+Auth plugin oidc + --corsOrigin: a CORS preflight is answered without a token, the request itself needs one
+
+--TAGS--
+auth oidc cors
+
+--INIT--
+corDbDrop
+ftAuthInit
+ftAuthKey k1 RS256
+ftAuthJwks k1
+coraineStart --auth oidc --oidcJwks $FT_AUTH_DIR/jwks.json --oidcIssuer https://login.ft --corsOrigin __ALL
+
+--RUN--
+
+#
+# 01. The preflight of a GET with Authorization, no token: 204 and the CORS headers
+# 02. The preflight of a PATCH with Authorization, no token: 204
+# 03. The GET itself, no token: 401
+# 04. The GET itself, with a token: 200
+# 05. OPTIONS without Access-Control-Request-Method (no preflight), no token: 401, as before
+# 06. OPTIONS with Access-Control-Request-Method but no Origin (no preflight), no token: 401, as before
+#
+status() { corCurl "$@" | head -1; }
+
+ORIGIN="Origin: https://app.example.org"
+TOKEN=$(ftAuthToken k1 --iss https://login.ft --claims '{"realm_access": {"roles": ["ngsild-read", "ngsild-write"]}}')
+
+echo "01. The preflight of a GET with Authorization, no token: 204 and the CORS headers"
+echo "=================================================================================="
+corCurl -X OPTIONS --url '/ngsi-ld/v1/entities?type=T' -H "$ORIGIN" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: authorization" | grep -E '^HTTP|^Access-Control-Allow-(Origin|Headers|Methods)'
+echo
+echo
+
+
+echo "02. The preflight of a PATCH with Authorization, no token: 204"
+echo "==============================================================="
+status -X OPTIONS --url /ngsi-ld/v1/entities/urn:E1/attrs/on -H "$ORIGIN" -H "Access-Control-Request-Method: PATCH" -H "Access-Control-Request-Headers: authorization, content-type"
+echo
+echo
+
+
+echo "03. The GET itself, no token: 401"
+echo "================================="
+status --url '/ngsi-ld/v1/entities?type=T' -H "$ORIGIN"
+echo
+echo
+
+
+echo "04. The GET itself, with a token: 200"
+echo "====================================="
+status --url '/ngsi-ld/v1/entities?type=T' -H "$ORIGIN" -H "Authorization: Bearer $TOKEN"
+echo
+echo
+
+
+echo "05. OPTIONS without Access-Control-Request-Method (no preflight), no token: 401, as before"
+echo "========================================================================================="
+status -X OPTIONS --url '/ngsi-ld/v1/entities?type=T' -H "$ORIGIN"
+echo
+echo
+
+
+echo "06. OPTIONS with Access-Control-Request-Method but no Origin (no preflight), no token: 401, as before"
+echo "===================================================================================================="
+status -X OPTIONS --url '/ngsi-ld/v1/entities?type=T' -H "Access-Control-Request-Method: GET"
+echo
+echo
+
+
+--EXPECT--
+01. The preflight of a GET with Authorization, no token: 204 and the CORS headers
+==================================================================================
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, DELETE, HEAD, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Accept, Link, NGSILD-Tenant, NGSILD-Path, Authorization, Service-Execution
+
+
+02. The preflight of a PATCH with Authorization, no token: 204
+===============================================================
+HTTP/1.1 204 No Content
+
+
+03. The GET itself, no token: 401
+=================================
+HTTP/1.1 401 Unauthorized
+
+
+04. The GET itself, with a token: 200
+=====================================
+HTTP/1.1 200 OK
+
+
+05. OPTIONS without Access-Control-Request-Method (no preflight), no token: 401, as before
+=========================================================================================
+HTTP/1.1 401 Unauthorized
+
+
+06. OPTIONS with Access-Control-Request-Method but no Origin (no preflight), no token: 401, as before
+====================================================================================================
+HTTP/1.1 401 Unauthorized
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
