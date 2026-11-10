@@ -25,9 +25,11 @@ coraineStart
 #
 # 01. Seed V1, V2 (Vehicle), S1 (Sensor)
 # 02. GET /entityMaps?type=Vehicle → 201 with map body containing V1+V2, NGSILD-EntityMap header
-# 03. Extract the returned map ID from the header and GET /entityMaps/{id} — content matches
-# 04. GET /entityMaps with no filter → map body with all 3 entities
-# 05. GET /entityMaps?type=NonExistent → empty map (still 201, just no entries)
+# 03. GET /entityMaps?local=true → map body with all 3 entities
+# 04. GET /entityMaps?type=NonExistent → empty map (still 201, just no entries)
+# 05. HEAD /entityMaps?type=Vehicle → 201 + NGSILD-EntityMap, no body - a HEAD creates the map as the GET does
+#     (ETSI NGSI-LD API call 2026-11-10), and a creating HEAD answers 201, not the 204 of a HEAD's success
+# 06. GET the map by the URI of step 05's NGSILD-EntityMap - V1 + V2: it was created
 #
 
 echo "01. Seed V1 + V2 (Vehicle), S1 (Sensor)"
@@ -58,6 +60,22 @@ echo
 echo "04. GET /entityMaps?type=NonExistent → 201 + empty map"
 echo "======================================================"
 corCurl --url "/ngsi-ld/v1/entityMaps?type=NonExistent"
+echo
+echo
+
+
+echo "05. HEAD /entityMaps?type=Vehicle → 201 + NGSILD-EntityMap, no body"
+echo "===================================================================="
+headOut=$(corCurl --url "/ngsi-ld/v1/entityMaps?type=Vehicle" -X HEAD)
+echo "$headOut"
+echo
+echo
+
+
+echo "06. GET the map of step 05 by its NGSILD-EntityMap → V1 + V2"
+echo "============================================================"
+mapUrl=$(echo "$headOut" | grep '^NGSILD-EntityMap:' | awk '{ print $2 }' | tr -d '\r')
+corCurl --url "$mapUrl"
 echo
 echo
 
@@ -152,6 +170,40 @@ Content-Length: REGEX(\d+)
   "entityMap": {},
   "expiresAt": REGEX(.*)
   "id": REGEX(.*)
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+05. HEAD /entityMaps?type=Vehicle → 201 + NGSILD-EntityMap, no body
+====================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
+
+
+06. GET the map of step 05 by its NGSILD-EntityMap → V1 + V2
+============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V1": [
+      "@none"
+    ],
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": REGEX(.*)
+  "id": "REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)",
   "linkedMaps": {},
   "type": "EntityMap"
 }
