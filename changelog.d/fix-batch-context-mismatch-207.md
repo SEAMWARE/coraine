@@ -1,3 +1,5 @@
+### Changed behaviour
+
 - A batch entity breaking the `@context` / Content-Type rule (TS 104 176 § 6.2.4) - no `@context` under
   `application/ld+json`, one under `application/json` - is that entity's BadRequestData in the batch's
   `errors[]` (207), and the other entities are processed. Was a 400 for the whole request. Decided at the ETSI
