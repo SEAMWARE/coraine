@@ -219,9 +219,10 @@ static void jsonStrEscape(char* dst, int dstSize, const char* src)
 // that NO key match, so the positive predicate is wrapped in $not. Relational
 // operators are not meaningful over language text and are left to fall through
 // (they resolve to a literal "*" key that never exists → no match), so this only
-// handles == / != / pattern / notPattern.
+// handles == / != / pattern / notPattern. instPath names the instance object: its
+// "type" must be LanguageProperty, for the negative operators too.
 //
-static void bsonAppendLangWildcard(bson_t* docP, const char* langPath, LdQTerm* term)
+static void bsonAppendLangWildcard(bson_t* docP, const char* instPath, const char* langPath, LdQTerm* term)
 {
   char pred[4096];   // per-element positive predicate over "$$kv.v"
   bool pattern = (term->op == LdQPattern) || (term->op == LdQNotPattern);
@@ -263,11 +264,17 @@ static void bsonAppendLangWildcard(bson_t* docP, const char* langPath, LdQTerm* 
     "{\"$anyElementTrue\":{\"$map\":{\"input\":{\"$objectToArray\":\"$%s\"},\"as\":\"kv\",\"in\":%s}}}",
     langPath, pred);
 
-  char cond[8320];
-  if (negative)
-    snprintf(cond, sizeof(cond), "{\"$not\":[%s]}", any);
-  else
-    snprintf(cond, sizeof(cond), "%s", any);
+  //
+  // Only a LanguageProperty has a languageMap to look into (API call 2026-11-10) - for the negative
+  // operators too: "no key equals" is no answer for an Attribute that has no keys. The type test goes
+  // FIRST: $and stops at the first false, and an Entity without the Attribute must not reach
+  // $objectToArray - of a missing field it gives null, and $anyElementTrue of null fails the whole
+  // query (a 500 for every "[*]" query over a type where one Entity lacked the Attribute).
+  //
+  char cond[10500];
+  snprintf(cond, sizeof(cond), negative ? "{\"$and\":[{\"$eq\":[\"$%s.type\",\"LanguageProperty\"]},{\"$not\":[%s]}]}"
+                                        : "{\"$and\":[{\"$eq\":[\"$%s.type\",\"LanguageProperty\"]},%s]}",
+           instPath, any);
 
   bson_error_t error;
   bson_t*      condP = bson_new_from_json((const uint8_t*) cond, -1, &error);
@@ -909,6 +916,9 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       return;
   }
 
+  char instPath[1024];                               // the instance object - its "type" says LanguageProperty or not
+  snprintf(instPath, sizeof(instPath), "%s%s", path, (term->subPathN > 0) ? "" : ".@none");
+
   if (term->memberLeaf == false)                     // valueType, objectType, unitCode: the member is the value
     pos += snprintf(path + pos, sizeof(path) - pos, "%s.value", (term->subPathN > 0) ? "" : ".@none");
 
@@ -918,20 +928,35 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
   // field path, so this compiles to a $expr over $objectToArray (path so far
   // names the languageMap object).
   //
+  // "*" is for a LanguageProperty only (API call 2026-11-10): on any other Attribute the path does not
+  // resolve - a not-exists term TRUE, every other term FALSE, as in the in-memory matcher. Hence the
+  // instance's type in every form, and the not-exists form is the negation of the exists one.
+  //
   if ((term->valuePathN == 1) && (strcmp(term->valuePathV[0], "*") == 0))
   {
     if ((term->op == LdQExists) || (term->op == LdQNotExists))
     {
-      bson_t existsDoc;
-      bson_append_document_begin(docP, path, -1, &existsDoc);
-      bson_append_bool(&existsDoc, "$exists", 7, (term->op == LdQExists));
-      bson_append_document_end(docP, &existsDoc);
+      char cond[2400];
+      snprintf(cond, sizeof(cond),
+        "{\"$and\":[{\"$eq\":[\"$%s.type\",\"LanguageProperty\"]},{\"$eq\":[{\"$type\":\"$%s\"},\"object\"]}]}",
+        instPath, path);
+
+      char expr[2500];
+      snprintf(expr, sizeof(expr), (term->op == LdQExists) ? "%s" : "{\"$not\":[%s]}", cond);
+
+      bson_error_t error;
+      bson_t*      exprP = bson_new_from_json((const uint8_t*) expr, -1, &error);
+      if (exprP != NULL)
+      {
+        bson_append_document(docP, "$expr", 5, exprP);
+        bson_destroy(exprP);
+      }
       return;
     }
     if ((term->op == LdQEqual) || (term->op == LdQUnequal) ||
         (term->op == LdQPattern) || (term->op == LdQNotPattern))
     {
-      bsonAppendLangWildcard(docP, path, term);
+      bsonAppendLangWildcard(docP, instPath, path, term);
       return;
     }
     // relational operators over "[*]" fall through (they never match — see helper)
