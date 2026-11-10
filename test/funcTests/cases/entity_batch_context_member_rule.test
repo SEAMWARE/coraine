@@ -20,7 +20,7 @@
 # options.features.entityArrayBody flag.
 #
 --NAME--
-Batch ops: @context-member rule per Content-Type → request-level 400 (§ 6.2.4)
+Batch ops: @context-member rule per Content-Type, per entity → 207 with the entity's BadRequestData (§ 6.2.4; ETSI API call 2026-11-10)
 
 --TAGS--
 batch
@@ -34,8 +34,8 @@ coraineStart
 
 --RUN--
 
-echo "01. CREATE ld+json, one element missing @context → 400 (whole request)"
-echo "======================================================================"
+echo "01. CREATE ld+json, one element missing @context → 207, its BadRequestData"
+echo "=========================================================================="
 corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V1","type":"Vehicle"}
 ]'
@@ -43,11 +43,11 @@ echo
 echo
 
 
-echo "02. CREATE ld+json, mixed (V1 has @context, V2 missing) → 400 (whole request)"
-echo "============================================================================="
+echo "02. CREATE ld+json, mixed (V6 has @context, V7 missing) → 207, V6 created, V7 BadRequestData"
+echo "============================================================================================"
 corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/create --payload '[
-  {"id":"urn:V1","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"},
-  {"id":"urn:V2","type":"Vehicle"}
+  {"id":"urn:V6","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"},
+  {"id":"urn:V7","type":"Vehicle"}
 ]'
 echo
 echo
@@ -63,8 +63,8 @@ echo
 echo
 
 
-echo "04. CREATE application/json, one element carries @context → 400 (whole request)"
-echo "==============================================================================="
+echo "04. CREATE application/json, one element carries @context → 207, its BadRequestData"
+echo "==================================================================================="
 corCurl --url /ngsi-ld/v1/entityOperations/create --payload '[
   {"id":"urn:V3","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}
 ]'
@@ -81,7 +81,7 @@ echo
 echo
 
 
-echo "06. UPSERT ld+json, element missing @context → 400 (same rule, all batch ops)"
+echo "06. UPSERT ld+json, element missing @context → 207 (same rule, all batch ops)"
 echo "============================================================================"
 corCurl --in jsonld --url /ngsi-ld/v1/entityOperations/upsert --payload '[
   {"id":"urn:V5","type":"Vehicle"}
@@ -90,7 +90,7 @@ echo
 echo
 
 
-echo "07. MERGE application/json, element carries @context → 400"
+echo "07. MERGE application/json, element carries @context → 207"
 echo "========================================================="
 corCurl --url /ngsi-ld/v1/entityOperations/merge --payload '[
   {"id":"urn:V4","type":"Vehicle","@context":"https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"}
@@ -107,34 +107,50 @@ echo
 
 
 --EXPECT--
-01. CREATE ld+json, one element missing @context → 400 (whole request)
-======================================================================
-HTTP/1.1 400 Bad Request
+01. CREATE ld+json, one element missing @context → 207, its BadRequestData
+==========================================================================
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "every entity of an application/ld+json array body must carry an @context member",
-  "status": 400,
-  "title": "Missing @context",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "errors": [
+    {
+      "entityId": "urn:V1",
+      "error": {
+        "detail": "an entity of an application/ld+json batch must carry an @context member",
+        "title": "Missing @context",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
 }
 
 
 
-02. CREATE ld+json, mixed (V1 has @context, V2 missing) → 400 (whole request)
-=============================================================================
-HTTP/1.1 400 Bad Request
+02. CREATE ld+json, mixed (V6 has @context, V7 missing) → 207, V6 created, V7 BadRequestData
+============================================================================================
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "every entity of an application/ld+json array body must carry an @context member",
-  "status": 400,
-  "title": "Missing @context",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "errors": [
+    {
+      "entityId": "urn:V7",
+      "error": {
+        "detail": "an entity of an application/ld+json batch must carry an @context member",
+        "title": "Missing @context",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": [
+    "urn:V6"
+  ]
 }
 
 
@@ -153,18 +169,25 @@ Content-Length: REGEX(\d+)
 
 
 
-04. CREATE application/json, one element carries @context → 400 (whole request)
-===============================================================================
-HTTP/1.1 400 Bad Request
+04. CREATE application/json, one element carries @context → 207, its BadRequestData
+===================================================================================
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "@context in body not allowed for Content-Type application/json",
-  "status": 400,
-  "title": "Unexpected @context",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "errors": [
+    {
+      "entityId": "urn:V3",
+      "error": {
+        "detail": "@context in an entity of the body not allowed for Content-Type application/json",
+        "title": "Unexpected @context",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
 }
 
 
@@ -182,34 +205,48 @@ Content-Length: REGEX(\d+)
 
 
 
-06. UPSERT ld+json, element missing @context → 400 (same rule, all batch ops)
+06. UPSERT ld+json, element missing @context → 207 (same rule, all batch ops)
 ============================================================================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "every entity of an application/ld+json array body must carry an @context member",
-  "status": 400,
-  "title": "Missing @context",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "errors": [
+    {
+      "entityId": "urn:V5",
+      "error": {
+        "detail": "an entity of an application/ld+json batch must carry an @context member",
+        "title": "Missing @context",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
 }
 
 
 
-07. MERGE application/json, element carries @context → 400
+07. MERGE application/json, element carries @context → 207
 =========================================================
-HTTP/1.1 400 Bad Request
+HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "@context in body not allowed for Content-Type application/json",
-  "status": 400,
-  "title": "Unexpected @context",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "errors": [
+    {
+      "entityId": "urn:V4",
+      "error": {
+        "detail": "@context in an entity of the body not allowed for Content-Type application/json",
+        "title": "Unexpected @context",
+        "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+      }
+    }
+  ],
+  "success": []
 }
 
 
