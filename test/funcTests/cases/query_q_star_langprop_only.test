@@ -1,0 +1,207 @@
+# Copyright 2026 Seamware
+#
+# FILE            query_q_star_langprop_only.test
+#
+# AUTHOR          Ken Zangelin
+#
+# The "[*]" of a q term (no natural language specified, TS 104-175 § 7.2.3.4 item 5) is for a
+# LanguageProperty ONLY - the ETSI NGSI-LD API call of 2026-11-10: a grammar rule `DottedPath / "*"`,
+# and outside the grammar "'*' only for LanguageProperties". On a Property whose value is a JSON
+# object with the same keys, "[*]" does not resolve: the not-exists term matches, every other term
+# does not - the answer for a value path that is not there.
+#
+# The entity query goes through the DB backend (mongoc compiles "[*]" to a $expr; corDB uses the
+# in-memory matcher), the subscription through the in-memory matcher.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+q with "[*]" matches a LanguageProperty only - never a Property with an object value
+
+--TAGS--
+langProp q query subscription notification
+
+--INIT--
+corDbDrop
+coraineStart
+ftClientStart
+
+--RUN--
+
+echo "01. Seed: L1/L2 LanguageProperties (pain/joy), P1/P2 Properties with an object value (pain/joy), N1 none"
+echo "======================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L1","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":"pain"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:L2","type":"D","description":{"type":"LanguageProperty","languageMap":{"en":"joy"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P1","type":"D","description":{"type":"Property","value":{"en":"pain"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:P2","type":"D","description":{"type":"Property","value":{"en":"joy"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:N1","type":"D","other":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. q=description[*]==\"pain\" - L1, not P1"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&pick=id&orderBy=id'
+echo
+echo
+
+
+echo "03. q=description[*]!=\"pain\" - L2, not P2"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&pick=id&orderBy=id'
+echo
+echo
+
+
+echo "04. q=description[*]~=pai - L1, not P1"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pai&pick=id&orderBy=id'
+echo
+echo
+
+
+echo "05. q=description[*] - exists: L1 and L2"
+echo "========================================"
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D&pick=id&orderBy=id'
+echo
+echo
+
+
+echo "06. q=!description[*] - not exists: N1, P1 and P2"
+echo "================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=!description%5B*%5D&pick=id&orderBy=id'
+echo
+echo
+
+
+echo "07. Subscription q=description[*]==\"pain\" on type W (in-memory matcher)"
+echo "======================================================================="
+EP='{"uri":"http://localhost:7701/notify","accept":"application/json"}'
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{"id":"urn:ngsi-ld:Sstar","type":"Subscription","entities":[{"type":"W"}],"q":"description[*]==\"pain\"","notification":{"endpoint":'"$EP"',"attributes":["description"],"format":"keyValues"}}' | head -1
+echo
+echo
+
+
+echo "08. W1 (a Property with an object value) does not notify, W2 (a LanguageProperty) does"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W1","type":"W","description":{"type":"Property","value":{"en":"pain"}}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:W2","type":"W","description":{"type":"LanguageProperty","languageMap":{"en":"pain"}}}' | head -1
+ftClientWait 1
+ftClientSettle
+ftClientDump | grep '"id": "urn:ngsi-ld:W'
+echo
+
+--EXPECT--
+01. Seed: L1/L2 LanguageProperties (pain/joy), P1/P2 Properties with an object value (pain/joy), N1 none
+======================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. q=description[*]=="pain" - L1, not P1
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+[
+  {
+    "id": "urn:ngsi-ld:L1"
+  }
+]
+
+
+
+03. q=description[*]!="pain" - L2, not P2
+==========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+[
+  {
+    "id": "urn:ngsi-ld:L2"
+  }
+]
+
+
+
+04. q=description[*]~=pai - L1, not P1
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+[
+  {
+    "id": "urn:ngsi-ld:L1"
+  }
+]
+
+
+
+05. q=description[*] - exists: L1 and L2
+========================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+[
+  {
+    "id": "urn:ngsi-ld:L1"
+  },
+  {
+    "id": "urn:ngsi-ld:L2"
+  }
+]
+
+
+
+06. q=!description[*] - not exists: N1, P1 and P2
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 111
+
+[
+  {
+    "id": "urn:ngsi-ld:N1"
+  },
+  {
+    "id": "urn:ngsi-ld:P1"
+  },
+  {
+    "id": "urn:ngsi-ld:P2"
+  }
+]
+
+
+
+07. Subscription q=description[*]=="pain" on type W (in-memory matcher)
+=======================================================================
+HTTP/1.1 201 Created
+
+
+08. W1 (a Property with an object value) does not notify, W2 (a LanguageProperty) does
+======================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+          "id": "urn:ngsi-ld:W2",
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+ftClientStop
