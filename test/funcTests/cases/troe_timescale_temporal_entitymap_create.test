@@ -80,8 +80,8 @@ echo
 echo
 
 
-echo "07. HEAD /temporal/entityMaps - as the GET, no body"
-echo "==================================================="
+echo "07. HEAD /temporal/entityMaps - as the GET, no body: 201 (a HEAD that creates, API call 2026-11-10)"
+echo "================================================================================================"
 corCurl --url '/ngsi-ld/v1/temporal/entityMaps?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z' -X HEAD
 echo
 echo
@@ -256,12 +256,13 @@ Content-Length: REGEX(\d+)
 
 
 
-07. HEAD /temporal/entityMaps - as the GET, no body
-===================================================
-HTTP/1.1 204 No Content
+07. HEAD /temporal/entityMaps - as the GET, no body: 201 (a HEAD that creates, API call 2026-11-10)
+================================================================================================
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
+Content-Length: REGEX(\d+)
 
 
 
