@@ -157,6 +157,16 @@ settles on.
 
 ## Short term
 
+-   **A quoted date in q compared by time** - on hold until it is settled in ETSI. TS 104-175 § 7.2.3 is not
+    clear on quotes: its grammar has bare `dateTime`, `date`, `time` and `URI` values, while § 7.2.3.4 Example 6
+    quotes a URI and item 7 makes a list of URIs a `ValueList`, which holds quoted strings only. Where the spec
+    is unclear, coraine follows the value's JSON type - a DateTime and a URI are strings in a payload body - and
+    accepts both forms, with or without quotes, wherever it can. Today a URI and a pattern (`~=`) are taken
+    both ways; a **quoted** date is not: `q=observedAt>="2021-01-01T00:00:00Z"` compares as a string, not by
+    time. The change is in corNgsild's q matcher (a quoted value whose text is a DateTime, Date or Time,
+    against a target of that type, compared temporally) and in the backends' translation of q (mongoc, corDB,
+    the TRoE SQL). The grammar itself stays: changing it would break existing deployments.
+
 ## Medium term
 
 The following specific features are proposed to be addressed in the medium term,
