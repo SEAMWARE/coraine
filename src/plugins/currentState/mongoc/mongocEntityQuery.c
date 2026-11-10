@@ -916,7 +916,7 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       return;
   }
 
-  char instPath[1024];                               // the instance object - its "type" says LanguageProperty or not
+  char instPath[1024 + 8];                           // path + ".@none": the instance object - its "type" says LanguageProperty or not
   snprintf(instPath, sizeof(instPath), "%s%s", path, (term->subPathN > 0) ? "" : ".@none");
 
   if (term->memberLeaf == false)                     // valueType, objectType, unitCode: the member is the value
