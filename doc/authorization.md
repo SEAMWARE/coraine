@@ -43,6 +43,11 @@ broker is too old to have.
 | `resourceMetadata` (ABI 6) | for `GET /.well-known/oauth-protected-resource`, and for every 401 | how a client gets a token it takes: a JSON object (§ 2.5) | - |
 | `release` | the request is over, its response sent | - | - |
 
+**A CORS preflight** (`--corsOrigin`; an `OPTIONS` with `Origin` and `Access-Control-Request-Method`) is not
+asked about: a browser never sends credentials on one, and a preflight that is not a 2xx stops the request
+it asks for. It is answered - the route's methods, the CORS headers - and the request itself, when the browser
+sends it, is asked about as any other. An `OPTIONS` that is no preflight is asked about (a read).
+
 `entity` is given the entity's id, its **expanded** types and whether they are the **stored** entity's: the
 types the body gives for a create (and for an upsert of a new entity); the stored entity's for a retrieve,
 for every write on an existing entity - looked up before anything is forwarded to a context source, handed
