@@ -61,7 +61,8 @@ typedef struct WsConn
 static TransportHost*   hostP     = NULL;
 static pthread_mutex_t  connMutex = PTHREAD_MUTEX_INITIALIZER;    // the list AND every write: one writer at a time
 static WsConn*          connList  = NULL;
-static int              connCount = 0;
+static int              connCount = 0;                           // threads not yet done with their connection
+static bool             stopping  = false;                       // stop() has begun: no new connection
 
 
 
@@ -328,7 +329,6 @@ static void* connThread(void* arg)
         connList = p->next;
       else
         prevP->next = p->next;
-      --connCount;
       break;
     }
   }
@@ -336,9 +336,17 @@ static void* connThread(void* arg)
   cP->closing = true;
   pthread_mutex_unlock(&connMutex);
 
+  //
+  // Counted out only once the socket is handed back: stop() waits for the count, and the server is stopped
+  // after it - the handle closeFn hands back is the server's, freed when it stops
+  //
   cP->closeFn(cP->closeArg);
   free(cP->extra);
   free(cP);
+
+  pthread_mutex_lock(&connMutex);
+  --connCount;
+  pthread_mutex_unlock(&connMutex);
 
   return NULL;
 }
@@ -447,6 +455,16 @@ static bool take(int connId, int fd, const char* extra, int extraLen, void (*clo
   setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
   pthread_mutex_lock(&connMutex);
+
+  if (stopping)                                      // the broker is stopping: handed back at once
+  {
+    pthread_mutex_unlock(&connMutex);
+    closeFn(closeArg);
+    free(cP->extra);
+    free(cP);
+    return false;
+  }
+
   cP->next = connList;
   connList = cP;
   ++connCount;
@@ -539,10 +557,12 @@ static void drop(int status)
 static void stop(void)
 {
   //
-  // Every connection's read ends - its thread closes it (a going-away close frame first, § 7.4.1) and
-  // tells the broker; waited for, 2 s at most
+  // Every connection's read ends - its thread closes it (a going-away close frame first, § 7.4.1), tells
+  // the broker and hands the socket back to the server; waited for, 2 s at most. Called before the HTTP
+  // server stops (its handles are freed then); a connection upgraded from here on is refused (take)
   //
   pthread_mutex_lock(&connMutex);
+  stopping = true;
 
   for (WsConn* cP = connList; cP != NULL; cP = cP->next)
   {
