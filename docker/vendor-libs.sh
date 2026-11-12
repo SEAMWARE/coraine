@@ -39,6 +39,21 @@ OUT="$(cd "$(dirname "$0")" && pwd)/vendor"
 # build at `make -C corLibs di` rather than at the link. Which is how it was
 # found.
 LIBS=(corBase corLog corAlloc corArgs corHash corTree corJson corProm corPlugin corBridge corDdsBridge corModbusBridge corMqttBridge corCkanBridge corOpcuaBridge corAasBridge corCep corHttp corRest corJsonld corNgsild corDB corTools corTest corLibs)
+#
+# VENDOR_BRIDGES: the bridge repositories to export - unset, all of them (the image); else a list, comma or space
+# separated, possibly empty ("none"): coraine-build exports only the bridges its --bridges names, so a build
+# without dds needs no corDdsBridge clone. corLibs' makefile builds the bridge directories that are there.
+#
+BRIDGE_LIBS=" corDdsBridge corModbusBridge corMqttBridge corCkanBridge corOpcuaBridge corAasBridge corCep "
+if [ -n "${VENDOR_BRIDGES+set}" ]; then
+  wanted=" $(tr ',' ' ' <<< "$VENDOR_BRIDGES") "
+  kept=()
+  for lib in "${LIBS[@]}"; do
+    if [ "${BRIDGE_LIBS/ $lib /}" != "$BRIDGE_LIBS" ] && [ "${wanted/ $lib /}" = "$wanted" ]; then continue; fi
+    kept+=("$lib")
+  done
+  LIBS=("${kept[@]}")
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
