@@ -1,0 +1,64 @@
+#
+# FILE            websocket_broker_stop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The broker stopped (SIGTERM) with a WebSocket connection open: the client gets a going-away close frame
+# (1001, RFC 6455 § 7.4.1) and the broker exits cleanly. The connections are closed BEFORE the HTTP server
+# stops - an upgraded connection is the server's handle until ws.so hands it back, and MHD_stop_daemon frees
+# the handles of the connections still open. Closed after it, the client's socket just ended (no close frame)
+# and the connection's thread handed back a freed handle: a use-after-free, and on a slow machine a SIGSEGV
+# on the way out (corhome001, 2026-11-12). Under valgrind (-vt) that is the invalid read.
+#
+# REQUIRE_FEATURE: TRANSPORTS
+#
+--NAME--
+WebSocket - the broker stopped with a connection open: a 1001 close frame, then the exit
+
+--TAGS--
+websocket
+
+--INIT--
+corDbDrop
+coraineStart --transports ws
+
+--RUN--
+last() { ftWsMessages | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)[-1]))'; }
+
+echo "01. Connect"
+echo "==========="
+ftWsStart
+ftWsAwait 1 && echo connected
+echo
+echo
+
+
+echo "02. Stop the broker (SIGTERM) - the connection's last frame: a close, 1001; the broker gone"
+echo "==========================================================================================="
+coraineStop
+ftWsAwait 2
+last
+curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/types" && echo "broker still up" || echo "broker gone"
+echo
+echo
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+
+
+--EXPECT--
+01. Connect
+===========
+connected
+
+
+02. Stop the broker (SIGTERM) - the connection's last frame: a close, 1001; the broker gone
+===========================================================================================
+{"close": 1001}
+broker gone
+
+

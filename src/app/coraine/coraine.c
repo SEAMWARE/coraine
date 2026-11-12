@@ -412,6 +412,16 @@ static void shutdownInOrder(void)
   sseStop();          // every event stream ended before the server goes: a stream is written through it
 #endif
 
+#if COR_FEATURE_TRANSPORTS
+  //
+  // The transports' connections too, before the server goes: an upgraded connection (a WebSocket) is the
+  // server's handle until the transport hands it back (MHD_upgrade_action), and MHD_stop_daemon frees the
+  // handles of the ones still open - the connection's thread then handed back a freed handle, and the broker
+  // died of SIGSEGV on its way out (corhome001, 2026-11-12). A connection upgraded from here on is refused.
+  //
+  transportStop();                                  // its connections closed: their subscriptions deleted
+#endif
+
   corRestStop();
 
   //
@@ -430,11 +440,8 @@ static void shutdownInOrder(void)
   // Bridges before the periodic loop, and both before dbClose: a bridge thread
   // is an inbound writer the broker does not own, and close() is what joins it.
   //
-#if COR_FEATURE_TRANSPORTS
-  transportStop();                                  // its connections closed: their subscriptions deleted
-#if COR_FEATURE_HA_RUNS
+#if COR_FEATURE_TRANSPORTS && COR_FEATURE_HA_RUNS
   transportRunsStop();                              // this run's document deleted
-#endif
 #endif
   bridgesClose();
 

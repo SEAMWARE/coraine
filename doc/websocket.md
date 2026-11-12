@@ -98,6 +98,10 @@ When the connection closes - the client closes it, it breaks, or the broker stop
 that notify it are deleted, each in its tenant: those made over it to notify it, and those changed over it
 (`PATCH`) to notify it. One changed since, over HTTP or another connection, to notify elsewhere stays.
 
+A broker that stops (`SIGTERM`, `SIGINT`) closes each connection with a close frame `1001` (going away),
+waits for it to close (2 s at most), and only then stops its HTTP server. A WebSocket asked for once the
+stop has begun is refused.
+
 A broker that is killed (not stopped), or crashes, deletes nothing. At its next start, every subscription,
 periodic subscription and context source subscription that notifies a connection of another run is
 deleted, in every tenant - with a persistent store, they would otherwise stay, matched on every write and
