@@ -40,7 +40,7 @@ echo "==========================================================================
 coraineStop
 ftWsAwait 2
 last
-ss -ltn | grep -c ":$CB_PORT "
+curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/types" && echo "broker still up" || echo "broker gone"
 echo
 echo
 
@@ -59,6 +59,6 @@ connected
 02. Stop the broker (SIGTERM) - the connection's last frame: a close, 1001; the broker gone
 ===========================================================================================
 {"close": 1001}
-0
+broker gone
 
 
