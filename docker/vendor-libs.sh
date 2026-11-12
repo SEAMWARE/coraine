@@ -55,6 +55,15 @@ if [ -n "${VENDOR_BRIDGES+set}" ]; then
   LIBS=("${kept[@]}")
 fi
 
+#
+# --list: the repositories it would export, one a line, and nothing else - what a directory of clones must hold
+# (c3's Compile asks before a build; coraine and c3 are source.sh's own)
+#
+if [ "${1:-}" = --list ]; then
+  printf '%s\n' "${LIBS[@]}"
+  exit 0
+fi
+
 rm -rf "$OUT"
 mkdir -p "$OUT"
 MANIFEST="$OUT/MANIFEST.txt"

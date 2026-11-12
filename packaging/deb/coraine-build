@@ -266,7 +266,7 @@ if [ "$LISTB" = 1 ]; then
     if [ "$JSON" = 1 ]; then
       [ "$first" = 1 ] || printf ',\n'
       first=0
-      printf '  {"name": "%s", "default": %s, "description": "%s", "available": %s, "why": %s}' "$name" \
+      printf '  {"name": "%s", "repository": "%s", "default": %s, "description": "%s", "available": %s, "why": %s}' "$name" "$repo" \
         "$([ "$def" = 1 ] && echo true || echo false)" "$(esc "$desc")" "$([ -z "$why" ] && echo true || echo false)" \
         "$([ -z "$why" ] && echo null || echo "\"$(esc "$why")\"")"
     else
