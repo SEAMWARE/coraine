@@ -10,7 +10,8 @@
 #
 # An entry file: one or more '### <section>' headings, each followed by its text - '- ' bullets, as in
 # CHANGELOG.md. The sections, in the order they are written: New, Faster, Less memory, Changed behaviour,
-# Fixed. A section CHANGELOG.md's unreleased part already has under another name keeps its place after them.
+# Fixed, Documentation. A section CHANGELOG.md's unreleased part already has under another name keeps its
+# place after them.
 #
 # The entries are taken in the order they reached main (the commit that added each file), an entry not
 # committed yet last. A CHANGELOG.md section headed '## <x> (not released yet)' is the coming release's,
@@ -34,7 +35,7 @@ set -o pipefail
 top=$(git rev-parse --show-toplevel) || exit 1
 cd "$top" || exit 1
 
-SECTIONS=("New" "Faster" "Less memory" "Changed behaviour" "Fixed")
+SECTIONS=("New" "Faster" "Less memory" "Changed behaviour" "Fixed" "Documentation")
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 

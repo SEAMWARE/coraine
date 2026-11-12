@@ -142,6 +142,20 @@ What the three columns are made of:
 - **`mongoc` costs three libraries, 6.77 MiB** — `libmongoc`, `libbson`,
   `libsasl2` — before MongoDB itself is installed anywhere.
 
+### Every feature in, geo-queries out
+
+Every feature switch at its default - subscriptions, registrations, Service Execution, the Channels,
+auth, cor://, the transports, SSE, metrics - but `GEOQ=OFF` (no GEOS), ICU off, no `mongoc`, no
+TimescaleDB and no bridges; every Cor-Lib is linked in.
+
+| Configuration | The executable, stripped | + `corDB.so` | Added libraries | **Total added** |
+|---------------|-------------------------:|-------------:|----------------:|----------------:|
+| `corHttp` + `corDB` | 1 624 000 bytes | 226 280 bytes | **none** | **1.76 MiB** |
+| libmicrohttpd + `corDB` | | | 7.7 MiB (10) | 1.78 MiB + 7.7 MiB |
+
+*(2026-11-12, main `50e44e1f` with `feat/build-only-used-bridges`, `coraine-build --release --bridges none`.)*
+OpenSSL, zlib and zstd are counted as the base system, as in the table above.
+
 ### The smallest broker
 
 Every feature switch off but `HEALTH`, `CHANNEL_STATUS_IN` and `CHANNEL_CHECKS` (`coraine-build --features
@@ -194,9 +208,11 @@ shares: what a second broker on the same machine actually costs.
 | libmicrohttpd + `mongoc` | 20 MiB | 4 MiB | 68 MiB *+ mongod* | — |
 | `corHttp` + `mongoc` | 24 MiB | 10 MiB | **45 MiB** *+ mongod* | — |
 
-The built-in server starts ~4 MiB heavier, and deliberately: it allocates its
-connection pool at start-up, so no request ever calls `malloc` for its own
-machinery. libmicrohttpd reserves far more than that, but virtually —
+The built-in server reserves its connection pool at start-up, so no request ever
+calls `malloc` for its own machinery. Since corHttp#18 a slot of it is written - and
+becomes resident - on its first use, not at start: idle RSS after one request went from
+16.1 to **8.0 MiB** (`corHttp` + `corDB`, every feature but geo-queries, 2026-11-12).
+A slot once used stays, so the memory follows the most connections ever open at once. libmicrohttpd reserves far more than that, but virtually —
 the stacks of its thread pool and of the worker threads put its `VmSize` in the
 gigabytes, almost none of it touched.
 
@@ -309,7 +325,13 @@ From `exec` to a served HTTP response:
 | libmicrohttpd + `mongoc` | 26 ms |
 | `corHttp` + `mongoc` | 31 ms |
 
-[corHttp](https://github.com/SEAMWARE-cor/corHttp)'s extra 3 ms is the connection pool it allocates up front; mongoc's
+[corHttp](https://github.com/SEAMWARE-cor/corHttp)'s extra 3 ms was the connection pool it wrote up front;
+since corHttp#18 (a slot set up on first use) and corRest#58 (the listening loop set up last), `corHttp` +
+`corDB` with every feature but geo-queries is ready in **3.4-4.5 ms**, from 6.3-8.0 ms, and the port
+answers 0.11-0.15 ms after it opens, from 2.2-3.0 ms (median of 15, ABBA, 2026-11-12). Throughput did
+not change: perfRun ABBA x4, and broker CPU time per request, retrieve 8.8-10.2 µs before and 9.0-9.2
+after, PATCH 16.8-18.9 and 16.9-17.4 - noise. libmicrohttpd + `corDB` on the same build: 4.7 ms.
+mongoc's mongoc's
 extra 17 ms is the handshake with the database server. All four are fast enough
 that the broker is not something you keep warm — it is something you start.
 Scale-to-zero, per-test instances, one broker per tenant on a gateway: all of
