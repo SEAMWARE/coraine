@@ -186,6 +186,12 @@ typically within the subsequent release(s) generated in the next **9 months**:
     trades one for the other: fewer threads, no per-thread caches in the tree heap, a smaller log
     allocated ahead, scans instead of indexes. For a broker with few requests on the cheapest hardware;
     where its RAM goes is measured first, and the resident set at a few store sizes is documented.
+-   **A broker that fits itself to its machine** - the same build, shaped at start by the
+    [memory budget](installation.md#memory-budget) and the CPU quota (the cgroup's `memory.max` and
+    `cpu.max`): HTTP loops, worker threads, connections and caches derived from them, not from the core count
+    and fixed defaults - a 256 MiB pod and a 64 GiB server are not given the same broker. While it runs, near
+    the budget: fewer connections accepted and smaller caches - throughput traded for staying up - before the
+    budget's 503s. Short of memory, it adapts; it does not refuse to start.
 -   **c³: the OPC UA mapping tool** - OPC UA variables, monitored items and methods to entities and
     attributes, the same tool as for DDS: in Operate, and from Compile's Bridges, made from the OPC UA
     bridge's inventory. ([more](ideas.md#c-the-coraine-control-center))
