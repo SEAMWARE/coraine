@@ -844,7 +844,13 @@ ftClientStart() {
 # nothing here, and does the same thing in every position.
 #
 corPortOpen() {
-  bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" >/dev/null 2>&1
+  #
+  # In this shell, no `bash -c`: a new bash per check was some 2-3 ms, and corAwaitPortClosed checks
+  # before every broker start. The fd is opened and closed at once.
+  #
+  local fd
+  { exec {fd}<>/dev/tcp/127.0.0.1/"$1"; } 2>/dev/null || return 1
+  exec {fd}>&-
 }
 
 
@@ -900,6 +906,40 @@ mosquittoWait() {
   echo "mosquittoWait: nothing listening on port $port after ${secs}s" >&2
   return 1
 }
+
+
+# -----------------------------------------------------------------------------
+#
+# mosquittoSubscribedWait <log> <clientId> <topic> [secs] - until mosquitto has taken <clientId>'s
+# subscription to <topic> (5 s at most)
+#
+# A broker that answers HTTP has not necessarily subscribed its bridge's Channels yet: the MQTT bridge
+# connects and subscribes on libmosquitto's thread, after the start. A message published before that
+# is lost - nothing retains it - and the test waits for a value that never comes (bridge_mqtt, CI,
+# 2026-11-12, once the harness saw the broker ~15 ms sooner). mosquitto logs each subscription it
+# takes as '<time>: <clientId> <qos> <topic>' - the test's mosquitto.conf needs
+#
+#   log_dest file <log>
+#   log_type subscribe
+#
+# and <log> removed before mosquitto starts (it may be another user's from an earlier run).
+#
+mosquittoSubscribedWait() {
+  local log=$1
+  local clientId=$2
+  local topic=$3
+  local secs=${4:-5}
+  local i
+
+  for ((i = 0; i < secs * 50; i++)); do
+    awk -v c="$clientId" -v t="$topic" '$2 == c && $4 == t { found = 1 } END { exit !found }' "$log" 2>/dev/null && return 0
+    sleep 0.02
+  done
+
+  echo "mosquittoSubscribedWait: $clientId not subscribed to $topic after ${secs}s" >&2
+  return 1
+}
+
 
 
 # mosquittoStop <conf> <port> - stop the test's mosquitto and wait until <port> is free

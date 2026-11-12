@@ -26,8 +26,11 @@ bridge mqtt
 
 --INIT--
 corDbDrop
+rm -f /tmp/mqtt-test-mosquitto.log
 echo "listener 11883
-allow_anonymous true" > /tmp/mqtt-test-mosquitto.conf
+allow_anonymous true
+log_dest file /tmp/mqtt-test-mosquitto.log
+log_type subscribe" > /tmp/mqtt-test-mosquitto.conf
 mosquitto -d -c /tmp/mqtt-test-mosquitto.conf
 mosquittoWait 11883
 ftClientStart --mqttPort 11883
@@ -42,6 +45,10 @@ cat > /tmp/coraine_bridges_mqtt.json <<J
               "plant/+/level":        { "entityId": "urn:ngsi-ld:Tank:T2", "entityType": "Tank", "attribute": "level" } } } } }
 J
 coraineStart --bridges mqtt --bridgeConfig /tmp/coraine_bridges_mqtt.json
+# the bridge subscribes after the start - a message published before that is lost
+mosquittoSubscribedWait /tmp/mqtt-test-mosquitto.log coraine-bridge-mqtt-test plant/tank1/level
+mosquittoSubscribedWait /tmp/mqtt-test-mosquitto.log coraine-bridge-mqtt-test plant/tank1/state
+mosquittoSubscribedWait /tmp/mqtt-test-mosquitto.log coraine-bridge-mqtt-test plant/tank1/setpoint
 
 --RUN--
 
@@ -114,7 +121,7 @@ coraineStop
 ftClientStop
 corDbDrop
 mosquittoStop /tmp/mqtt-test-mosquitto.conf 11883
-\rm -f /tmp/mqtt-test-mosquitto.conf /tmp/coraine_bridges_mqtt.json
+\rm -f /tmp/mqtt-test-mosquitto.conf /tmp/mqtt-test-mosquitto.log /tmp/coraine_bridges_mqtt.json
 
 --EXPECT--
 01. A device publishes 42.5 on plant/tank1/level - the attribute follows

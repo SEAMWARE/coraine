@@ -18,8 +18,11 @@ bridge mqtt
 
 --INIT--
 corDbDrop
+rm -f /tmp/mqtt-v311-echo.log
 echo "listener 11888
-allow_anonymous true" > /tmp/mqtt-v311-echo.conf
+allow_anonymous true
+log_dest file /tmp/mqtt-v311-echo.log
+log_type subscribe" > /tmp/mqtt-v311-echo.conf
 mosquitto -d -c /tmp/mqtt-v311-echo.conf
 mosquittoWait 11888
 ftClientStart --mqttPort 11888
@@ -30,6 +33,8 @@ cat > /tmp/coraine_bridges_mqtt_v311.json <<J
               "plant/tank1/setpoint": { "entityId": "urn:ngsi-ld:Tank:T1", "entityType": "Tank", "attribute": "setpoint" } } } } }
 J
 coraineStart --bridges mqtt --bridgeConfig /tmp/coraine_bridges_mqtt_v311.json
+# the bridge subscribes after the start - a message published before that is lost
+mosquittoSubscribedWait /tmp/mqtt-v311-echo.log coraine-bridge-mqtt-v311 plant/tank1/setpoint
 
 --RUN--
 
@@ -71,7 +76,7 @@ coraineStop
 ftClientStop
 corDbDrop
 mosquittoStop /tmp/mqtt-v311-echo.conf 11888
-\rm -f /tmp/mqtt-v311-echo.conf /tmp/coraine_bridges_mqtt_v311.json
+\rm -f /tmp/mqtt-v311-echo.conf /tmp/mqtt-v311-echo.log /tmp/coraine_bridges_mqtt_v311.json
 
 --EXPECT--
 01. PATCH setpoint 70 - published, and its echo dropped: samplesIn 0, samplesOut 1
