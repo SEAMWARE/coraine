@@ -1,0 +1,143 @@
+#
+# FILE            bridge_data_channel_write_back_maker.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# DataChannel write-back to the DataChannel that MAKES the entity. Two DataChannels with channelDirection both
+# whose id templates both fit an entity's id - two bridges' "*" DataChannels, each making
+# "urn:ngsi-ld:Light:{@deviceId}" for its own devices: a write to a light goes to the DataChannel whose record
+# made it, whichever of the two comes first.
+#   M  "the matter bridge": refuses what is published to it (topicMode refuse) - it has no such node; makes m1
+#   T  "the tapo bridge": takes it, and the loopback hands it back as its next record; makes t1
+#
+# REQUIRE_FEATURE: CHANNEL_WRITE_BACK
+#
+--NAME--
+Bridges: DataChannel write-back - to the DataChannel that makes the entity, of two whose id templates fit
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "M": { "@deviceId": "m1", "state": false },
+      "T": { "@deviceId": "t1", "state": false }
+    },
+    "topicMode": { "M": "refuse" },
+    "ngsild": {
+      "defaultEntity": false,
+      "dataChannels": {
+        "M": { "channelDirection": "both", "idEncoding": "percent",
+               "entities": [ { "type": "Light", "id": "urn:ngsi-ld:Light:{@deviceId}", "attributes": { "on": { "column": "state" } } } ] },
+        "T": { "channelDirection": "both", "idEncoding": "percent",
+               "entities": [ { "type": "Light", "id": "urn:ngsi-ld:Light:{@deviceId}", "attributes": { "on": { "column": "state" } } } ] }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+dc() {  # dc <endpoint> - its counters
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/dataChannels" | python3 -c "
+import json, sys
+for d in json.load(sys.stdin):
+    if d['channelTarget'] == sys.argv[1]:
+        print(sys.argv[1], 'recordsIn', d['recordsIn'], 'recordsOut', d.get('recordsOut', '-'))" "$1"
+}
+awaitRecordsIn() {  # awaitRecordsIn <endpoint> <n>
+  local i
+  for i in $(seq 1 50); do dc "$1" | grep -q "recordsIn $2 " && return 0; sleep 0.1; done
+  echo "awaitRecordsIn: $1 never had $2"
+}
+
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Light:m1 '"on"'
+corAwaitBody 10 /ngsi-ld/v1/entities/urn:ngsi-ld:Light:t1 '"on"'
+
+echo "01. Both DataChannels have made their light"
+echo "============================================"
+dc M
+dc T
+echo
+echo
+
+
+echo "02. PATCH t1's 'on' - to T, which made it (not M, whose template fits too): 204, T's recordsOut 1"
+echo "================================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Light:t1/attrs -X PATCH --payload '{ "on": { "type": "Property", "value": true } }'
+awaitRecordsIn T 2
+dc M
+dc T
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Light:t1?format=simplified&pick=on'
+echo
+echo
+
+
+echo "03. PATCH m1's 'on' - to M, which made it (not T): M refuses it, 400"
+echo "====================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:Light:m1/attrs -X PATCH --payload '{ "on": { "type": "Property", "value": true } }'
+dc M
+dc T
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. Both DataChannels have made their light
+============================================
+M recordsIn 1 recordsOut 0
+T recordsIn 1 recordsOut 0
+
+
+02. PATCH t1's 'on' - to T, which made it (not M, whose template fits too): 204, T's recordsOut 1
+================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+M recordsIn 1 recordsOut 0
+T recordsIn 2 recordsOut 1
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 17
+
+{
+  "on": true
+}
+
+
+
+03. PATCH m1's 'on' - to M, which made it (not T): M refuses it, 400
+=====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 223
+
+{
+  "detail": "the value of 'https://uri.etsi.org/ngsi-ld/default-context/on' does not fit the record of 'M'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+M recordsIn 1 recordsOut 0
+T recordsIn 2 recordsOut 1
+
+

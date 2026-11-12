@@ -48,7 +48,7 @@ service per writable attribute.
   has it.
 - **Which attributes**: those the payload check already covers - for a DataChannel the attributes its
   mapping names, of an entity whose id fits one of its templates; for an AssetChannel those its last model
-  made.
+  made. Two DataChannels whose templates fit one id: the one whose record last wrote the entity.
 - **Transport first**: the bridge is handed the write before anything is stored; a refusal stores nothing
   (400, 503), in a batch that attribute is left out (207). The payload check, when the bridge has one,
   runs before it.

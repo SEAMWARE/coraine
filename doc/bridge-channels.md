@@ -265,7 +265,10 @@ endpoint:
   write of several attributes, or a batch, that attribute is left out (207).
   Only a `column` attribute is written back - any other a write-back
   DataChannel maps answers 422. A record coming in on the DataChannel is never
-  published back. `"both"` needs `"idEncoding": "percent"` and no two
+  published back. Two such DataChannels whose `id` templates both fit the
+  entity's id (two bridges each making `urn:ngsi-ld:Light:{@deviceId}` for
+  their own devices): the write goes to the one whose record last wrote the
+  entity; until one has, since the start, to the first that fits. `"both"` needs `"idEncoding": "percent"` and no two
   placeholders side by side in an `id` (`{a}{b}`): an id that does not read back
   is refused at start (the DataChannel is skipped). The bridge is handed the
   endpoint with the direction (`BridgeDirectionBoth`); the listing shows

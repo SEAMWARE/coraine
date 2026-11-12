@@ -35,9 +35,18 @@ extern const char* dataChannelWriteBackTemplateOk(const char* templ);
 
 // -----------------------------------------------------------------------------
 //
+// dataChannelWriteBackMade - dcP's record made (or updated) entityId: a write to the entity goes back to dcP
+// rather than to another DataChannel whose id template fits the id too. Kept for channelDirection both only
+//
+extern void dataChannelWriteBackMade(DataChannel* dcP, const char* entityId);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // dataChannelWriteBackOf - the DataChannel that writes back attrName of entityId: channelDirection both,
-// of the tenant, available, one of its entities' id templates fits the id and that entity maps the
-// attribute. NULL: none
+// of the tenant, one of its entities' id templates fits the id and that entity maps the attribute. Two
+// that fit: the one whose record last made the entity (dataChannelWriteBackMade), else the first. NULL: none
 //
 extern DataChannel* dataChannelWriteBackOf(Tenant* tenantP, const char* entityId, const char* attrName, RecordEntity** entityPP, RecordAttr** attrPP);
 
