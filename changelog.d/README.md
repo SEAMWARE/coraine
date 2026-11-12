@@ -15,8 +15,8 @@ followed by `- ` bullets, written as `CHANGELOG.md`'s are:
       ([Command-line options](doc/options.md#--port))
 
 **The sections**, in the order a release lists them: `New`, `Faster`, `Less memory`, `Changed behaviour`,
-`Fixed`. A deprecation goes under `Changed behaviour` and names the release that refuses the option. Links
-are written relative to the repository root, as in `CHANGELOG.md`, where the entry ends up.
+`Fixed`, `Documentation`. A deprecation goes under `Changed behaviour` and names the release that refuses the
+option. Links are written relative to the repository root, as in `CHANGELOG.md`, where the entry ends up.
 
 **What happens to it:** `tools/changelog.sh` prints the coming release's section - `CHANGELOG.md`'s
 unreleased part with these entries added, each in the order it reached main. At a release,
