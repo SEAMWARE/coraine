@@ -844,7 +844,13 @@ ftClientStart() {
 # nothing here, and does the same thing in every position.
 #
 corPortOpen() {
-  bash -c "exec 3<>/dev/tcp/127.0.0.1/$1" >/dev/null 2>&1
+  #
+  # In this shell, no `bash -c`: a new bash per check was some 2-3 ms, and corAwaitPortClosed checks
+  # before every broker start. The fd is opened and closed at once.
+  #
+  local fd
+  { exec {fd}<>/dev/tcp/127.0.0.1/"$1"; } 2>/dev/null || return 1
+  exec {fd}>&-
 }
 
 
