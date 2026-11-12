@@ -10,6 +10,9 @@
 #include <stdio.h>                                    // snprintf
 #include <stdlib.h>                                   // malloc, free, realloc
 #include <string.h>                                   // strcmp, strlen, strchr, strncmp, memcpy
+#include <pthread.h>                                  // pthread_mutex_*
+
+#include "corHash/corHash.h"                          // CorHashTable, corHashTableCreate, corHashItemAdd, corHashItemLookup
 
 #include "db/Tenant.h"                                // Tenant
 #include "bridge/DataChannel.h"                       // DataChannel
@@ -156,36 +159,193 @@ static bool idRead(const char* templ, const char* id, Column* columnV, int* colu
 
 // -----------------------------------------------------------------------------
 //
-// dataChannelWriteBackOf -
+// Maker - the DataChannel whose records last wrote an entity. Two DataChannels' id templates can fit one id -
+// two bridges each with a "*" DataChannel making "urn:ngsi-ld:Light:{@deviceId}" - and a write goes back to
+// the one that makes the entity, not the first that fits (corHome 2026-11-12: a Tapo bulb's writes went to
+// the matter bridge, which has no such node - 400).
+//
+// Kept for the DataChannels with channelDirection both only, one per entity they make, never removed: an
+// entity deleted, or made by another DataChannel since, leaves an entry that is only ever compared with
+// the DataChannels that fit - a DataChannel deleted is never chosen by it.
+//
+typedef struct Maker
+{
+  DataChannel*  dcP;
+  char          key[];                                // the tenant's address and the entity id
+} Maker;
+
+static CorHashTable*    makerHash = NULL;
+static pthread_mutex_t  makerLock = PTHREAD_MUTEX_INITIALIZER;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// makerKey - the tenant's address and the entity id; false: the id is too long to be kept
+//
+static bool makerKey(Tenant* tenantP, const char* entityId, char* key, int size)
+{
+  int len = snprintf(key, size, "%p %s", (void*) tenantP, entityId);
+
+  return (len > 0) && (len < size);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// makerHashCode - djb2
+//
+static unsigned int makerHashCode(const char* name)
+{
+  unsigned int hash = 5381;
+
+  for (; *name != 0; name++)
+    hash = ((hash << 5) + hash) + (unsigned char) *name;
+
+  return hash;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// makerCompare -
+//
+static int makerCompare(const char* name, void* itemP)
+{
+  return strcmp(name, ((Maker*) itemP)->key);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dataChannelWriteBackMade -
+//
+void dataChannelWriteBackMade(DataChannel* dcP, const char* entityId)
+{
+  char key[2048];
+
+  if ((dcP->direction != BridgeDirectionBoth) || (makerKey(dcP->tenantP, entityId, key, sizeof(key)) == false))
+    return;
+
+  pthread_mutex_lock(&makerLock);
+
+  if (makerHash == NULL)
+    makerHash = corHashTableCreate(NULL, makerHashCode, makerCompare, 1024);
+
+  if (makerHash != NULL)
+  {
+    Maker* makerP = (Maker*) corHashItemLookup(makerHash, key);
+
+    if (makerP != NULL)
+      makerP->dcP = dcP;
+    else if ((makerP = malloc(sizeof(Maker) + strlen(key) + 1)) != NULL)
+    {
+      makerP->dcP = dcP;
+      strcpy(makerP->key, key);
+
+      if (corHashItemAdd(makerHash, makerP->key, makerP) != 0)
+        free(makerP);
+    }
+  }
+
+  pthread_mutex_unlock(&makerLock);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// makerOf - the DataChannel that last made the entity; NULL: none kept
+//
+static DataChannel* makerOf(Tenant* tenantP, const char* entityId)
+{
+  char         key[2048];
+  DataChannel* dcP = NULL;
+
+  if (makerKey(tenantP, entityId, key, sizeof(key)) == false)
+    return NULL;
+
+  pthread_mutex_lock(&makerLock);
+
+  if (makerHash != NULL)
+  {
+    Maker* makerP = (Maker*) corHashItemLookup(makerHash, key);
+
+    if (makerP != NULL)
+      dcP = makerP->dcP;
+  }
+
+  pthread_mutex_unlock(&makerLock);
+
+  return dcP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// dataChannelWriteBackOf - of the DataChannels that fit, the entity's maker; none of them its maker: the first
 //
 DataChannel* dataChannelWriteBackOf(Tenant* tenantP, const char* entityId, const char* attrName, RecordEntity** entityPP, RecordAttr** attrPP)
 {
+  DataChannel*  makerP  = makerOf(tenantP, entityId);
+  DataChannel*  firstP  = NULL;
+  RecordEntity* firstEP = NULL;
+  RecordAttr*   firstAP = NULL;
+
   for (DataChannel* dcP = dataChannelFirst(); dcP != NULL; dcP = dcP->next)
   {
     if ((dcP->direction != BridgeDirectionBoth) || (dcP->tenantP != tenantP))
       continue;
 
+    if ((firstP != NULL) && (dcP != makerP))          // the first is known: only the maker can be better
+      continue;
+
     for (RecordEntity* eP = dcP->mapP->entities; eP != NULL; eP = eP->next)
     {
-      Column columnV[COLUMNS_MAX];
-      int    columns;
+      Column     columnV[COLUMNS_MAX];
+      int        columns;
+      RecordAttr* aP;
 
       if (idRead(eP->id, entityId, columnV, &columns) == false)
         continue;
 
-      for (RecordAttr* aP = eP->attrs; aP != NULL; aP = aP->next)
+      for (aP = eP->attrs; aP != NULL; aP = aP->next)
       {
         if (strcmp(aP->name, attrName) == 0)
-        {
-          *entityPP = eP;
-          *attrPP   = aP;
-          return dcP;
-        }
+          break;
       }
+
+      if (aP == NULL)
+        continue;
+
+      if ((makerP == NULL) || (dcP == makerP))
+      {
+        *entityPP = eP;
+        *attrPP   = aP;
+        return dcP;
+      }
+
+      if (firstP == NULL)
+      {
+        firstP  = dcP;
+        firstEP = eP;
+        firstAP = aP;
+      }
+      break;
     }
   }
 
-  return NULL;
+  if (firstP != NULL)
+  {
+    *entityPP = firstEP;
+    *attrPP   = firstAP;
+  }
+
+  return firstP;
 }
 
 

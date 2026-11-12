@@ -42,6 +42,9 @@
 #include "bridge/recordMap.h"                         // recordTemplateExpand
 #include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
 #include "bridge/bridgeEntitiesUpsert.h"              // bridgeEntitiesUpsert
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+#include "bridge/dataChannelWriteBack.h"              // dataChannelWriteBackMade
+#endif
 #include "bridge/dataChannelRecordIn.h"               // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -645,6 +648,12 @@ int dataChannelRecordIn(DataChannel* dcP, const char* json, int64_t publishTime)
 
     if (entityP != NULL)
     {
+#if COR_FEATURE_CHANNEL_WRITE_BACK
+      CorNode* idP = corTreeLookup(entityP, "id");    // a write to it goes back here (two DataChannels can fit its id)
+
+      if ((idP != NULL) && (idP->type == CorString))
+        dataChannelWriteBackMade(dcP, idP->value.s);
+#endif
       corTreeChildAdd(entitiesP, entityP);
       entities++;
     }
