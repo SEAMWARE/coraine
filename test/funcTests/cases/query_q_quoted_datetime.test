@@ -1,0 +1,234 @@
+#
+# FILE            query_q_quoted_datetime.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A QUOTED DateTime in q: TS 104-175 § 7.2.3 is unclear on quotes (its grammar has a bare dateTime; a ValueList
+# holds quoted strings only), so coraine takes both forms. A quoted DateTime is compared:
+#
+#   - against a time (observedAt, createdAt, modifiedAt - stored as nanoseconds): by time, as the unquoted one
+#   - against a string: as the string it is (lexicographic), as before
+#
+# Before: q=p.observedAt>"2026-05-01T00:00:00Z" matched nothing (a string against a time).
+# Also: an unquoted DateTime in a LIST against a time (mongoc compared its text with the stored integer).
+#
+--NAME--
+q with a quoted DateTime - by time against a timestamp, as a string against a string
+
+--TAGS--
+q query datetime observedAt
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+ids() { grep -E '^HTTP|"id"'; }
+
+payload='{ "id": "urn:E1", "type": "T",
+           "p": { "type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z" },
+           "s": { "type": "Property", "value": "2026-03-01T00:00:00Z" } }'
+echo "01. Seed urn:E1 - p observed 2026-01-01, s the string 2026-03-01"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+payload='{ "id": "urn:E2", "type": "T",
+           "p": { "type": "Property", "value": 2, "observedAt": "2026-09-01T00:00:00Z" },
+           "s": { "type": "Property", "value": "2026-10-01T00:00:00Z" } }'
+echo "02. Seed urn:E2 - p observed 2026-09-01, s the string 2026-10-01"
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. q=p.observedAt>\"2026-05-01T00:00:00Z\" - quoted, against a time: urn:E2"
+echo "==========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt>%222026-05-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "04. q=p.observedAt>2026-05-01T00:00:00Z - unquoted, the same: urn:E2"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt>2026-05-01T00:00:00Z&pick=id' | ids
+echo
+echo
+
+
+echo "05. q=p.observedAt==\"2026-01-01T01:00:00+01:00\" - the same instant, another text: urn:E1"
+echo "========================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt==%222026-01-01T01:00:00%2B01:00%22&pick=id' | ids
+echo
+echo
+
+
+echo "06. q=p.observedAt!=\"2026-01-01T00:00:00Z\" - urn:E2"
+echo "===================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt!=%222026-01-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "07. q=p.observedAt<=\"2026-01-01T00:00:00Z\" - urn:E1"
+echo "===================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt<=%222026-01-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "08. q=p.observedAt==\"2026-01-01T00:00:00Z\",\"2026-09-01T00:00:00Z\" - a quoted list: both"
+echo "========================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt==%222026-01-01T00:00:00Z%22,%222026-09-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "09. q=p.observedAt==2026-01-01T00:00:00Z,2026-09-01T00:00:00Z - an unquoted list: both"
+echo "======================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=p.observedAt==2026-01-01T00:00:00Z,2026-09-01T00:00:00Z&pick=id' | ids
+echo
+echo
+
+
+echo "10. q=modifiedAt>\"2000-01-01T00:00:00Z\" - the entity's own timestamp: both"
+echo "==========================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=modifiedAt>%222000-01-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "11. q=s>\"2026-05-01T00:00:00Z\" - quoted, against a string: string compare, urn:E2"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s>%222026-05-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "12. q=s==\"2026-03-01T00:00:00Z\" - urn:E1"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s==%222026-03-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "13. q=s==\"2026-03-01T01:00:00+01:00\" - a string is compared as one: the same instant, other text - none"
+echo "========================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s==%222026-03-01T01:00:00%2B01:00%22&pick=id' | ids
+echo
+echo
+
+
+echo "14. q=s!=\"2026-03-01T00:00:00Z\" - urn:E2"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s!=%222026-03-01T00:00:00Z%22&pick=id' | ids
+echo
+echo
+
+
+echo "15. q=s==\"2026-03-01T00:00:00Z\",\"x\" - a quoted list against a string: urn:E1"
+echo "================================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=s==%222026-03-01T00:00:00Z%22,%22x%22&pick=id' | ids
+echo
+echo
+
+
+--EXPECT--
+01. Seed urn:E1 - p observed 2026-01-01, s the string 2026-03-01
+================================================================
+HTTP/1.1 201 Created
+
+
+02. Seed urn:E2 - p observed 2026-09-01, s the string 2026-10-01
+================================================================
+HTTP/1.1 201 Created
+
+
+03. q=p.observedAt>"2026-05-01T00:00:00Z" - quoted, against a time: urn:E2
+===========================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E2"
+
+
+04. q=p.observedAt>2026-05-01T00:00:00Z - unquoted, the same: urn:E2
+====================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E2"
+
+
+05. q=p.observedAt=="2026-01-01T01:00:00+01:00" - the same instant, another text: urn:E1
+=========================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+
+
+06. q=p.observedAt!="2026-01-01T00:00:00Z" - urn:E2
+====================================================
+HTTP/1.1 200 OK
+    "id": "urn:E2"
+
+
+07. q=p.observedAt<="2026-01-01T00:00:00Z" - urn:E1
+====================================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+
+
+08. q=p.observedAt=="2026-01-01T00:00:00Z","2026-09-01T00:00:00Z" - a quoted list: both
+========================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+    "id": "urn:E2"
+
+
+09. q=p.observedAt==2026-01-01T00:00:00Z,2026-09-01T00:00:00Z - an unquoted list: both
+======================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+    "id": "urn:E2"
+
+
+10. q=modifiedAt>"2000-01-01T00:00:00Z" - the entity's own timestamp: both
+===========================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+    "id": "urn:E2"
+
+
+11. q=s>"2026-05-01T00:00:00Z" - quoted, against a string: string compare, urn:E2
+==================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E2"
+
+
+12. q=s=="2026-03-01T00:00:00Z" - urn:E1
+=========================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+
+
+13. q=s=="2026-03-01T01:00:00+01:00" - a string is compared as one: the same instant, other text - none
+========================================================================================================
+HTTP/1.1 200 OK
+
+
+14. q=s!="2026-03-01T00:00:00Z" - urn:E2
+=========================================
+HTTP/1.1 200 OK
+    "id": "urn:E2"
+
+
+15. q=s=="2026-03-01T00:00:00Z","x" - a quoted list against a string: urn:E1
+================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E1"
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

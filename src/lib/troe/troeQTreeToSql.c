@@ -446,6 +446,54 @@ static const char* termToSql(LdQTerm* tP, int mode, TroeServedFunc servedF, void
 
 // -----------------------------------------------------------------------------
 //
+// quotedTermToSql - a QUOTED DateTime term (LdQTerm::quotedTime, a list's quotedTimeV): the string it is
+// (v_text) and the same term as an unquoted DateTime (v_datetime) - == and the orderings either (OR), != both
+// (AND: unequal as a string and as a time). A half SQL cannot express is left out: the other alone is what the
+// term was before quoted DateTimes were times too.
+//
+static const char* quotedTermToSql(LdQTerm* tP, int mode, TroeServedFunc servedF, void* servedData, CorAlloc* allocP)
+{
+  bool         quotedList = (tP->valueType == LdQValueList);
+  LdQTerm      asString   = *tP;
+  LdQTerm      asTime     = *tP;
+  LdQValueType itemTypeV[quotedList ? tP->value.list.count : 1];
+
+  asString.quotedTime = false;
+  asTime.quotedTime   = false;
+
+  if (quotedList)
+  {
+    asString.value.list.quotedTimeV = NULL;
+    asTime.value.list.quotedTimeV   = NULL;
+
+    for (int ix = 0; ix < tP->value.list.count; ix++)
+      itemTypeV[ix] = tP->value.list.quotedTimeV[ix] ? LdQDateTime : tP->value.list.itemTypeV[ix];
+    asTime.value.list.itemTypeV = itemTypeV;
+  }
+  else
+  {
+    asTime.valueType = LdQDateTime;
+    asTime.value.ns  = tP->quotedNs;
+  }
+
+  const char* a = termToSql(&asString, mode, servedF, servedData, allocP);
+  const char* b = termToSql(&asTime,   mode, servedF, servedData, allocP);
+
+  if ((a == NULL) || (b == NULL))
+    return (a != NULL) ? a : b;
+
+  const char* sep = (tP->op == LdQUnequal) ? " AND " : " OR ";
+  int         len = (int) (strlen(a) + strlen(sep) + strlen(b) + 3);
+  char*       buf = (char*) corAlloc(allocP, len);
+
+  snprintf(buf, len, "(%s%s%s)", a, sep, b);
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // nodeToSql - recursive walker.
 //
 static const char* nodeToSql(LdQNode* qP, int mode, TroeServedFunc servedF, void* servedData, CorAlloc* allocP)
@@ -453,7 +501,14 @@ static const char* nodeToSql(LdQNode* qP, int mode, TroeServedFunc servedF, void
   if (qP == NULL) return NULL;
 
   if (qP->type == LdQTermNode)
-    return termToSql(&qP->term, mode, servedF, servedData, allocP);
+  {
+    LdQTerm* tP = &qP->term;
+
+    if ((tP->quotedTime == true) || ((tP->valueType == LdQValueList) && (tP->value.list.quotedTimeV != NULL)))
+      return quotedTermToSql(tP, mode, servedF, servedData, allocP);
+
+    return termToSql(tP, mode, servedF, servedData, allocP);
+  }
 
   if (qP->type == LdQAndNode || qP->type == LdQOrNode)
   {
