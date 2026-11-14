@@ -49,9 +49,14 @@ curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle'
 # by a filter on attribute values (§ 4.9)
 curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&q=speed>50'
 
-# only some attributes, and how many there are in total
-curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&attrs=speed&count=true'
+# only the vehicles that have a speed (q, an attribute alone: it exists)
+curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&q=speed'
+
+# only some members of each entity (pick), and how many there are in total
+curl 'http://localhost:1026/ngsi-ld/v1/entities?type=Vehicle&pick=id,type,speed&count=true'
 ```
+
+`attrs` - selection and projection in one - is deprecated: `q` selects, `pick` projects.
 
 `count=true` puts the total in the `NGSILD-Results-Count` response header, and
 pagination is `limit` and `offset`, with `Link` headers for the next and previous
