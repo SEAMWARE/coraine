@@ -155,9 +155,6 @@ Content-Length: REGEX(\d+)
 
 {
   "entityMap": {
-    "urn:S1": [
-      "@none"
-    ],
     "urn:V1": [
       "@none"
     ],

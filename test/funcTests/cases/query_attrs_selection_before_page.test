@@ -1,0 +1,149 @@
+#
+# FILE            query_attrs_selection_before_page.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The deprecated `attrs` (§ 6.4.3.2) SELECTS: an entity with none of the listed attributes does not match. The
+# selection is the store's, made before the page is cut - as q's is. Before, it was made after: the store gave
+# the first page (20 entities), the broker dropped those without the attribute, and an entity that had it, past
+# the first 20, was lost - GET /entities?attrs=A answered [] with A on the 25th entity (found on KZ's hub, an
+# attribute added with POST /entities/{id}/attrs to an entity created long before).
+#
+# The current forms checked alongside: q=A (existence) and pick=A (projection).
+#
+--NAME--
+attrs selects before the page is cut - an attribute on the 25th entity is found
+
+--TAGS--
+q query attrs pick
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+ids() { grep -E '^HTTP|"id"|NGSILD-Results-Count'; }
+
+payload='['
+for i in $(seq -w 1 25); do
+  payload="$payload{ \"id\": \"urn:E$i\", \"type\": \"T\", \"p\": { \"type\": \"Property\", \"value\": $((10#$i)) } }"
+  [ "$i" != 25 ] && payload="$payload,"
+done
+payload="$payload]"
+echo "01. Create urn:E01 ... urn:E25 - more than a page (20)"
+echo "======================================================"
+corCurl --url /ngsi-ld/v1/entityOperations/create --payload "$payload" | head -1
+echo
+echo
+
+
+payload='{ "added": { "type": "Property", "value": "late" } }'
+echo "02. POST /entities/urn:E25/attrs - 'added' on the last entity"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E25/attrs --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. GET /entities?attrs=added - urn:E25"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities?attrs=added' | ids
+echo
+echo
+
+
+echo "04. GET /entities?attrs=added&count=true - counted: 1"
+echo "====================================================="
+corCurl --url '/ngsi-ld/v1/entities?attrs=added&count=true' | ids
+echo
+echo
+
+
+echo "05. GET /entities?attrs=added&q=p==25 - urn:E25; &q=p==1 - none"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/entities?attrs=added&q=p==25' | ids
+corCurl --url '/ngsi-ld/v1/entities?attrs=added&q=p==1' | ids
+echo
+echo
+
+
+echo "06. GET /entities?q=added&pick=id,added - urn:E25, with 'added'"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/entities?q=added&pick=id,added&options=keyValues' | grep -E '^HTTP|"id"|"added"'
+echo
+echo
+
+
+echo "07. GET /entities?type=T&pick=id,added&limit=3 - pick projects, it does not select: urn:E01-03"
+echo "============================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&pick=id,added&limit=3&options=keyValues' | ids
+echo
+echo
+
+
+echo "08. DELETE /entities/urn:E25/attrs/added; GET /entities?attrs=added - none"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E25/attrs/added -X DELETE | head -1
+corCurl --url '/ngsi-ld/v1/entities?attrs=added' | ids
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+--EXPECT--
+01. Create urn:E01 ... urn:E25 - more than a page (20)
+======================================================
+HTTP/1.1 201 Created
+
+
+02. POST /entities/urn:E25/attrs - 'added' on the last entity
+=============================================================
+HTTP/1.1 204 No Content
+
+
+03. GET /entities?attrs=added - urn:E25
+=======================================
+HTTP/1.1 200 OK
+    "id": "urn:E25",
+
+
+04. GET /entities?attrs=added&count=true - counted: 1
+=====================================================
+HTTP/1.1 200 OK
+NGSILD-Results-Count: 1
+    "id": "urn:E25",
+
+
+05. GET /entities?attrs=added&q=p==25 - urn:E25; &q=p==1 - none
+================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E25",
+HTTP/1.1 200 OK
+
+
+06. GET /entities?q=added&pick=id,added - urn:E25, with 'added'
+===============================================================
+HTTP/1.1 200 OK
+    "added": "late",
+    "id": "urn:E25"
+
+
+07. GET /entities?type=T&pick=id,added&limit=3 - pick projects, it does not select: urn:E01-03
+=============================================================================================
+HTTP/1.1 200 OK
+    "id": "urn:E01"
+    "id": "urn:E02"
+    "id": "urn:E03"
+
+
+08. DELETE /entities/urn:E25/attrs/added; GET /entities?attrs=added - none
+==========================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 200 OK
+
+

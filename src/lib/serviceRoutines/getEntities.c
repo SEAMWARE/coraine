@@ -2878,6 +2878,62 @@ bool getEntities(void)
 
 // -----------------------------------------------------------------------------
 //
+// attrsSelection - the deprecated `attrs` (§ 6.4.3.2) as the store's selection: an entity with none of the listed
+// attributes does not match - an existence term per attribute, in OR, AND the query's own q. The store selects
+// before it cuts the page; selected after the page was cut (the projection below), an entity with one of them past
+// the first page was lost: `?attrs=A` answered [] while A was on the 21st entity.
+//
+static LdQNode* attrsSelection(LdQNode* qP, char** attrsV, CorAlloc* kaP)
+{
+  int n = 0;
+
+  while (attrsV[n] != NULL)
+    n++;
+
+  if (n == 0)
+    return qP;
+
+  LdQNode* orP = (LdQNode*) corAlloc(kaP, sizeof(LdQNode));
+
+  memset(orP, 0, sizeof(LdQNode));
+  orP->type              = LdQOrNode;
+  orP->group.childV      = (LdQNode**) corAlloc(kaP, n * sizeof(LdQNode*));
+  orP->group.count       = n;
+  orP->group.allocated   = n;
+
+  for (int ix = 0; ix < n; ix++)
+  {
+    LdQNode* termP = (LdQNode*) corAlloc(kaP, sizeof(LdQNode));
+
+    memset(termP, 0, sizeof(LdQNode));
+    termP->type           = LdQTermNode;
+    termP->term.attr      = attrsV[ix];               // expanded, as a q term's
+    termP->term.op        = LdQExists;
+    termP->term.valueType = LdQNoValue;
+    orP->group.childV[ix] = termP;
+  }
+
+  if (qP == NULL)
+    return orP;
+
+  LdQNode* andP = (LdQNode*) corAlloc(kaP, sizeof(LdQNode));
+
+  memset(andP, 0, sizeof(LdQNode));
+  andP->type            = LdQAndNode;
+  andP->group.childV    = (LdQNode**) corAlloc(kaP, 2 * sizeof(LdQNode*));
+  andP->group.childV[0] = qP;
+  andP->group.childV[1] = orP;
+  andP->group.count     = 2;
+  andP->group.allocated = 2;
+  andP->linkedDepth     = qP->linkedDepth;
+
+  return andP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // queryEntities - the query itself, once the request is known to be one (getEntities)
 //
 // Runs a second time for an AUTOMATIC EntityMap of a distributed query (autoEntityMapRound2): the
@@ -2908,6 +2964,10 @@ static bool queryEntities(PagePosition* posP)
   filter.qExpr     = (corNgsild.qExpr != NULL && corNgsild.qExpr->linkedDepth > 0)
                      ? ldQStripLinked(corNgsild.qExpr, &corRest.kalloc)
                      : corNgsild.qExpr;
+
+  // the deprecated attrs selects (unless pick / omit project): by the store, before the page is cut
+  if ((corNgsild.attrsV != NULL) && (corNgsild.pickV == NULL) && (corNgsild.omitV == NULL))
+    filter.qExpr = attrsSelection(filter.qExpr, corNgsild.attrsV, &corRest.kalloc);
   filter.geoRel      = corNgsild.geoRel;
   filter.geometry    = corNgsild.geometry;
   filter.coordinates = corNgsild.coordinates;
