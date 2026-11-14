@@ -137,7 +137,7 @@ Content-Length: REGEX(\d+)
     "timesFailed": 1,
     "timesSent": 1
   },
-  "status": "failed",
+  "status": "active",
   "type": "Subscription"
 }
 
@@ -178,7 +178,7 @@ Content-Length: REGEX(\d+)
     "timesFailed": 1,
     "timesSent": 1
   },
-  "status": "failed",
+  "status": "active",
   "type": "Subscription"
 }
 
