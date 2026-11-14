@@ -1,0 +1,144 @@
+#
+# FILE            troe_temporal_q_quoted_datetime.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Query Temporal Evolution of Entities with a QUOTED DateTime in q (TS 104-175 § 7.2.3 is unclear on quotes;
+# coraine takes both forms - query_q_quoted_datetime.test for the entities):
+#
+#   - against an instance's observedAt (a time): by time, as the unquoted DateTime - the TRoE SQL's
+#     observedAt column is a timestamptz, and PostgreSQL takes the quoted literal as a time (it did before
+#     quoted DateTimes were times in coraine's own matchers: this test pins it, it did not fail before)
+#   - against a string value: as a string (v_text)
+#
+# urn:V1: speed 50 (11:00), 95 (12:05); note "2020-07-01T12:00:00Z" (12:05), "2020-07-01T08:00:00Z" (12:10)
+#
+--NAME--
+TRoE - temporal q with a quoted DateTime: by time against observedAt, as a string against a string
+
+--TAGS--
+troe temporal q query datetime
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+summary() {
+  sed -n '/^\[/,$p' | python3 -c "
+import json, sys
+for e in sorted(json.load(sys.stdin), key=lambda e: e['id']):
+    attrs = []
+    for k in sorted(e):
+        if k in ('id', 'type'):
+            continue
+        v = e[k] if isinstance(e[k], list) else [e[k]]
+        attrs.append('%s %s' % (k, [i['value'] for i in sorted(v, key=lambda i: i['observedAt'])]))
+    print('  %s: %s' % (e['id'], ', '.join(attrs)))"
+}
+
+tq() {
+  corCurl --url "/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2020-07-01T00:00:00Z$1" | summary
+}
+
+echo "01. urn:V1: speed and note instances"
+echo "===================================="
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{
+  "id": "urn:V1", "type": "Vehicle",
+  "speed": [
+    {"type": "Property", "value": 50, "observedAt": "2020-07-01T11:00:00Z"},
+    {"type": "Property", "value": 95, "observedAt": "2020-07-01T12:05:00Z"}
+  ],
+  "note": [
+    {"type": "Property", "value": "2020-07-01T12:00:00Z", "observedAt": "2020-07-01T12:05:00Z"},
+    {"type": "Property", "value": "2020-07-01T08:00:00Z", "observedAt": "2020-07-01T12:10:00Z"}
+  ]
+}' | head -1
+echo
+echo
+
+
+echo "02. q=speed.observedAt>\"2020-07-01T12:00:00Z\" - quoted, by time: speed 95"
+echo "==========================================================================="
+tq '&q=speed.observedAt>%222020-07-01T12:00:00Z%22&attrs=speed'
+echo
+echo
+
+
+echo "03. q=speed.observedAt>2020-07-01T12:00:00Z - unquoted, the same"
+echo "================================================================"
+tq '&q=speed.observedAt>2020-07-01T12:00:00Z&attrs=speed'
+echo
+echo
+
+
+echo "04. q=speed.observedAt==\"2020-07-01T13:05:00+01:00\" - the same instant, another text: speed 95"
+echo "==============================================================================================="
+tq '&q=speed.observedAt==%222020-07-01T13:05:00%2B01:00%22&attrs=speed'
+echo
+echo
+
+
+echo "05. q=speed.observedAt!=\"2020-07-01T11:00:00Z\" - speed 95"
+echo "=========================================================="
+tq '&q=speed.observedAt!=%222020-07-01T11:00:00Z%22&attrs=speed'
+echo
+echo
+
+
+echo "06. q=note>\"2020-07-01T10:00:00Z\" - a string value: string compare, the 12:00 note"
+echo "==================================================================================="
+tq '&q=note>%222020-07-01T10:00:00Z%22&attrs=note'
+echo
+echo
+
+
+echo "07. q=note==\"2020-07-01T08:00:00Z\" - the 08:00 note"
+echo "===================================================="
+tq '&q=note==%222020-07-01T08:00:00Z%22&attrs=note'
+echo
+echo
+
+
+--EXPECT--
+01. urn:V1: speed and note instances
+====================================
+HTTP/1.1 201 Created
+
+
+02. q=speed.observedAt>"2020-07-01T12:00:00Z" - quoted, by time: speed 95
+===========================================================================
+  urn:V1: speed [95]
+
+
+03. q=speed.observedAt>2020-07-01T12:00:00Z - unquoted, the same
+================================================================
+  urn:V1: speed [95]
+
+
+04. q=speed.observedAt=="2020-07-01T13:05:00+01:00" - the same instant, another text: speed 95
+===============================================================================================
+  urn:V1: speed [95]
+
+
+05. q=speed.observedAt!="2020-07-01T11:00:00Z" - speed 95
+==========================================================
+  urn:V1: speed [95]
+
+
+06. q=note>"2020-07-01T10:00:00Z" - a string value: string compare, the 12:00 note
+===================================================================================
+  urn:V1: note ['2020-07-01T12:00:00Z']
+
+
+07. q=note=="2020-07-01T08:00:00Z" - the 08:00 note
+====================================================
+  urn:V1: note ['2020-07-01T08:00:00Z']
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

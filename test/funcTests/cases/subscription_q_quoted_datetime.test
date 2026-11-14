@@ -1,0 +1,107 @@
+#
+# FILE            subscription_q_quoted_datetime.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A subscription whose q has a QUOTED DateTime (TS 104-175 § 7.2.3 is unclear on quotes; coraine takes both
+# forms - query_q_quoted_datetime.test): against an instance's observedAt it is compared by time - the
+# notification matcher (in memory) as the queries. The q is kept as sent, quotes included.
+#
+# REQUIRE_FEATURE: SUBSCRIPTIONS
+#
+--NAME--
+Subscription q with a quoted DateTime - by time against observedAt
+
+--TAGS--
+subscription q datetime observedAt
+
+--INIT--
+corDbDrop
+ftClientStart
+coraineStart
+
+--RUN--
+echo "01. Entity urn:E1, p observed 2026-01-01"
+echo "========================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:E1", "type": "T", "p": {"type": "Property", "value": 1, "observedAt": "2026-01-01T00:00:00Z"}}' | head -1
+echo
+echo
+
+
+echo "02. Subscription on T with q=p.observedAt>\"2026-05-01T00:00:00Z\""
+echo "================================================================"
+corCurl --url /ngsi-ld/v1/subscriptions --payload '{
+  "id": "urn:ngsi-ld:Subscription:QD1",
+  "type": "Subscription",
+  "entities": [{"type": "T"}],
+  "q": "p.observedAt>\"2026-05-01T00:00:00Z\"",
+  "notification": { "endpoint": { "uri": "http://localhost:'$FT_CLIENT_PORT'/notify" } }
+}' | head -1
+echo
+echo
+
+
+echo "03. GET the subscription - q as sent, quoted"
+echo "============================================"
+corCurl --url /ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:QD1 | grep '"q"'
+echo
+echo
+
+
+echo "04. p observed 2026-09-01 - after: one notification"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"p": {"type": "Property", "value": 2, "observedAt": "2026-09-01T00:00:00Z"}}' | head -1
+for i in $(seq 1 25); do [ "$(ftClientCount)" -ge 1 ] && break; sleep 0.2; done
+ftClientSettle
+ftClientDump > /tmp/qd.$$
+echo "notifications: $(grep -c '"subscriptionId"' /tmp/qd.$$)"
+echo
+echo
+
+
+echo "05. p observed 2026-02-01 - before: no notification"
+echo "==================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs -X PATCH --payload '{"p": {"type": "Property", "value": 3, "observedAt": "2026-02-01T00:00:00Z"}}' | head -1
+sleep 1
+ftClientSettle
+ftClientDump > /tmp/qd.$$
+echo "notifications: $(grep -c '"subscriptionId"' /tmp/qd.$$)"
+rm -f /tmp/qd.$$
+echo
+echo
+
+
+--EXPECT--
+01. Entity urn:E1, p observed 2026-01-01
+========================================
+HTTP/1.1 201 Created
+
+
+02. Subscription on T with q=p.observedAt>"2026-05-01T00:00:00Z"
+================================================================
+HTTP/1.1 201 Created
+
+
+03. GET the subscription - q as sent, quoted
+============================================
+  "q": "p.observedAt>\"2026-05-01T00:00:00Z\"",
+
+
+04. p observed 2026-09-01 - after: one notification
+===================================================
+HTTP/1.1 204 No Content
+notifications: 1
+
+
+05. p observed 2026-02-01 - before: no notification
+===================================================
+HTTP/1.1 204 No Content
+notifications: 0
+
+
+--TEARDOWN--
+coraineStop
+ftClientStop
+corDbDrop

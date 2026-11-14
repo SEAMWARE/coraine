@@ -18,6 +18,7 @@
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
 #include "corNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
+#include "corNgsild/ldCheckDateTime.h"              // ldIsoToNanoseconds
 #include "currentState/mongoc/mongocArrayBegin.h"    // mongocArrayBegin
 #include "currentState/mongoc/mongocGeoIndex.h"    // mongocGeoIndexExists
 #include "corNgsild/LdQ.h"                           // LdQNode, LdQTermNode, ...
@@ -400,6 +401,8 @@ static void bsonAppendInstancePrefilter(bson_t* docP, const char* attrPath, LdQT
         bson_append_double(&inArray, key, keyLen, strtod(term->value.list.values[i], NULL));
       else if (itemType == LdQBool)
         bson_append_bool(&inArray, key, keyLen, strcmp(term->value.list.values[i], "true") == 0);
+      else if (itemType == LdQDateTime)   // a time, stored as int64 - not its text
+        bson_append_int64(&inArray, key, keyLen, ldIsoToNanoseconds(term->value.list.values[i]));
       else
         bson_append_utf8(&inArray, key, keyLen, term->value.list.values[i], -1);
     }
@@ -626,6 +629,8 @@ static bool bsonAppendMultiInstanceTerm(bson_t* docP, const char* attrPath, LdQT
         snprintf(lit, sizeof(lit), "%.17g", strtod(v, NULL));
       else if (itemType == LdQBool)
         snprintf(lit, sizeof(lit), "%s", (strcmp(v, "true") == 0) ? "true" : "false");
+      else if (itemType == LdQDateTime)   // a time, stored as int64 - not its text
+        snprintf(lit, sizeof(lit), "{\"$numberLong\":\"%lld\"}", (long long) ldIsoToNanoseconds(v));
       else
       {
         char esc[1000];
@@ -777,9 +782,9 @@ static void timeCompareAppend(bson_t* docP, const char* path, LdQOperator op, in
 
 // -----------------------------------------------------------------------------
 //
-// bsonAppendQTerm - build BSON filter for a single Q term
+// bsonAppendQTermOne - build BSON filter for a single Q term
 //
-static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
+static void bsonAppendQTermOne(bson_t* docP, LdQTerm* term)
 {
   //
   // Field path. Mongo doc shape:
@@ -1174,6 +1179,8 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
         bson_append_double(&array, key, keyLen, strtod(term->value.list.values[i], NULL));
       else if (itemType == LdQBool)
         bson_append_bool(&array, key, keyLen, strcmp(term->value.list.values[i], "true") == 0);
+      else if (itemType == LdQDateTime)   // a time, stored as int64 - not its text
+        bson_append_int64(&array, key, keyLen, ldIsoToNanoseconds(term->value.list.values[i]));
       else
         bson_append_utf8(&array, key, keyLen, term->value.list.values[i], -1);
     }
@@ -1184,6 +1191,147 @@ static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
       bson_append_bool(&inDoc, "$exists", 7, true);
     bson_append_document_end(docP, &inDoc);
   }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// timestampLeaf - the term is on one of the three timestamps (createdAt, modifiedAt - the entity's or an
+// attribute's - and an attribute's observedAt): always a time, int64 - bsonAppendQTermOne's timestamp branch
+//
+static bool timestampLeaf(LdQTerm* term)
+{
+  if (term->valuePathN != 0)
+    return false;
+
+  const char* leaf = (term->subPathN > 0) ? term->subPathV[term->subPathN - 1] : term->attr;
+
+  if ((strcmp(leaf, "createdAt") != 0) && (strcmp(leaf, "modifiedAt") != 0) && (strcmp(leaf, "observedAt") != 0))
+    return false;
+
+  return !((term->subPathN == 0) && (strcmp(term->attr, "observedAt") == 0));   // observedAt: an attribute's only
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bsonAppendGroup - the terms in a $and (all: true) or a $or of their own: { $and|$or: [ {t0}, {t1}, ... ] }
+//
+static void bsonAppendGroup(bson_t* docP, LdQTerm* termV, int termN, bool all)
+{
+  bson_t andArray, andElem, orArray, termDoc;
+  bson_t* arrayP = all ? &andArray : &orArray;
+
+  mongocArrayBegin(docP, "$and", 4, &andArray);
+  if (all == false)
+  {
+    bson_append_document_begin(&andArray, "0", 1, &andElem);
+    mongocArrayBegin(&andElem, "$or", 3, &orArray);
+  }
+
+  for (int ix = 0; ix < termN; ix++)
+  {
+    char key[16];
+    int  keyLen = snprintf(key, sizeof(key), "%d", ix);
+
+    bson_append_document_begin(arrayP, key, keyLen, &termDoc);
+    bsonAppendQTermOne(&termDoc, &termV[ix]);
+    bson_append_document_end(arrayP, &termDoc);
+  }
+
+  if (all == false)
+  {
+    bson_append_array_end(&andElem, &orArray);
+    bson_append_document_end(&andArray, &andElem);
+  }
+  bson_append_array_end(docP, &andArray);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// bsonAppendQTerm - build BSON filter for a single Q term
+//
+// A QUOTED DateTime (LdQTerm::quotedTime, a list's quotedTimeV) is two terms: the string it is, and the same
+// term as an unquoted DateTime - a time, stored as int64. MongoDB compares within a type, so each half finds
+// only its own: == and the orderings take either ($or), != both ($and: unequal as a string AND as a time).
+// Each half then goes every way a term goes (datasetId instances, lists).
+//
+// On a timestamp (timestampLeaf) a value is always a time: a quoted DateTime is just that, and a list of times
+// is one scalar term per item ($or for ==, $and for !=) - the timestamp branch takes scalars only (and a
+// createdAt / modifiedAt that is not there is the entity's).
+//
+static void bsonAppendQTerm(bson_t* docP, LdQTerm* term)
+{
+  bool    isList     = (term->valueType == LdQValueList);
+  bool    quotedList = isList && (term->value.list.quotedTimeV != NULL);
+  bool    onTime     = timestampLeaf(term);
+  LdQTerm asTime     = *term;
+
+  asTime.quotedTime = false;
+
+  if (onTime && isList)
+  {
+    bool allTimes = true;
+
+    for (int ix = 0; ix < term->value.list.count; ix++)
+    {
+      if ((term->value.list.itemTypeV[ix] != LdQDateTime) && !(quotedList && term->value.list.quotedTimeV[ix]))
+        allTimes = false;
+    }
+
+    if (allTimes == true)
+    {
+      LdQTerm itemV[term->value.list.count];
+
+      for (int ix = 0; ix < term->value.list.count; ix++)
+      {
+        itemV[ix]            = asTime;
+        itemV[ix].valueType  = LdQDateTime;
+        itemV[ix].value.ns   = ldIsoToNanoseconds(term->value.list.values[ix]);
+      }
+
+      bsonAppendGroup(docP, itemV, term->value.list.count, term->op == LdQUnequal);
+      return;
+    }
+  }
+
+  if ((term->quotedTime == false) && (quotedList == false))
+  {
+    bsonAppendQTermOne(docP, term);
+    return;
+  }
+
+  LdQTerm      halfV[2]  = { *term, asTime };
+  LdQValueType itemTypeV[quotedList ? term->value.list.count : 1];
+
+  halfV[0].quotedTime = false;
+
+  if (quotedList)
+  {
+    halfV[0].value.list.quotedTimeV = NULL;
+    halfV[1].value.list.quotedTimeV = NULL;
+
+    for (int ix = 0; ix < term->value.list.count; ix++)
+      itemTypeV[ix] = term->value.list.quotedTimeV[ix] ? LdQDateTime : term->value.list.itemTypeV[ix];
+    halfV[1].value.list.itemTypeV = itemTypeV;
+  }
+  else
+  {
+    halfV[1].valueType = LdQDateTime;
+    halfV[1].value.ns  = term->quotedNs;
+  }
+
+  if (onTime == true)                            // a timestamp: the time half only
+  {
+    bsonAppendQTermOne(docP, &halfV[1]);
+    return;
+  }
+
+  bsonAppendGroup(docP, halfV, 2, term->op == LdQUnequal);
 }
 
 
