@@ -1,4 +1,4 @@
-### Added
+### New
 
 - q takes a DateTime with or without quotes. TS 104-175 § 7.2.3 is unclear on quotes, and a quoted
   `q=p.observedAt>"2021-01-01T00:00:00Z"` compared as a string, matching nothing. A quoted full DateTime is now
