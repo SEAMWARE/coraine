@@ -87,9 +87,11 @@ bool getCsourceSubscription(void)
     corTreeChildRemove(subP, jcP);
 
   //
-  // § 12.4.7: a failed notification delivery sets the LIVE status to
-  // "failed" (cleared again by the next success). The stored doc still
-  // says "active" — the cache item is authoritative.
+  // The LIVE status (active / paused, TS 104 175 § 5.2.6.5.2) is the cache
+  // item's - authoritative over the stored doc. A failed notification is
+  // notification.status "failed" (ldSubscriptionCountersInject), never this
+  // one: § 12.4.7's "Update the subscription status to failed" is read as
+  // notification.status, as in § 10.5.7.
   //
   {
     char*   liveStatus = (char*) ldSubStatusToString(itemP->status);

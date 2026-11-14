@@ -28,7 +28,7 @@ coraineStart -dist
 #
 # 01. CSR-sub for Vehicle CSRs → unreachable endpoint, cooldown 2000 ms.
 #     The unconditional initial notification (§ 12.4.7) fails → timesSent=1,
-#     timesFailed=1, status failed.
+#     timesFailed=1, notification.status failed (the subscription stays active).
 # 02. GET the sub → the failure bookkeeping.
 # 03. Create a matching CSR immediately → the on-create notification is
 #     SKIPPED (cooldown): timesSent still 1.
@@ -52,8 +52,8 @@ echo
 
 
 sleep 0.3
-echo "02. GET the sub → timesSent=1, timesFailed=1, status failed"
-echo "==========================================================="
+echo "02. GET the sub → timesSent=1, timesFailed=1, notification.status failed"
+echo "========================================================================"
 corCurl --url /ngsi-ld/v1/csourceSubscriptions/urn:CSRsub:Cool
 echo
 echo
@@ -90,8 +90,8 @@ Content-Length: REGEX(\d+)
 
 
 
-02. GET the sub → timesSent=1, timesFailed=1, status failed
-===========================================================
+02. GET the sub → timesSent=1, timesFailed=1, notification.status failed
+========================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -116,7 +116,7 @@ Content-Length: REGEX(\d+)
     "timesFailed": 1,
     "timesSent": 1
   },
-  "status": "failed",
+  "status": "active",
   "type": "Subscription"
 }
 
@@ -155,7 +155,7 @@ Content-Length: REGEX(\d+)
     "timesFailed": 1,
     "timesSent": 1
   },
-  "status": "failed",
+  "status": "active",
   "type": "Subscription"
 }
 
@@ -194,7 +194,7 @@ Content-Length: REGEX(\d+)
     "timesFailed": 2,
     "timesSent": 2
   },
-  "status": "failed",
+  "status": "active",
   "type": "Subscription"
 }
 
