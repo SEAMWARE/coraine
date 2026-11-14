@@ -9,7 +9,8 @@
 # coraine takes both forms - query_q_quoted_datetime.test for the entities):
 #
 #   - against an instance's observedAt (a time): by time, as the unquoted DateTime - the TRoE SQL's
-#     observedAt column
+#     observedAt column is a timestamptz, and PostgreSQL takes the quoted literal as a time (it did before
+#     quoted DateTimes were times in coraine's own matchers: this test pins it, it did not fail before)
 #   - against a string value: as a string (v_text)
 #
 # urn:V1: speed 50 (11:00), 95 (12:05); note "2020-07-01T12:00:00Z" (12:05), "2020-07-01T08:00:00Z" (12:10)
