@@ -15,6 +15,11 @@
 // Version 1: one thread per connection, blocking reads; text frames only (a binary one closes the
 // connection, 1003); the subprotocol ngsi-ld.json, or none.
 //
+// A client gone without a word (a phone off the network, a relay's stream dead) never ends a blocking read: its
+// connection and thread stayed for good - a home hub held hundreds (2026-11-17). Now a connection quiet for
+// CORAINE_WS_PING seconds (default 30) gets a ping (§ 5.5.2 - a browser answers it by itself); nothing at all
+// from the client for three of them: closed (1001). Read in init.
+//
 #include <errno.h>                                   // errno, EINTR
 #include <fcntl.h>                                   // fcntl, O_NONBLOCK
 #include <pthread.h>                                 // pthread_*
@@ -55,6 +60,8 @@ typedef struct WsConn
   int            extraLen;
   int            extraPos;
   bool           closing;                            // a close frame sent: no more writes
+  int            quiet;                              // seconds without a byte from the client
+  bool           timedOut;                           // closed for that
   struct WsConn* next;
 } WsConn;
 
@@ -70,6 +77,10 @@ static bool             stopping  = false;                       // stop() has b
 //
 // readFull - n bytes: first what came behind the request, then the socket
 //
+static int pingSecs = 30;                            // CORAINE_WS_PING: a quiet connection pinged after this; closed after 3
+
+static bool frameWrite(WsConn* cP, uint8_t opcode, const char* payload, uint64_t len);
+
 static bool readFull(WsConn* cP, uint8_t* buf, uint64_t n)
 {
   uint64_t got = 0;
@@ -83,9 +94,31 @@ static bool readFull(WsConn* cP, uint8_t* buf, uint64_t n)
 
     if ((r < 0) && (errno == EINTR))
       continue;
+
+    if ((r < 0) && ((errno == EAGAIN) || (errno == EWOULDBLOCK)))   // SO_RCVTIMEO: pingSecs without a byte
+    {
+      cP->quiet += pingSecs;
+      if (cP->quiet >= 3 * pingSecs)
+      {
+        cP->timedOut = true;
+        return false;
+      }
+
+      pthread_mutex_lock(&connMutex);
+      bool sent = frameWrite(cP, 0x9, "", 0);
+      pthread_mutex_unlock(&connMutex);
+      if (sent == false)                             // the send timed out too: the client is gone
+      {
+        cP->timedOut = true;
+        return false;
+      }
+      continue;
+    }
+
     if (r <= 0)
       return false;
 
+    cP->quiet = 0;
     got += (uint64_t) r;
   }
 
@@ -317,6 +350,9 @@ static void* connThread(void* arg)
   //
   hostP->closed(cP->connId);
 
+  if (cP->timedOut == true)                          // nothing from the client for 3 pings: a close it may never read
+    closeWith(cP, 1001);
+
   pthread_mutex_lock(&connMutex);
 
   WsConn* prevP = NULL;
@@ -454,6 +490,10 @@ static bool take(int connId, int fd, const char* extra, int extraLen, void (*clo
 
   setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
+  struct timeval rtv = { pingSecs, 0 };              // a read waits this long at most: a ping, or the end (readFull)
+
+  setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &rtv, sizeof(rtv));
+
   pthread_mutex_lock(&connMutex);
 
   if (stopping)                                      // the broker is stopping: handed back at once
@@ -532,6 +572,12 @@ static bool init(TransportHost* _hostP, char* errorBuf, int errorBufSize)
   (void) errorBufSize;
 
   hostP = _hostP;
+
+  const char* ping = getenv("CORAINE_WS_PING");
+
+  if ((ping != NULL) && (atoi(ping) > 0))
+    pingSecs = atoi(ping);
+
   return true;
 }
 

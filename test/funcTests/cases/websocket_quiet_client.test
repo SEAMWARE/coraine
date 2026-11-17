@@ -1,0 +1,82 @@
+#
+# FILE            websocket_quiet_client.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A client gone without a word - a phone off the network, a relay's stream dead - sends no close and no FIN:
+# the connection's blocking read never ended, and the connection and its thread stayed for good (a home hub,
+# 2026-11-17: hundreds). Now a connection quiet for CORAINE_WS_PING seconds (here 1; 30 by default) gets a ping,
+# and one with nothing at all from the client for three of them is closed (1001). A client that answers -
+# as a browser does by itself - stays.
+#
+# REQUIRE_FEATURE: TRANSPORTS
+#
+--NAME--
+WebSocket - a quiet connection pinged; one that never answers closed after three (1001); one that answers stays
+
+--TAGS--
+websocket
+
+--INIT--
+corDbDrop
+export CORAINE_WS_PING=1
+coraineStart --transports ws
+unset CORAINE_WS_PING
+
+--RUN--
+last() { ftWsMessages | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)[-1]))'; }
+echo "01. A client that answers the pings (a browser): after 5 s, pinged and still connected"
+echo "======================================================================================"
+ftWsStart $CB_PORT "" "" "" pong
+ftWsAwait 1 && echo connected
+sleep 5
+[ "$(curl -s localhost:$FT_WS_PORT/pings)" -ge 3 ] && echo "pinged: yes"
+ftWsMessages | grep -q '"close"\|"eof"' && echo "closed" || echo "still connected"
+echo
+echo
+
+
+echo "02. A client that never answers: closed after three pings, 1001"
+echo "================================================================"
+ftWsStart $CB_PORT
+ftWsAwait 1 && echo connected
+ftWsAwait 2 8 && last
+echo "pings before the close: $(curl -s localhost:$FT_WS_PORT/pings)"
+echo
+echo
+
+
+echo "03. The broker goes on: a new connection works"
+echo "=============================================="
+ftWsStart $CB_PORT "" "" "" pong
+ftWsAwait 1 && echo connected
+echo
+echo
+
+
+--TEARDOWN--
+ftWsStop
+coraineStop
+
+--EXPECT--
+01. A client that answers the pings (a browser): after 5 s, pinged and still connected
+======================================================================================
+connected
+pinged: yes
+still connected
+
+
+02. A client that never answers: closed after three pings, 1001
+================================================================
+connected
+{"close": 1001}
+pings before the close: 2
+
+
+03. The broker goes on: a new connection works
+==============================================
+connected
+
+
