@@ -44,11 +44,11 @@
 
 #include "plugin/AuthDriver.h"                       // AuthDriver, AuthRequest, AuthAnswer, AuthVerdict
 
-#include "authFetch.h"                               // authFetch
+#include "corRest/corRestFetch.h"                    // corRestFetch
 #include "fdscIdentity.h"                            // FdscIdentity
-#include "authJwt.h"                                 // authJwtVerify, AuthJwtExpect
-#include "authKeys.h"                                // authKeysLoad, authKeysCount
-#include "authTokenCache.h"                          // authTokenCacheInit, authTokenCacheGet, authTokenCacheAdd, authTokenCacheGeneration
+#include "corRest/corRestJwt.h"                      // corRestJwtVerify, CorRestJwtExpect
+#include "corRest/corRestJwk.h"                      // corRestJwkLoad, corRestJwkCount
+#include "corRest/corRestJwtCache.h"                 // corRestJwtCacheInit, corRestJwtCacheGet, corRestJwtCacheAdd, corRestJwtCacheGeneration
 #include "fdscPolicy.h"                              // fdscPolicyLoad, fdscPolicyDecide, fdscPolicyCount
 
 
@@ -125,7 +125,7 @@ static bool discoveryRead(char* errorBuf, int errorBufSize)
 
   corAllocBufferInit(&ka, buf, sizeof(buf), 8192, NULL, "fdsc discovery");
 
-  char* text = authFetch(discovery, &ka, errorBuf, errorBufSize);
+  char* text = corRestFetch(discovery, &ka, errorBuf, errorBufSize);
   bool  ok   = false;
 
   if (text != NULL)
@@ -185,10 +185,10 @@ static void keysFetch(void)
 
   corAllocBufferInit(&ka, buf, sizeof(buf), 16384, NULL, "fdsc keys");
 
-  char* text = authFetch(where, &ka, errorBuf, sizeof(errorBuf));
+  char* text = corRestFetch(where, &ka, errorBuf, sizeof(errorBuf));
   char  shown[512];                                  // the URL as the log shows it: its password "***"
 
-  if ((text == NULL) || (authKeysLoad(text, authTokenCacheClear, errorBuf, sizeof(errorBuf)) == false))
+  if ((text == NULL) || (corRestJwkLoad(text, corRestJwtCacheClear, errorBuf, sizeof(errorBuf)) == false))
     COR_W("fdsc: the verifier's keys (%s): %s", corUriPasswordMask(where, shown, sizeof(shown)), errorBuf);
   else
     __atomic_store_n(&keysFetchedAt, time(NULL), __ATOMIC_RELAXED);
@@ -227,7 +227,7 @@ static void policiesFetch(void)
     corAllocBufferInit(&ka, buf, sizeof(buf), 64 * 1024, NULL, "fdsc policies");
 
     int   items = 0;
-    char* text  = authFetch(where, &ka, errorBuf, sizeof(errorBuf));
+    char* text  = corRestFetch(where, &ka, errorBuf, sizeof(errorBuf));
     int   n     = (text != NULL) ? fdscPolicySetAdd(text, &items, errorBuf, sizeof(errorBuf)) : -1;
 
     corAllocBufferReset(&ka, false);
@@ -279,7 +279,7 @@ static void* refreshLoop(void* arg)
     //
     // Until both are there, every second: the verifier and the PAP may start after the broker
     //
-    until.tv_sec += ((authKeysCount() == 0) || (fdscPolicyLoaded() == false)) ? 1 : refresh;
+    until.tv_sec += ((corRestJwkCount() == 0) || (fdscPolicyLoaded() == false)) ? 1 : refresh;
 
     while ((refreshStop == false) && (refreshAsked == false))
     {
@@ -333,7 +333,7 @@ static void identityUnref(void* identity) { fdscIdentityUnref((FdscIdentity*) id
 //
 static bool fdscInit(char* errorBuf, int errorBufSize)
 {
-  authTokenCacheInit(identityRef, identityUnref);
+  corRestJwtCacheInit(identityRef, identityUnref);
 
   if ((discovery == NULL) && (jwks == NULL))
   {
@@ -431,7 +431,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
     return AuthUnauthenticated;
   }
 
-  if (authKeysCount() == 0)
+  if (corRestJwkCount() == 0)
   {
     answerP->detail = "the verifier's keys are not loaded yet";
     return AuthUnavailable;
@@ -442,7 +442,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   //
   int           tokenLen = strlen(token);
   long long     now      = (long long) time(NULL);
-  FdscIdentity* idP      = (FdscIdentity*) authTokenCacheGet(token, tokenLen);
+  FdscIdentity* idP      = (FdscIdentity*) corRestJwtCacheGet(token, tokenLen);
 
   if (idP != NULL)
   {
@@ -451,9 +451,9 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
       fdscIdentityUnref(idP);
 
       static __thread char wwwAuthExp[160];
-      snprintf(wwwAuthExp, sizeof(wwwAuthExp), "Bearer error=\"invalid_token\", error_description=\"%s\"", authJwtCheckString(AuthJwtExpired));
+      snprintf(wwwAuthExp, sizeof(wwwAuthExp), "Bearer error=\"invalid_token\", error_description=\"%s\"", corRestJwtCheckString(CorRestJwtExpired));
 
-      answerP->detail          = authJwtCheckString(AuthJwtExpired);
+      answerP->detail          = corRestJwtCheckString(CorRestJwtExpired);
       answerP->wwwAuthenticate = wwwAuthExp;
       return AuthUnauthenticated;
     }
@@ -469,7 +469,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
     return AuthAllow;
   }
 
-  unsigned int generation = authTokenCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
+  unsigned int generation = corRestJwtCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
 
   idP = fdscIdentityNew();
 
@@ -479,7 +479,7 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
     return AuthUnavailable;
   }
 
-  AuthJwtExpect expect;
+  CorRestJwtExpect expect;
 
   //
   // The issuer - copied while the lock is held: the refresh thread replaces the discovered one
@@ -501,25 +501,25 @@ static AuthVerdict fdscAuthenticate(const AuthRequest* reqP, void** identityP, A
   expect.leeway   = leeway;
 
   CorNode*     claimsP = NULL;
-  AuthJwtCheck check   = authJwtVerify(token, &expect, &idP->ka, &claimsP);
+  CorRestJwtCheck check   = corRestJwtVerify(token, &expect, &idP->ka, &claimsP);
 
-  if (check != AuthJwtOk)
+  if (check != CorRestJwtOk)
   {
-    if (check == AuthJwtUnknownKey)
+    if (check == CorRestJwtUnknownKey)
       refreshAsk();
 
     fdscIdentityFree(idP);
 
     static __thread char wwwAuth[160];
-    snprintf(wwwAuth, sizeof(wwwAuth), "Bearer error=\"invalid_token\", error_description=\"%s\"", authJwtCheckString(check));
+    snprintf(wwwAuth, sizeof(wwwAuth), "Bearer error=\"invalid_token\", error_description=\"%s\"", corRestJwtCheckString(check));
 
-    answerP->detail          = authJwtCheckString(check);
+    answerP->detail          = corRestJwtCheckString(check);
     answerP->wwwAuthenticate = wwwAuth;
     return AuthUnauthenticated;
   }
 
   fdscIdentityFill(idP, claimsP);
-  authTokenCacheAdd(token, tokenLen, idP, generation);
+  corRestJwtCacheAdd(token, tokenLen, idP, generation);
 
   *identityP = fdscHandleNew(idP);
 
@@ -779,7 +779,7 @@ static const char* fdscVersionInfo(void)
 {
   static __thread char info[160];
 
-  snprintf(info, sizeof(info), "fdsc %s - %d keys, %d policies", FDSC_VERSION, authKeysCount(), fdscPolicyCount());
+  snprintf(info, sizeof(info), "fdsc %s - %d keys, %d policies", FDSC_VERSION, corRestJwkCount(), fdscPolicyCount());
   return info;
 }
 
@@ -802,7 +802,7 @@ static void fdscClose(void)
     refreshRunning = false;
   }
 
-  authKeysRelease(authTokenCacheClear);
+  corRestJwkRelease(corRestJwtCacheClear);
   fdscPolicyRelease();
   free(jwksUrl);
   free(discoveredIss);

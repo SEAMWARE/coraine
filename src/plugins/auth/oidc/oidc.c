@@ -45,10 +45,10 @@
 
 #include "plugin/AuthDriver.h"                       // AuthDriver, AuthRequest, AuthAnswer, AuthVerdict
 
-#include "authFetch.h"                               // authFetch
-#include "authJwt.h"                                 // authJwtVerify, AuthJwtExpect, authJwtCheckString
-#include "authKeys.h"                                // authKeysLoad, authKeysCount, authKeysRelease
-#include "authTokenCache.h"                          // authTokenCacheInit, authTokenCacheGet, authTokenCacheAdd, authTokenCacheClear
+#include "corRest/corRestFetch.h"                    // corRestFetch
+#include "corRest/corRestJwt.h"                      // corRestJwtVerify, CorRestJwtExpect, corRestJwtCheckString
+#include "corRest/corRestJwk.h"                      // corRestJwkLoad, corRestJwkCount, corRestJwkRelease
+#include "corRest/corRestJwtCache.h"                 // corRestJwtCacheInit, corRestJwtCacheGet, corRestJwtCacheAdd, corRestJwtCacheClear
 
 
 
@@ -158,7 +158,7 @@ static bool discoveryRead(char* errorBuf, int errorBufSize)
 
   corAllocBufferInit(&ka, buf, sizeof(buf), 16384, NULL, "oidc discovery");
 
-  char* text = authFetch(discoveryUrl, &ka, errorBuf, errorBufSize);
+  char* text = corRestFetch(discoveryUrl, &ka, errorBuf, errorBufSize);
   bool  ok   = false;
   char  shown[512];                                   // the URL as an error shows it: its password "***"
 
@@ -209,10 +209,10 @@ static void keysFetch(void)
 
   corAllocBufferInit(&ka, buf, sizeof(buf), 16384, NULL, "oidc keys");
 
-  char* text = authFetch(where, &ka, errorBuf, sizeof(errorBuf));
+  char* text = corRestFetch(where, &ka, errorBuf, sizeof(errorBuf));
   char  shown[512];
 
-  if ((text == NULL) || (authKeysLoad(text, authTokenCacheClear, errorBuf, sizeof(errorBuf)) == false))
+  if ((text == NULL) || (corRestJwkLoad(text, corRestJwtCacheClear, errorBuf, sizeof(errorBuf)) == false))
     COR_W("oidc: the provider's keys (%s): %s", corUriPasswordMask(where, shown, sizeof(shown)), errorBuf);
   else
     __atomic_store_n(&keysFetchedAt, time(NULL), __ATOMIC_RELAXED);
@@ -240,7 +240,7 @@ static void* refreshLoop(void* arg)
 
     struct timespec until;
     clock_gettime(CLOCK_REALTIME, &until);
-    until.tv_sec += (authKeysCount() == 0) ? 1 : refresh;
+    until.tv_sec += (corRestJwkCount() == 0) ? 1 : refresh;
 
     while ((refreshStop == false) && (refreshAsked == false))
     {
@@ -285,7 +285,7 @@ static void refreshAsk(void)
 //
 static bool oidcInit(char* errorBuf, int errorBufSize)
 {
-  authTokenCacheInit(identityRef, identityUnref);
+  corRestJwtCacheInit(identityRef, identityUnref);
 
   if (issuer == NULL)
   {
@@ -581,13 +581,13 @@ static const char* bearer(const AuthRequest* reqP)
 //
 // invalidToken - a 401 for a token that does not hold, said in WWW-Authenticate too (RFC 6750 § 3)
 //
-static AuthVerdict invalidToken(AuthJwtCheck check, AuthAnswer* answerP)
+static AuthVerdict invalidToken(CorRestJwtCheck check, AuthAnswer* answerP)
 {
   static __thread char wwwAuth[160];
 
-  snprintf(wwwAuth, sizeof(wwwAuth), "Bearer error=\"invalid_token\", error_description=\"%s\"", authJwtCheckString(check));
+  snprintf(wwwAuth, sizeof(wwwAuth), "Bearer error=\"invalid_token\", error_description=\"%s\"", corRestJwtCheckString(check));
 
-  answerP->detail          = authJwtCheckString(check);
+  answerP->detail          = corRestJwtCheckString(check);
   answerP->wwwAuthenticate = wwwAuth;
   return AuthUnauthenticated;
 }
@@ -614,7 +614,7 @@ static AuthVerdict oidcAuthenticate(const AuthRequest* reqP, void** identityP, A
     return AuthUnauthenticated;
   }
 
-  if (authKeysCount() == 0)
+  if (corRestJwkCount() == 0)
   {
     answerP->detail = "the provider's keys are not loaded yet";
     return AuthUnavailable;
@@ -625,35 +625,35 @@ static AuthVerdict oidcAuthenticate(const AuthRequest* reqP, void** identityP, A
   //
   int           tokenLen = strlen(token);
   long long     now      = (long long) time(NULL);
-  OidcIdentity* idP      = (OidcIdentity*) authTokenCacheGet(token, tokenLen);
+  OidcIdentity* idP      = (OidcIdentity*) corRestJwtCacheGet(token, tokenLen);
 
   if (idP != NULL)
   {
     if (((idP->exp != 0) && (now > idP->exp + leeway)) || ((idP->nbf != 0) && (now + leeway < idP->nbf)))
     {
       identityUnref(idP);
-      return invalidToken(AuthJwtExpired, answerP);
+      return invalidToken(CorRestJwtExpired, answerP);
     }
 
     *identityP = idP;                                // the cache's Get gave a reference: release() drops it
     return AuthAllow;
   }
 
-  unsigned int generation = authTokenCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
+  unsigned int generation = corRestJwtCacheGeneration();   // before the check: a key set that changes meanwhile keeps it out of the cache
   CorAlloc     ka;
   char         buf[4096];
 
   corAllocBufferInit(&ka, buf, sizeof(buf), 8192, NULL, "oidc token");
 
-  AuthJwtExpect expect = { issuer, audience, now, leeway };
+  CorRestJwtExpect expect = { issuer, audience, now, leeway };
   CorNode*      claimsP = NULL;
-  AuthJwtCheck  check   = authJwtVerify(token, &expect, &ka, &claimsP);
+  CorRestJwtCheck  check   = corRestJwtVerify(token, &expect, &ka, &claimsP);
 
-  if (check != AuthJwtOk)
+  if (check != CorRestJwtOk)
   {
     corAllocBufferReset(&ka, false);
 
-    if (check == AuthJwtUnknownKey)
+    if (check == CorRestJwtUnknownKey)
       refreshAsk();
 
     return invalidToken(check, answerP);
@@ -688,7 +688,7 @@ static AuthVerdict oidcAuthenticate(const AuthRequest* reqP, void** identityP, A
 
   corAllocBufferReset(&ka, false);
 
-  authTokenCacheAdd(token, tokenLen, idP, generation);
+  corRestJwtCacheAdd(token, tokenLen, idP, generation);
   *identityP = idP;
   return AuthAllow;
 }
@@ -938,7 +938,7 @@ static const char* oidcVersionInfo(void)
 {
   static __thread char info[160];
 
-  snprintf(info, sizeof(info), "oidc %s - %d keys", OIDC_VERSION, authKeysCount());
+  snprintf(info, sizeof(info), "oidc %s - %d keys", OIDC_VERSION, corRestJwkCount());
   return info;
 }
 
@@ -961,7 +961,7 @@ static void oidcClose(void)
     refreshRunning = false;
   }
 
-  authKeysRelease(authTokenCacheClear);
+  corRestJwkRelease(corRestJwtCacheClear);
   free(discoveryUrl);
   free(jwksUrl);
   discoveryUrl = NULL;
