@@ -431,12 +431,11 @@ if (COR_FEATURE_TRANSPORTS)
 endif()
 
 #
-# The auth plugins: jwt - what they share (an access token checked); fdsc - the FIWARE Data Space Connector's
+# The auth plugins (an access token checked by corRest's corRestJwt, in the broker): fdsc - the FIWARE Data Space Connector's
 # security inside the broker (--auth fdsc); oidc - an OpenID provider's tokens and roles (--auth oidc).
 # doc/authorization.md
 #
 if (COR_FEATURE_AUTH)
-  ADD_SUBDIRECTORY(src/plugins/auth/jwt)
   ADD_SUBDIRECTORY(src/plugins/auth/fdsc)
 endif()
 if (COR_FEATURE_AUTH_OIDC)
