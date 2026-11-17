@@ -782,6 +782,48 @@ static bool notifyEntityAllowed(Tenant* tenantP, void* identity, CorNode* entity
 
 // -----------------------------------------------------------------------------
 //
+// dropWarn - a subscription's notification dropped whole, its owner not (or no longer) allowed: said in the log,
+// at most once an hour a subscription. Without it the drop is silent - no failure on the subscription, no log
+// line - and a client's subscriptions stop the day their owner runs out (--oidcOwnerMaxAge; a hub's rules,
+// 2026-11-16). A slot a subscription (a hash): two sharing one may be told more often, never less.
+//
+#define DROP_WARN_SLOTS  256
+#define DROP_WARN_EVERY  3600
+
+static pthread_mutex_t  dropWarnMutex = PTHREAD_MUTEX_INITIALIZER;
+static struct { unsigned int hash; time_t at; } dropWarnV[DROP_WARN_SLOTS];
+
+static void dropWarn(Tenant* tenantP, const char* subId, const char* why)
+{
+  const char*  tenant = ((tenantP != NULL) && (tenantP->name[0] != 0)) ? tenantP->name : "";
+  unsigned int h      = 2166136261u;
+
+  for (const unsigned char* c = (const unsigned char*) tenant; *c != 0; c++)  h = (h ^ *c) * 16777619u;
+  h = (h ^ '|') * 16777619u;
+  for (const unsigned char* c = (const unsigned char*) subId;  *c != 0; c++)  h = (h ^ *c) * 16777619u;
+
+  time_t now  = time(NULL);
+  int    slot = (int) (h % DROP_WARN_SLOTS);
+  bool   tell = false;
+
+  pthread_mutex_lock(&dropWarnMutex);
+  if ((dropWarnV[slot].hash != h) || (now - dropWarnV[slot].at >= DROP_WARN_EVERY))
+  {
+    dropWarnV[slot].hash = h;
+    dropWarnV[slot].at   = now;
+    tell                 = true;
+  }
+  pthread_mutex_unlock(&dropWarnMutex);
+
+  if (tell == true)
+    COR_W("subscription %s%s%s: notifications dropped - %s. A PATCH of the subscription with a valid token makes its sender its owner again (said once an hour)",
+          subId, (tenant[0] != 0) ? " in tenant " : "", tenant, why);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // notifyFilter - corNgsild's ldNotifyFilterHook: the entities the subscription's owner may not read go;
 // an owner not known (none kept, none any more) - all of them go: fail closed. A plugin with notify (ABI 5)
 // is asked first, once: not allowed - all of them go
@@ -802,6 +844,9 @@ static void notifyFilter(void* tenantP, const char* subId, CorNode* dataArrayP, 
     {
       dataArrayP->value.head = NULL;                 // nothing left: the notification is not sent
       dataArrayP->value.tail = NULL;
+      dropWarn(tP, subId, ((oP == NULL) || (oP->identity == NULL))
+               ? "no owner kept for it (none stored, or no longer restorable)"
+               : "its owner may not have them any more (its time ran out - --oidcOwnerMaxAge - or it does not read in this tenant)");
     }
 
     if ((driver.entity == NULL) || (dataArrayP->value.head == NULL))
@@ -823,6 +868,9 @@ static void notifyFilter(void* tenantP, const char* subId, CorNode* dataArrayP, 
 
     eP = nextP;
   }
+
+  if (((oP == NULL) || (oP->identity == NULL)) && (dataArrayP->value.head == NULL))
+    dropWarn((Tenant*) tenantP, subId, "no owner kept for it (none stored, or no longer restorable)");
 
   if (oP != NULL)
     ownerPut(oP);

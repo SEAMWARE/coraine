@@ -7,7 +7,7 @@
 #
 # The oidc auth plugin decides a subscription's notifications for its owner - who made it, or last updated
 # it - as a whole (notify, ABI 5): the owner's roles and tenants are kept with the subscription and hold for
-# --oidcOwnerMaxAge (here 3 s). After that the notifications stop - roles taken away at the provider stop
+# --oidcOwnerMaxAge (here 3 s). After that the notifications stop (said in the log, once an hour a subscription) - roles taken away at the provider stop
 # them within that time - until a valid token updates the subscription, which makes its sender the owner.
 #
 # REQUIRE_FEATURE: AUTH_OIDC
@@ -68,6 +68,10 @@ status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Proper
 status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 2}}' -X PATCH -H "Authorization: Bearer $T1" -H "NGSILD-Tenant: t1"
 ftClientSettle 1000
 echo "notifications: $(ftClientCount --port 7712)"
+echo "the drops said in the log, once a subscription: $(grep -c 'notifications dropped - its owner may not have them any more' /tmp/coraine.CB.log)"
+status --url /ngsi-ld/v1/entities/urn:E1/attrs --payload '{"p": {"type": "Property", "value": 22}}' -X PATCH -H "Authorization: Bearer $WRITER"
+ftClientSettle 500
+echo "dropped again - not said again: $(grep -c 'notifications dropped' /tmp/coraine.CB.log)"
 echo
 echo
 
@@ -104,6 +108,9 @@ notifications: 2
 HTTP/1.1 204 No Content
 HTTP/1.1 204 No Content
 notifications: 2
+the drops said in the log, once a subscription: 2
+HTTP/1.1 204 No Content
+dropped again - not said again: 2
 
 
 04. The writer updates the default tenant's subscription: its sender is its owner again - its notifications come back; t1's stay stopped
