@@ -117,6 +117,10 @@ subscriptions of a run with no beat for 60 s are deleted by any instance alive
 - a binary frame closes the connection (1003); a frame the client did not mask (1002); a message over
   16 MiB (1009)
 - a notification to a client that stopped reading gives up after 5 s
+- a client quiet for 30 s gets a ping (a browser answers it by itself); nothing at all from it for three of
+  them (90 s): the connection is closed (1001) - a client gone without a word (off the network, a dead proxy's
+  stream) sends no close and no FIN, and its connection and thread would stay for good. The interval:
+  environment variable `CORAINE_WS_PING` (seconds)
 
 ## How it is built
 

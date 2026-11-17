@@ -23,6 +23,9 @@
 #   GET  /messages   every message received so far, as a JSON array (each a parsed JSON value)
 #   GET  /count      how many
 #   POST /close      a close frame (1000); the broker's close is recorded as {"close": <status>}
+#   GET  /pings      how many pings the broker sent
+#
+#   --pong           pings answered (as a browser does); without it, never - a client gone without a word
 #
 import base64
 import json
@@ -34,6 +37,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 received = []
+pings    = [0]                                           # pings the broker sent
+PONG     = False                                         # --pong: answered
 lock     = threading.Lock()
 sock     = None
 
@@ -92,6 +97,11 @@ def reader():
                 with lock:
                     received.append({"close": status})
                 return
+            elif opcode == 0x9:
+                with lock:
+                    pings[0] += 1
+                if PONG:
+                    send_frame(0xA, payload)
             elif opcode == 0xA:
                 with lock:
                     received.append({"pong": payload.decode(errors="replace")})
@@ -157,6 +167,8 @@ class Control(BaseHTTPRequestHandler):
                 return self.answer(200, json.dumps(received).encode())
             if self.path == "/count":
                 return self.answer(200, str(len(received)).encode())
+            if self.path == "/pings":
+                return self.answer(200, str(pings[0]).encode())
         self.answer(404)
 
     def do_POST(self):
@@ -183,6 +195,8 @@ def main():
     protocol = args[args.index("--protocol") + 1] if "--protocol" in args else None
     first    = args[args.index("--first") + 1] if "--first" in args else None
     tenant   = args[args.index("--tenant") + 1] if "--tenant" in args else None
+    global PONG
+    PONG     = "--pong" in args
 
     connect(broker, protocol, first, tenant)
     ThreadingHTTPServer(("127.0.0.1", port), Control).serve_forever()

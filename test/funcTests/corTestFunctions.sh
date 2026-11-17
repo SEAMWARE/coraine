@@ -1531,8 +1531,9 @@ ftWsStart() {
   local protocol=$2
   local first=$3                        # a message sent with the upgrade request, before the 101
   local tenant=$4
+  local pong=$5                         # "pong": the broker's pings answered (a browser); else never answered
   ftWsStop
-  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftWs.py" --broker localhost:$brokerPort --port $FT_WS_PORT ${protocol:+--protocol $protocol} ${first:+--first "$first"} ${tenant:+--tenant $tenant} > /tmp/ftWs.$FT_WS_PORT.log 2>&1 &
+  python3 "$(dirname "${BASH_SOURCE[0]}")/tools/ftWs.py" --broker localhost:$brokerPort --port $FT_WS_PORT ${protocol:+--protocol $protocol} ${first:+--first "$first"} ${tenant:+--tenant $tenant} ${pong:+--pong} > /tmp/ftWs.$FT_WS_PORT.log 2>&1 &
   echo $! > /tmp/ftWs.$FT_WS_PORT.pid
   corAwaitPort $FT_WS_PORT 10 > /dev/null
 }
