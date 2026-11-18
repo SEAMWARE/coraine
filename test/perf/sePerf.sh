@@ -21,7 +21,7 @@
 # Per core = the 2xx answers / the CPU-seconds the broker used during the run (utime + stime of the process,
 # /proc/<pid>/stat) - not wall time x cores: a broker that does not saturate its core is not flattered.
 #
-# Env: PERF_DURATION (10s) PERF_REPEATS (3) PERF_CONCURRENCY ("16 64 256") PERF_ENTITIES (100) PERF_PORT (1029)
+# Env: PERF_DURATION (10s) PERF_REPEATS (3) PERF_CONCURRENCY ("16 64") PERF_ENTITIES (100) PERF_PORT (1029)
 #      PERF_THREADS (8)  PERF_PG_* (mongo: the TimescaleDB)
 #      PERF_SE_STORE_ARGS (corDB: the store arguments instead of --database corDB --dbDir ... --troe corDB, to
 #      take the store or TRoE out of the picture)
@@ -31,7 +31,7 @@ STORE=${1:-corDB}
 PORT=${PERF_PORT:-1029}
 DURATION=${PERF_DURATION:-10s}
 REPEATS=${PERF_REPEATS:-3}
-CONCURRENCY=${PERF_CONCURRENCY:-16 64 256}
+CONCURRENCY=${PERF_CONCURRENCY:-16 64}         # not 256 (yet): libmicrohttpd stalls with ~256 connections opened at once - the broker misses their reads (2026-11-18)
 ENTITIES=${PERF_ENTITIES:-100}
 THREADS=${PERF_THREADS:-8}
 CORES=${PERF_BROKER_CORES:-1}
