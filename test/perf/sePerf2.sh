@@ -21,12 +21,14 @@
 #                                  the 202s over the time from the start until A has none executing any more
 #
 # A on the first physical core, B on the second, wrk on the others (one logical CPU per physical core).
+# Rate = the calls / (wrk's run time + the drain: from wrk's end until A had no action executing).
 # Per core = the completed calls / the CPU-seconds of A and B together (utime + stime, /proc/<pid>/stat,
 # until the last action completed) - two brokers on two cores: per core is what a core of the pair does.
 # Every measurement starts from EMPTY stores (fresh --dbDir / databases).
 #
 # Env: PERF_DURATION (10s) PERF_REPEATS (3) PERF_CONCURRENCY ("16 64 256") PERF_ENTITIES (100)
 #      PERF_THREADS (8) PERF_PORT (1029: A; B is +1; cor:// ports +1000)
+#      PERF_A_ARGS, PERF_B_ARGS - more options for A, for B (e.g. --connectionPoolSize 32)
 #
 set -u
 STORE=${1:-corDB}
@@ -90,10 +92,10 @@ ok() { [ "$1" = "$2" ] || { echo "sePerf2.sh: fixture: $3 answered $1" >&2; tail
 startBrokers() {
   emptyStores
   # shellcheck disable=SC2046
-  taskset -c "$cpuB" coraine --port "$PORT_B" --corPort "$COR_B" $(storeArgs b) --bridges loopback > "$WORK/B.log" 2>&1 &
+  taskset -c "$cpuB" coraine --port "$PORT_B" --corPort "$COR_B" $(storeArgs b) --bridges loopback ${PERF_B_ARGS:-} > "$WORK/B.log" 2>&1 &
   pidB=$!
   # shellcheck disable=SC2046
-  taskset -c "$cpuA" coraine --port "$PORT_A" --corPort "$COR_A" $(storeArgs a) > "$WORK/A.log" 2>&1 &
+  taskset -c "$cpuA" coraine --port "$PORT_A" --corPort "$COR_A" $(storeArgs a) ${PERF_A_ARGS:-} > "$WORK/A.log" 2>&1 &
   pidA=$!
   for p in $PORT_A $PORT_B; do
     for _ in $(seq 100); do curl -s -o /dev/null "http://localhost:$p/version" && break; sleep 0.1; done
@@ -116,7 +118,7 @@ ticks() { awk '{ sub(/^.*\) /, ""); print $12 + $13 }' "/proc/$1/stat"; }
 HZ=$(getconf CLK_TCK)
 nowMs() { date +%s%3N; }
 
-executingOnA() { curl -s "$A/services?serviceName=act&executionStatus=executing&limit=1" | head -c 2; }
+executingOnA() { curl -s "$A/services?serviceName=act&executionStatus=executing" | head -c 2; }
 
 measure() {   # measure <svc|act> <connections>  ->  "rate cpu_s per_core p50_us p99_us count drain_ms"
   local svc=$1 c=$2 ta0 tb0 ta1 tb1 t0 t1 out drain=0
@@ -131,15 +133,16 @@ measure() {   # measure <svc|act> <connections>  ->  "rate cpu_s per_core p50_us
     for _ in $(seq 600); do [ "$(executingOnA)" = "[]" ] && break; sleep 0.05; done
     drain=$(( $(nowMs) - tw ))
     [ "$(executingOnA)" = "[]" ] || echo "sePerf2.sh: WARNING - actions still executing on A 30 s after the run" >&2
-    [ "$(curl -s "$A/services?serviceName=act&executionStatus=failed&limit=1" | head -c 2)" = "[]" ] || echo "sePerf2.sh: WARNING - failed actions on A" >&2
+    [ "$(curl -s "$A/services?serviceName=act&executionStatus=failed" | head -c 2)" = "[]" ] || echo "sePerf2.sh: WARNING - failed actions on A" >&2
   fi
   t1=$(nowMs); ta1=$(ticks "$pidA"); tb1=$(ticks "$pidB")
+  [ -n "${PERF_DEBUG:-}" ] && { echo "t0 $t0 t1 $t1"; printf "%s\n" "$out"; } >&2
   if printf '%s' "$out" | grep -q "Non-2xx"; then echo "sePerf2.sh: error answers in $svc c=$c:" >&2; printf '%s\n' "$out" >&2; exit 1; fi
   stopBrokers
   printf '%s' "$out" | awk -v cpu="$(( ta1 - ta0 + tb1 - tb0 ))" -v hz="$HZ" -v ms="$(( t1 - t0 ))" -v drain="$drain" '
-    / requests in / { n = $1 }
+    / requests in / { n = $1; secs = $4; sub(/s,?$/, "", secs) }
     /^PCTL / { p50 = $2; p99 = $4 }
-    END { s = cpu / hz; printf "%.0f %.2f %.0f %d %d %d %d\n", n / (ms / 1000), s, (s > 0 ? n / s : 0), p50, p99, n, drain }'
+    END { s = cpu / hz; t = secs + drain / 1000; printf "%.0f %.2f %.0f %d %d %d %d\n", n / t, s, (s > 0 ? n / s : 0), p50, p99, n, drain }'
 }
 
 echo "# sePerf2.sh $STORE $TRANSPORT - $(date -Is) - coraine $(coraine --version 2>&1 | head -1) - A on CPU $cpuA, B on CPU $cpuB, wrk on $loadCpus"

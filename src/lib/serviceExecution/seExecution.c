@@ -52,6 +52,7 @@
 #include "serviceExecution/seRegistrationMatch.h"     // seRegistrationMatches
 #include "serviceExecution/seRetention.h"            // seRetentionPush, seRetentionSeeded, seRetentionMaxEnded
 #include "serviceExecution/seCombined.h"              // seCombinedChildEnded, seCombinedCancel, seCombinedChildrenEmbed
+#include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
 #include "serviceExecution/seExecution.h"             // Own interface
 #include "coraineTraceLevels.h"                       // CtService
 
@@ -1110,14 +1111,160 @@ static void forward(CorNode* execP, bool cancel, SeForward* resultP)
 
 // -----------------------------------------------------------------------------
 //
+// The report senders - the reports go out on threads of their own, never on the thread that stored
+// the change: that is often the very request the other broker is waiting for (its POST, its cancel),
+// and a report sent from it would wait for that broker while that broker waits for us - with one
+// worker over there (a store that never waits, one core), until the report timed out.
+//
+// SE_REPORT_SENDERS threads, an execution always on the same one (its id hashed): its reports go in
+// the order they were made, and one not sent yet is replaced by the execution's next (reportQueue).
+//
+#define SE_REPORT_SENDERS 4
+
+typedef struct SeReport
+{
+  struct SeReport* next;
+  Tenant*          tenantP;
+  char*            url;
+  char*            execId;
+  char*            body;
+} SeReport;
+
+typedef struct SeReportQ
+{
+  pthread_mutex_t  mutex;
+  pthread_cond_t   cond;
+  SeReport*        head;
+  SeReport*        tail;
+} SeReportQ;
+
+static SeReportQ      reportQV[SE_REPORT_SENDERS];
+static pthread_once_t reportOnce = PTHREAD_ONCE_INIT;
+
+
+
+static void* reportSender(void* arg)
+{
+  SeReportQ* qP = (SeReportQ*) arg;
+
+  for (;;)
+  {
+    pthread_mutex_lock(&qP->mutex);
+    while (qP->head == NULL)
+      pthread_cond_wait(&qP->cond, &qP->mutex);
+
+    SeReport* rP = qP->head;
+
+    qP->head = rP->next;
+    if (qP->head == NULL)
+      qP->tail = NULL;
+    pthread_mutex_unlock(&qP->mutex);
+
+    bridgeThreadBind(rP->tenantP);                    // an arena and the tenant, for this thread
+
+    SeExchange x;
+
+    exchange(rP->url, CorVerbPatch, rP->execId, rP->body, 10000, &x);
+
+    if (((x.error != 0) || (x.status < 200) || (x.status > 299)) && (x.status != 409))   // 409: ended over there (cancelled, timed out)
+    {
+      char shown[2048];
+
+      COR_W("Service Execution '%s': report to %s FAILED (%d%s%s)", rP->execId, corUriPasswordMask(rP->url, shown, sizeof(shown)), x.status, (x.detail[0] != 0) ? ", " : "", x.detail);
+    }
+
+    free(rP->url);
+    free(rP->execId);
+    free(rP->body);
+    free(rP);
+  }
+
+  return NULL;
+}
+
+
+
+static void reportSendersStart(void)
+{
+  for (int ix = 0; ix < SE_REPORT_SENDERS; ix++)
+  {
+    pthread_t tid;
+
+    pthread_mutex_init(&reportQV[ix].mutex, NULL);
+    pthread_cond_init(&reportQV[ix].cond, NULL);
+    reportQV[ix].head = NULL;
+    reportQV[ix].tail = NULL;
+
+    if (pthread_create(&tid, NULL, reportSender, &reportQV[ix]) == 0)
+    {
+      pthread_detach(tid);
+    }
+    else
+      COR_E("Service Execution: cannot start a report sender thread");
+  }
+}
+
+
+
+static void reportQueue(const char* url, const char* execId, const char* body)
+{
+  SeReport* rP = (SeReport*) calloc(1, sizeof(SeReport));
+
+  pthread_once(&reportOnce, reportSendersStart);
+
+  if (rP == NULL)
+    return;
+
+  rP->tenantP = (Tenant*) corNgsild.tenantP;
+  rP->url     = strdup(url);
+  rP->execId  = strdup(execId);
+  rP->body    = strdup(body);
+
+  unsigned int hash = 5381;
+
+  for (const char* cP = execId; *cP != 0; cP++)
+    hash = hash * 33 + (unsigned char) *cP;
+
+  SeReportQ* qP = &reportQV[hash % SE_REPORT_SENDERS];
+
+  pthread_mutex_lock(&qP->mutex);
+
+  //
+  // The execution's previous report not sent yet (the last one queued): this one replaces it - a report
+  // is the execution as it is now (status, progress, output, error), so the newer says all the older did
+  //
+  if ((qP->tail != NULL) && (strcmp(qP->tail->execId, rP->execId) == 0))
+  {
+    free(qP->tail->body);
+    qP->tail->body = rP->body;
+    pthread_mutex_unlock(&qP->mutex);
+    free(rP->url);
+    free(rP->execId);
+    free(rP);
+    return;
+  }
+
+  if (qP->tail != NULL)
+    qP->tail->next = rP;
+  else
+    qP->head = rP;
+  qP->tail = rP;
+  pthread_cond_signal(&qP->cond);
+  pthread_mutex_unlock(&qP->mutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // report - this broker is another broker's executor (seExecuteFor): an asynchronous execution's change
 // reported to it, as an HTTP executor reports (doc/service-execution.md, "An HTTP executor"):
 //
 //   PATCH <reportTo>/ngsi-ld/v1/services/{id}     Service-Execution: {id}
 //   { "executionStatus": ..., "executionProgress": ..., "executionOutput": ..., "executionError": ... }
 //
-// The execution has the caller's id. Over http(s):// or cor://, as reportTo says. A synchronous one is
-// not reported: its answer is the report.
+// The execution has the caller's id. Over http(s):// or cor://, as reportTo says - on a report sender
+// thread (reportQueue). A synchronous one is not reported: its answer is the report.
 //
 static void report(CorNode* execP)
 {
@@ -1128,6 +1275,9 @@ static void report(CorNode* execP)
 
   if ((mode == NULL) || (strcmp(mode, "asynchronous") != 0) || (status == NULL) || (strcmp(status, "pending") == 0))
     return;
+
+  if ((strcmp(status, "executing") == 0) && (corTreeLookup(execP, "executionProgress") == NULL))
+    return;                                           // nothing new: the other broker set it executing as it handed it over
 
   CorNode* bodyP = corTreeObject(corRest.kallocP, NULL);
   char     url[2048];
@@ -1152,17 +1302,7 @@ static void report(CorNode* execP)
 
   snprintf(url, sizeof(url), "%.*s/ngsi-ld/v1/services/%s", ((len > 0) && (reportTo[len - 1] == '/')) ? len - 1 : len, reportTo, execId);
 
-  SeExchange x;
-
-  exchange(url, CorVerbPatch, execId, body, 10000, &x);
-
-  if ((x.error != 0) || (x.status < 200) || (x.status > 299))
-  {
-    char shown[2048];
-
-    if (x.status != 409)                              // 409: it has ended over there (cancelled, timed out)
-      COR_W("Service Execution '%s': report to %s FAILED (%d%s%s)", execId, corUriPasswordMask(url, shown, sizeof(shown)), x.status, (x.detail[0] != 0) ? ", " : "", x.detail);
-  }
+  reportQueue(url, execId, body);
 }
 
 

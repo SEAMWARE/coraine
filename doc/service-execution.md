@@ -235,6 +235,11 @@ broker's own goes between them: the requests of an HTTP executor, above.
   failed (the error), cancelled - goes to `PATCH <reportTo>/ngsi-ld/v1/services/{id}`, the report an HTTP
   executor sends. An HTTP executor learns where the broker is by its configuration; coraine learns it from
   the endpoint: `reportTo`, required for an asynchronous service (400 without it).
+- The reports go out on threads of their own (four; an execution always on the same one, in order), after
+  the request that caused them has its answer - never from inside it: the other broker may be waiting for
+  that very answer on its only worker. A report not yet sent is replaced by the execution's next one - a
+  report is the execution as it is now - and the first `executing` is not sent: the broker set it as it
+  handed the execution over. Under load the other broker sees fewer intermediate steps, never a wrong end.
 - `{serviceName}` is expanded with the request's @context (a `Link` header), else the core context - as the
   service name of an invocation.
 - **Over cor://**: `"endpoint": "cor://executor:2026/ngsi-ld/ex/v1/executor/dock?reportTo=cor://broker:2026"` -

@@ -204,7 +204,6 @@ HTTP/1.1 502 Bad Gateway
 HTTP/1.1 202 Accepted
 progress completed progress {"percent": 50} output {"done": true}
 Notification executing null null
-Notification executing null null
 Notification executing {"percent": 50} null
 Notification completed {"percent": 50} {"done": true}
 
@@ -253,7 +252,6 @@ HTTP/1.1 502 Bad Gateway
 ====================================================================================================
 HTTP/1.1 202 Accepted
 progress completed progress {"percent": 50} output {"done": true}
-Notification executing null null
 Notification executing null null
 Notification executing {"percent": 50} null
 Notification completed {"percent": 50} {"done": true}
