@@ -232,7 +232,7 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbPost,   "/ngsi-ld/v1/entities/*/attrs", postEntityAttrs,  LD_PARAMS_POST_ENTITY_ATTRS,  LdOpAppendAttrs },
   { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs", patchEntityAttrs, LD_PARAMS_PATCH_ENTITY_ATTRS | BRIDGE_PARAM_DDS_SYNC, LdOpUpdateAttrs },
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*/value", getEntityAttrValue, LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
-  { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*/value", putEntityAttrValue, LD_PARAMS_PATCH_ENTITY_ATTR,  LdOpUpdateAttrs    },
+  { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*/value", putEntityAttrValue, LD_PARAMS_PATCH_ENTITY_ATTR | LD_PARAM_DATASETID,  LdOpUpdateAttrs    },
   { CorVerbGet,    "/ngsi-ld/v1/entities/*/attrs/*", getEntityAttr,    LD_PARAMS_GET_ENTITY_ATTR,    LdOpRetrieveEntity },
   { CorVerbPatch,  "/ngsi-ld/v1/entities/*/attrs/*", patchEntityAttr,  LD_PARAMS_PATCH_ENTITY_ATTR | BRIDGE_PARAM_DDS_SYNC,  LdOpUpdateAttrs    },
   { CorVerbPut,    "/ngsi-ld/v1/entities/*/attrs/*", putEntityAttr,    LD_PARAMS_PUT_ENTITY_ATTR,    LdOpReplaceAttr    },

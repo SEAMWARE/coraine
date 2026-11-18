@@ -136,9 +136,21 @@ bool putEntityAttrValue(void)
   }
 
   // Storage keys each instance by datasetId ("@none" for the default); the type
-  // lives on the instance object.
+  // lives on the instance object. § 10.2.6.4: with ?datasetId the target is that
+  // instance, without it the default one - and it must exist (ResourceNotFound).
+  const char* datasetId   = corNgsild.datasetId;
+  CorNode*    targetInstP = corTreeLookup(attrWrapperP, (datasetId != NULL) ? datasetId : "@none");
+
+  if ((targetInstP == NULL) && (datasetId != NULL))
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+            "no instance of attribute '%s' with datasetId '%s' on entity '%s'", attrWild, datasetId, entityId);
+    return true;
+  }
+
   CorNode*    firstInstP = attrWrapperP->value.head;
-  CorNode*    typeNodeP  = (firstInstP != NULL) ? corTreeLookup(firstInstP, "type") : NULL;
+  if (targetInstP == NULL) targetInstP = firstInstP;
+  CorNode*    typeNodeP  = (targetInstP != NULL) ? corTreeLookup(targetInstP, "type") : NULL;
   const char* typeStr    = (typeNodeP != NULL && typeNodeP->type == CorString) ? typeNodeP->value.s : NULL;
   const char* member     = valueMemberForType(typeStr);
 
@@ -147,8 +159,6 @@ bool putEntityAttrValue(void)
   // supplied (handled by the merge's observedAt injection) or REMOVES it when no
   // ?observedAt is given. The removal is expressed with the NGSI-LD Null marker on
   // the synthesized fragment (§ 4.5.5.9).
-  CorNode* targetInstP = corTreeLookup(attrWrapperP, "@none");
-  if (targetInstP == NULL) targetInstP = firstInstP;
   bool hadObservedAt = (targetInstP != NULL) && (corTreeLookup(targetInstP, LD_VOCAB_OBSERVED_AT) != NULL);
 
   // § 10.2.6.4 — a null value (or the urn:ngsi-ld:null sentinel) is invalid,
@@ -179,6 +189,9 @@ bool putEntityAttrValue(void)
     corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "type", typeStr));
   ldNodeRename(valueP, (char*) member);
   corTreeChildAdd(fragP, valueP);
+
+  if (datasetId != NULL)                            // patchEntityAttr targets the instance the fragment names
+    corTreeChildAdd(fragP, corTreeString(corRest.kallocP, "datasetId", (char*) datasetId));
 
   // § 10.2.6.4 observedAt: remove it when the attribute had one and no ?observedAt
   // is supplied. When ?observedAt IS supplied the merge injects it into the

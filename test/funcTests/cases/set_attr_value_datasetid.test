@@ -1,0 +1,180 @@
+#
+# FILE            set_attr_value_datasetid.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.2.6.4 (Set Attribute Value) with ?datasetId (TS 104-176 § 7.6.3.2):
+#   - the instance with that datasetId gets the value, the default instance keeps its own
+#   - its type is the one kept (a Relationship instance stays a Relationship)
+#   - a datasetId the Attribute has no instance of: 404 ResourceNotFound
+#   - without ?datasetId: the default instance, as before
+#
+--NAME--
+Set Attribute Value with ?datasetId - the instance named, 404 for one that does not exist
+
+--TAGS--
+attrValue datasetId
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. urn:V1 with speed: a default instance (55) and a datasetId instance (54.5)"
+echo "=============================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":[{"type":"Property","value":55},{"type":"Property","value":54.5,"datasetId":"urn:ds:gps"}],"rel":[{"type":"Relationship","object":"urn:P1"},{"type":"Relationship","object":"urn:P2","datasetId":"urn:ds:r"}]}' | head -1
+echo
+echo
+
+
+echo "02. PUT speed/value=60 ?datasetId=urn:ds:gps - only that instance changes"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed/value?datasetId=urn:ds:gps' -X PUT --payload '60'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?attrs=speed'
+echo
+echo
+
+
+echo "03. PUT speed/value=56 without datasetId - the default instance"
+echo "==============================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed/value -X PUT --payload '56'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?attrs=speed'
+echo
+echo
+
+
+echo "04. PUT rel/value ?datasetId=urn:ds:r - the Relationship instance gets the new object"
+echo "====================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/rel/value?datasetId=urn:ds:r' -X PUT --payload '"urn:P3"'
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?attrs=rel'
+echo
+echo
+
+
+echo "05. PUT speed/value ?datasetId=urn:ds:unknown - 404"
+echo "==================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed/value?datasetId=urn:ds:unknown' -X PUT --payload '1'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+
+--EXPECT--
+01. urn:V1 with speed: a default instance (55) and a datasetId instance (54.5)
+==============================================================================
+HTTP/1.1 201 Created
+
+
+02. PUT speed/value=60 ?datasetId=urn:ds:gps - only that instance changes
+=========================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 206
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 55
+    },
+    {
+      "datasetId": "urn:ds:gps",
+      "type": "Property",
+      "value": 60
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+03. PUT speed/value=56 without datasetId - the default instance
+===============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 206
+
+{
+  "id": "urn:V1",
+  "speed": [
+    {
+      "type": "Property",
+      "value": 56
+    },
+    {
+      "datasetId": "urn:ds:gps",
+      "type": "Property",
+      "value": 60
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+04. PUT rel/value ?datasetId=urn:ds:r - the Relationship instance gets the new object
+=====================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 224
+
+{
+  "id": "urn:V1",
+  "rel": [
+    {
+      "object": "urn:P1",
+      "type": "Relationship"
+    },
+    {
+      "datasetId": "urn:ds:r",
+      "object": "urn:P3",
+      "type": "Relationship"
+    }
+  ],
+  "type": "Vehicle"
+}
+
+
+
+05. PUT speed/value ?datasetId=urn:ds:unknown - 404
+===================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 209
+
+{
+  "detail": "no instance of attribute 'speed' with datasetId 'urn:ds:unknown' on entity 'urn:V1'",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
