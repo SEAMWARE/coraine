@@ -62,9 +62,18 @@ typedef struct SeForward
 
 // -----------------------------------------------------------------------------
 //
-// seExecutionRetentionNs - how long a finished execution is kept: 24 hours (no option sets it)
+// seExecutionRetentionNs - how long an ended execution is kept: --executionRetention, 1 hour by default
 //
 extern int64_t seExecutionRetentionNs;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionRetentionSet - --executionRetention (seconds) and --executionMaxEnded (0: no cap), at start -
+// before the broker takes requests: what ended before this call is what the first sweep counts
+//
+extern void seExecutionRetentionSet(int retentionS, int maxEnded);
 
 
 

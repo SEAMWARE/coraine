@@ -266,6 +266,8 @@ char*          autoEntityMapsArg = (char*) "distributed";   // --autoEntityMaps:
 #endif
 int            entityMapMemory = 64;         // MiB; the memory all EntityMaps may hold together (0 = no cap, and no automatic maps - see ldEntityMap.h)
 int            subStatsFlushInterval = 60;   // seconds; 0 disables the timer
+int            executionRetention = 3600;    // seconds an ended Service Execution is kept
+int            executionMaxEnded  = 1000;    // ended Service Executions kept per tenant, at most (0: no cap)
 int            cooldownMillis        = 30000; // --cooldownMillis; default endpoint cooldown after failure (0 = off)
 
 static CorArg kargV[] =
@@ -320,6 +322,8 @@ static CorArg kargV[] =
 #endif
   { "--entityMapMemory",    "-entityMapMemory", CorArgInt, _vp &entityMapMemory, CorArgOpt, _vp 64, _vp 0,    _vp 65536, "memory all EntityMaps may hold together, in MiB - an automatic map that does not fit is not made (the least recently used ones give way first), a requested one gets 403 TooManyResults (0 = no cap, and no automatic EntityMaps)" },
   { "--subStatsFlushInterval","-ssfi",      CorArgInt,    _vp &subStatsFlushInterval, CorArgOpt, _vp 60, _vp 0, _vp 86400, "seconds between two writes of the subscriptions' delivery counters (timesSent, timesFailed, ...) to the database (0: only on POST /admin/subStats/flush; a shutdown does not write them)" },
+  { "--executionRetention", "-executionRetention", CorArgInt, _vp &executionRetention, CorArgOpt, _vp 3600, _vp 1, _vp 2592000, "seconds an ended Service Execution is kept (a combined or grouped one with its children) - then deleted" },
+  { "--executionMaxEnded",  "-executionMaxEnded",  CorArgInt, _vp &executionMaxEnded,  CorArgOpt, _vp 1000, _vp 0, _vp 10000000, "ended Service Executions kept per tenant, at most - one more ends, the oldest to end is deleted (a combined or grouped one with its children; 0: no cap, only --executionRetention)" },
   { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "timeout (ms) of a request forwarded to a Context Source whose registration has none of its own, and of any other outgoing request that sets none - not notifications (10 s) nor @context downloads (10 s)" },
   { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default cooldown (ms) of a subscription's endpoint after a failed notification - its notifications in that window are dropped (0: none, unless the subscription has one); forwards cool down only by the registration's own" },
   { "--version",            "-V",           CorArgBool,   _vp &versionOnly,  CorArgOpt, _vp false,    _vp false, _vp true, "print version and exit" },
@@ -2325,6 +2329,7 @@ int main(int argC, char* argV[])
 
 #if COR_FEATURE_SERVICE_EXECUTION
   // Service Executions: time-outs (failed) and retention (deleted), every tenant
+  seExecutionRetentionSet(executionRetention, executionMaxEnded);
   ldPeriodicLoopRegister(seExecutionTick, NULL);
 
   // ... and the reports of the bridges that execute services (the broker as Service Executor)

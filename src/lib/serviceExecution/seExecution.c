@@ -47,6 +47,7 @@
 #include "corBridge/BridgeBroker.h"                   // BRIDGE_*
 #include "serviceExecution/seJsonSchema.h"            // seJsonSchemaCheck
 #include "serviceExecution/seRegistrationMatch.h"     // seRegistrationMatches
+#include "serviceExecution/seRetention.h"            // seRetentionPush, seRetentionSeeded, seRetentionMaxEnded
 #include "serviceExecution/seCombined.h"              // seCombinedChildEnded, seCombinedCancel, seCombinedChildrenEmbed
 #include "serviceExecution/seExecution.h"             // Own interface
 #include "coraineTraceLevels.h"                       // CtService
@@ -57,7 +58,8 @@
 //
 // Defaults - the time a service may take, and how long a finished execution is kept
 //
-int64_t seExecutionRetentionNs = 24LL * 3600 * 1000000000LL;
+int64_t seExecutionRetentionNs = 3600LL * 1000000000LL;       // --executionRetention (seExecutionRetentionSet)
+static int64_t retentionFromNs  = 0;                           // the broker's start: what ended before is seeded
 
 
 
@@ -288,6 +290,40 @@ static pthread_mutex_t storeMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // -----------------------------------------------------------------------------
 //
+// evict - an ended top-level execution deleted with its tree (gone meanwhile: nothing)
+//
+static void evict(Tenant* tenantP, const char* execId)
+{
+  CorNode* execP = NULL;
+
+  if (db.docRetrieve(tenantP, "serviceExecutions", execId, &execP) == DB_OK)
+  {
+    COR_T(CtService, "Service Execution '%s': one ended execution too many - deleted", execId);
+    seCombinedDeleteTree(tenantP, execP);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// retain - an ended top-level execution counted; the oldest past the cap goes
+//
+static void retain(Tenant* tenantP, const char* execId)
+{
+  char* evictedId = seRetentionPush(tenantP, execId);
+
+  if (evictedId != NULL)
+  {
+    evict(tenantP, evictedId);
+    free(evictedId);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // store - the execution replaced in the database, and notified
 //
 // One that ended meanwhile (cancelled, completed, timed out) changes no more: nothing is stored, and
@@ -331,7 +367,12 @@ bool seExecutionStore(Tenant* tenantP, CorNode* execP)
   const char* parentId = str(execP, "_parent");
 
   if ((parentId != NULL) && terminal(str(execP, "executionStatus")))
-    seCombinedChildEnded(parentId);
+  {
+    if (corTreeLookup(execP, "_parentEnding") == NULL)  // a parent that is ending itself is not told
+      seCombinedChildEnded(parentId);
+  }
+  else if ((parentId == NULL) && terminal(str(execP, "executionStatus")))
+    retain(tenantP, execId);                          // a top-level one ended: the cap (--executionMaxEnded)
 
   return true;
 }
@@ -1305,7 +1346,38 @@ bool seExecutionCancel(CorNode* execP)
 
 // -----------------------------------------------------------------------------
 //
+// Ended - an ended top-level execution, for the seeding: its id and when it ended
+//
+typedef struct Ended
+{
+  const char* id;
+  int64_t     endedNs;
+} Ended;
+
+static int endedOrder(const void* a, const void* b)
+{
+  int64_t x = ((const Ended*) a)->endedNs;
+  int64_t y = ((const Ended*) b)->endedNs;
+
+  return (x < y) ? -1 : (x > y) ? 1 : 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // seExecutionSweep -
+//
+// Every 5 s: a running execution past its executionTimeout fails; an ended TOP-LEVEL one older than
+// --executionRetention goes, with its tree (a child goes with its parent, never before it - a parent still
+// running shows its children).
+//
+// The first sweep of a tenant also counts what ended before the broker started (stored by an earlier run),
+// oldest first, so that --executionMaxEnded holds from the start - a store left with more than the cap is
+// cut down to it here. What ended since the start was counted as it ended.
+//
+// With the cap, the store holds the running executions and at most --executionMaxEnded ended ones (and their
+// children): the copy this takes stays small.
 //
 void seExecutionSweep(Tenant* tenantP, int64_t now)
 {
@@ -1314,14 +1386,38 @@ void seExecutionSweep(Tenant* tenantP, int64_t now)
   if ((db.docQuery == NULL) || (db.docQuery(tenantP, "serviceExecutions", &execsP) != DB_OK))
     return;
 
+  bool   seed    = (seRetentionMaxEnded > 0) && (seRetentionSeeded(tenantP) == false);
+  int    endedN  = 0;
+  Ended* endedV  = NULL;
+
+  if (seed == true)
+  {
+    int n = 0;
+
+    for (CorNode* execP = execsP->value.head; execP != NULL; execP = execP->next)
+      ++n;
+
+    endedV = (Ended*) corAlloc(corRest.kallocP, (n + 1) * sizeof(Ended));
+  }
+
   for (CorNode* execP = execsP->value.head; execP != NULL; execP = execP->next)
   {
-    const char* status = str(execP, "executionStatus");
+    const char* status   = str(execP, "executionStatus");
+    bool        topLevel = (str(execP, "_parent") == NULL);
 
     if (terminal(status))
     {
+      if (topLevel == false)
+        continue;
+
       if (now - num(execP, "_endedNs") > seExecutionRetentionNs)
-        db.docDelete(tenantP, "serviceExecutions", str(execP, "id"));
+        seCombinedDeleteTree(tenantP, execP);
+      else if ((endedV != NULL) && (num(execP, "_endedNs") < retentionFromNs))
+      {
+        endedV[endedN].id      = str(execP, "id");
+        endedV[endedN].endedNs = num(execP, "_endedNs");
+        ++endedN;
+      }
     }
     else if ((num(execP, "_startedNs") > 0) && (now - num(execP, "_startedNs") > num(execP, "_timeoutNs")))
     {
@@ -1329,6 +1425,27 @@ void seExecutionSweep(Tenant* tenantP, int64_t now)
       seExecutionStore(tenantP, execP);
     }
   }
+
+  if (endedN > 0)
+  {
+    qsort(endedV, endedN, sizeof(Ended), endedOrder);
+
+    for (int ix = 0; ix < endedN; ix++)
+      retain(tenantP, endedV[ix].id);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecutionRetentionSet - --executionRetention (seconds) and --executionMaxEnded, at start
+//
+void seExecutionRetentionSet(int retentionS, int maxEnded)
+{
+  seExecutionRetentionNs = (int64_t) retentionS * 1000000000LL;
+  seRetentionMaxEnded    = maxEnded;
+  retentionFromNs        = nowNs();
 }
 
 

@@ -1,0 +1,162 @@
+#
+# FILE            service_execution_retention.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# How long ended Service Executions are kept: --executionMaxEnded (per tenant, the oldest to end goes first)
+# and --executionRetention (seconds, the 5-second sweep). Only top-level executions count: a child goes with
+# its parent, and the children of a parent still running stay, ended or not.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+#
+--NAME--
+Service Execution - at most --executionMaxEnded ended executions, none older than --executionRetention
+
+--TAGS--
+service execution
+
+--INIT--
+corDbDrop
+coraineStart --bridges loopback --executionMaxEnded 3 --executionRetention 8
+
+--RUN--
+invoke() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:R1/services/inline" --payload '{}' > /tmp/se-ret.out
+  grep -i '^Service-Execution:' /tmp/se-ret.out | awk '{print $2}' | tr -d '\r'
+}
+status() {
+  corCurl --url /ngsi-ld/v1/services/$1 > /tmp/se-ret.get
+  code=$(sed -n '1s/^HTTP\/1.1 \([0-9]*\).*/\1/p' /tmp/se-ret.get)
+  if [ "$code" = 200 ]; then sed -n '/^{/,$p' /tmp/se-ret.get | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])"; else echo "$code"; fi
+}
+count() { corCurl --url /ngsi-ld/v1/services | sed -n '/^\[/,$p' | python3 -c "import json,sys; print(len(json.load(sys.stdin)), 'executions')"; }
+
+echo "01. Robot urn:R1: inline (ends at once) and hold (runs until cancelled), both asynchronous - loopback"
+echo "======================================================================================================"
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"loopback://inline","entities":[{"type":"Robot"}],"serviceInformation":{"serviceName":"inline","mode":"asynchronous"}}' | head -1
+corCurl --url /ngsi-ld/v1/serviceRegistrations --payload '{"type":"ServiceRegistration","endpoint":"loopback://hold","entities":[{"type":"Robot"}],"serviceInformation":{"serviceName":"hold","mode":"asynchronous"}}' | head -1
+echo
+echo
+
+
+echo "02. Five executions that end at once - the cap is 3: the first two are gone"
+echo "==========================================================================="
+for i in 1 2 3 4 5; do invoke > /tmp/se-ret.E$i; done
+for i in 1 2 3 4 5; do echo "E$i: $(status $(cat /tmp/se-ret.E$i))"; done
+count
+echo
+echo
+
+
+echo "03. A parallel combined execution [inline, hold] - running; its inline child ended - counts for nothing yet"
+echo "==========================================================================================================="
+corCurl --url /ngsi-ld/v1/services --payload '{"type":"CombinedServiceExecution","combinationMethod":"parallel","serviceExecutions":[{"type":"ServiceExecution","entityId":"urn:R1","serviceName":"inline"},{"type":"ServiceExecution","entityId":"urn:R1","serviceName":"hold"}]}' > /tmp/se-ret.out
+sed -n 1p /tmp/se-ret.out
+grep -i '^Service-Execution:' /tmp/se-ret.out | awk '{print $2}' | tr -d '\r' > /tmp/se-ret.C
+corCurl --url /ngsi-ld/v1/services/$(cat /tmp/se-ret.C) | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+e = json.load(sys.stdin)
+print('C:', e['executionStatus'], [c['executionStatus'] for c in e['serviceExecutions']])
+open('/tmp/se-ret.children', 'w').write(' '.join(c['id'] for c in e['serviceExecutions']))"
+count
+echo
+echo
+
+
+echo "04. Three more that end at once - E3, E4, E5 go; the running combined one and both its children stay"
+echo "===================================================================================================="
+for i in 6 7 8; do invoke > /tmp/se-ret.E$i; done
+for i in 3 4 5 6 7 8; do echo "E$i: $(status $(cat /tmp/se-ret.E$i))"; done
+echo "C: $(status $(cat /tmp/se-ret.C))"
+for c in $(cat /tmp/se-ret.children); do echo "child: $(status $c)"; done
+count
+echo
+echo
+
+
+echo "05. Cancel the combined one (DELETE) - it ends, and counts: E6 goes"
+echo "==================================================================="
+corCurl --url /ngsi-ld/v1/services/$(cat /tmp/se-ret.C) -X DELETE | head -1
+for i in 6 7 8; do echo "E$i: $(status $(cat /tmp/se-ret.E$i))"; done
+echo "C: $(status $(cat /tmp/se-ret.C))"
+count
+echo
+echo
+
+
+echo "06. After --executionRetention (8 s) and a sweep: all gone, the combined one's children with it"
+echo "==============================================================================================="
+for i in $(seq 1 30); do
+  [ "$(count)" = "0 executions" ] && break
+  sleep 1
+done
+count
+for c in $(cat /tmp/se-ret.children); do echo "child: $(status $c)"; done
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+
+--EXPECT--
+01. Robot urn:R1: inline (ends at once) and hold (runs until cancelled), both asynchronous - loopback
+======================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. Five executions that end at once - the cap is 3: the first two are gone
+===========================================================================
+E1: 404
+E2: 404
+E3: completed
+E4: completed
+E5: completed
+3 executions
+
+
+03. A parallel combined execution [inline, hold] - running; its inline child ended - counts for nothing yet
+===========================================================================================================
+HTTP/1.1 201 Created
+C: executing ['completed', 'executing']
+6 executions
+
+
+04. Three more that end at once - E3, E4, E5 go; the running combined one and both its children stay
+====================================================================================================
+E3: 404
+E4: 404
+E5: 404
+E6: completed
+E7: completed
+E8: completed
+C: executing
+child: completed
+child: executing
+6 executions
+
+
+05. Cancel the combined one (DELETE) - it ends, and counts: E6 goes
+===================================================================
+HTTP/1.1 204 No Content
+E6: 404
+E7: completed
+E8: completed
+C: cancelled
+5 executions
+
+
+06. After --executionRetention (8 s) and a sweep: all gone, the combined one's children with it
+===============================================================================================
+0 executions
+child: 404
+child: 404
+
+

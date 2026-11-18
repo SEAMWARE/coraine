@@ -33,6 +33,7 @@ options, and its options are also documented with the plugin.
 - [libmicrohttpd HTTP server (the default build)](#libmicrohttpd-http-server-the-default-build) - 1
 - [@contexts](#contexts) - 2
 - [Subscriptions and notifications](#subscriptions-and-notifications) - 3
+- [Service Execution](#service-execution) - 2
 - [Distributed operations](#distributed-operations) - 5
 - [High availability](#high-availability) - 1
 - [Bridges](#bridges) - 5
@@ -821,6 +822,35 @@ answers from RAM, so it is always current; the interval decides how much of the 
 loses - the shutdown does not write them.
 
     coraine --database corDB --subStatsFlushInterval 10
+
+## Service Execution
+
+How long ended [Service Executions](service-execution.md) are kept - whichever limit is reached first. Only
+top-level executions count: a child of a combined or grouped execution goes with its parent, never
+before it.
+
+### `--executionRetention`
+
+`-executionRetention` · `CORAINE_EXECUTIONRETENTION` · Int · default: `3600`
+· values: 1-2592000 (seconds) · plugin: core
+
+An ended execution is deleted this long after it ended, a combined or grouped one with its children. Checked
+every 5 seconds. A running execution is never deleted - it fails at its registration's `executionTimeout`.
+
+    coraine --database corDB --executionRetention 600
+
+### `--executionMaxEnded`
+
+`-executionMaxEnded` · `CORAINE_EXECUTIONMAXENDED` · Int · default: `1000`
+· values: 0-10000000 · plugin: core
+
+At most this many ended executions are kept per tenant: when one more ends, the one that ended first is
+deleted (with its children). A broker restarted with a lower number cuts the store down to it at its first
+check, 5 seconds after the start. `0`: no cap - only `--executionRetention`. Every execution is a document
+of the database: a broker that runs thousands a second keeps its store - and its memory, with corDB - in
+check with this.
+
+    coraine --database corDB --executionMaxEnded 10000
 
 ## Distributed operations
 

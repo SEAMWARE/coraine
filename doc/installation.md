@@ -526,6 +526,8 @@ the ones most deployments set.
 | `--high-precision` / `-hp` | off | nanosecond timestamps instead of microsecond |
 | `--asyncSnapshot` | off | run snapshot queries in the background |
 | `--subStatsFlushInterval` / `-ssfi` | 60 | subscription-statistics flush interval (s) |
+| `--executionRetention` | 3600 | seconds an ended Service Execution is kept |
+| `--executionMaxEnded` | 1000 | ended Service Executions kept per tenant, at most (0: no cap) |
 | `--contextSourceExtras` / `-csx` | `$SEAMWARE_ETC_DIR/contextSourceExtras.json` (`/opt/seamware/etc/...` without the variable) if it exists | JSON rendered verbatim on `/info/sourceIdentity`. A file named here and missing stops the broker; the default file missing is not an error |
 | `--bridges` / `-br` | — | bridge plugins to load, comma-separated (`/opt/seamware/plugins/bridge/<name>.so`) - see [Bridges and Channels](bridge-channels.md) |
 | `--auth` | — | the auth plugin (`/opt/seamware/plugins/auth/<name>.so`): `fdsc` - the Data Space Connector's access tokens and ODRL policies, with options of its own (`--fdscDiscovery`, `--fdscPap`, ...); `oidc` - an OpenID provider's access tokens and a read and a write role (`--oidcIssuer`, ...). None: every request is let in. A plugin that cannot start stops the broker - see [Authorization](authorization.md) |
