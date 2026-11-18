@@ -24,7 +24,8 @@
 # Rate = the calls / (wrk's run time + the drain: from wrk's end until A had no action executing).
 # Per core = the completed calls / the CPU-seconds of A and B together (utime + stime, /proc/<pid>/stat,
 # until the last action completed) - two brokers on two cores: per core is what a core of the pair does.
-# Every measurement starts from EMPTY stores (fresh --dbDir / databases).
+# db_cpu_s: the CPU-seconds of the database servers in the same window (mongo: mongod + postgres; they
+# run unpinned, on wrk's cores). Every measurement starts from EMPTY stores (fresh --dbDir / databases).
 #
 # Env: PERF_DURATION (10s) PERF_REPEATS (3) PERF_CONCURRENCY ("16 64 256") PERF_ENTITIES (100)
 #      PERF_THREADS (8) PERF_PORT (1029: A; B is +1; cor:// ports +1000)
@@ -82,7 +83,7 @@ emptyStores() {
   if [ "$STORE" = mongo ]; then
     for x in a b; do
       mongosh --quiet --eval "db.getSiblingDB('seperf2$x').dropDatabase()" >/dev/null 2>&1 || mongo --quiet --eval "db.getSiblingDB('seperf2$x').dropDatabase()" >/dev/null
-      psql -h localhost -U postgres -d postgres -qc "DROP DATABASE IF EXISTS seperf2$x WITH (FORCE)" >/dev/null
+      psql -h localhost -U postgres -d postgres -qc "DROP DATABASE IF EXISTS seperf2$x WITH (FORCE)" >/dev/null 2>&1
     done
   fi
 }
@@ -115,17 +116,23 @@ startBrokers() {
 }
 
 ticks() { awk '{ sub(/^.*\) /, ""); print $12 + $13 }' "/proc/$1/stat"; }
+dbTicks() {   # the database servers' CPU (mongo: mongod + every postgres process), 0 for corDB
+  [ "$STORE" = mongo ] || { echo 0; return; }
+  local t=0 p
+  for p in $(pgrep -x mongod) $(pgrep -x postgres); do t=$(( t + $(ticks "$p" 2>/dev/null || echo 0) )); done
+  echo $t
+}
 HZ=$(getconf CLK_TCK)
 nowMs() { date +%s%3N; }
 
 executingOnA() { curl -s "$A/services?serviceName=act&executionStatus=executing" | head -c 2; }
 
 measure() {   # measure <svc|act> <connections>  ->  "rate cpu_s per_core p50_us p99_us count drain_ms"
-  local svc=$1 c=$2 ta0 tb0 ta1 tb1 t0 t1 out drain=0
+  local svc=$1 c=$2 ta0 tb0 ta1 tb1 td0 td1 t0 t1 out drain=0
   startBrokers
   PERF_SE_SERVICE=$svc taskset -c "$loadCpus" wrk -t"$THREADS" -c"$c" -d2s -s "$SCRIPTDIR/serviceExec.lua" "http://localhost:$PORT_A" >/dev/null 2>&1
   for _ in $(seq 200); do [ "$svc" = svc ] || [ "$(executingOnA)" = "[]" ] && break; sleep 0.05; done   # the warm-up's actions ended
-  ta0=$(ticks "$pidA"); tb0=$(ticks "$pidB"); t0=$(nowMs)
+  ta0=$(ticks "$pidA"); tb0=$(ticks "$pidB"); td0=$(dbTicks); t0=$(nowMs)
   out=$(PERF_SE_SERVICE=$svc taskset -c "$loadCpus" wrk -t"$THREADS" -c"$c" -d"$DURATION" -s "$SCRIPTDIR/serviceExec.lua" "http://localhost:$PORT_A" 2>&1)
   if [ "$svc" = act ]; then
     local tw
@@ -135,19 +142,19 @@ measure() {   # measure <svc|act> <connections>  ->  "rate cpu_s per_core p50_us
     [ "$(executingOnA)" = "[]" ] || echo "sePerf2.sh: WARNING - actions still executing on A 30 s after the run" >&2
     [ "$(curl -s "$A/services?serviceName=act&executionStatus=failed" | head -c 2)" = "[]" ] || echo "sePerf2.sh: WARNING - failed actions on A" >&2
   fi
-  t1=$(nowMs); ta1=$(ticks "$pidA"); tb1=$(ticks "$pidB")
+  t1=$(nowMs); ta1=$(ticks "$pidA"); tb1=$(ticks "$pidB"); td1=$(dbTicks)
   [ -n "${PERF_DEBUG:-}" ] && { echo "t0 $t0 t1 $t1"; printf "%s\n" "$out"; } >&2
   if printf '%s' "$out" | grep -q "Non-2xx"; then echo "sePerf2.sh: error answers in $svc c=$c:" >&2; printf '%s\n' "$out" >&2; exit 1; fi
   stopBrokers
-  printf '%s' "$out" | awk -v cpu="$(( ta1 - ta0 + tb1 - tb0 ))" -v hz="$HZ" -v ms="$(( t1 - t0 ))" -v drain="$drain" '
+  printf '%s' "$out" | awk -v cpu="$(( ta1 - ta0 + tb1 - tb0 ))" -v hz="$HZ" -v ms="$(( t1 - t0 ))" -v drain="$drain" -v db="$(( td1 - td0 ))" '
     / requests in / { n = $1; secs = $4; sub(/s,?$/, "", secs) }
     /^PCTL / { p50 = $2; p99 = $4 }
-    END { s = cpu / hz; t = secs + drain / 1000; printf "%.0f %.2f %.0f %d %d %d %d\n", n / t, s, (s > 0 ? n / s : 0), p50, p99, n, drain }'
+    END { s = cpu / hz; t = secs + drain / 1000; printf "%.0f %.2f %.0f %d %d %d %d %.2f\n", n / t, s, (s > 0 ? n / s : 0), p50, p99, n, drain, db / hz }'
 }
 
 echo "# sePerf2.sh $STORE $TRANSPORT - $(date -Is) - coraine $(coraine --version 2>&1 | head -1) - A on CPU $cpuA, B on CPU $cpuB, wrk on $loadCpus"
 echo "# duration $DURATION, $REPEATS repeats, $ENTITIES entities, wrk -t$THREADS; TRoE on in both; A -> B over $TRANSPORT, B's executor loopback://inline"
-echo "# kind conc  rate/s  cpu_s(A+B)  per_core/s  p50_us  p99_us  count  drain_ms"
+echo "# kind conc  rate/s  cpu_s(A+B)  per_core/s  p50_us  p99_us  count  drain_ms  db_cpu_s"
 for r in $(seq "$REPEATS"); do
   if [ $((r % 2)) = 1 ]; then kinds="svc act"; else kinds="act svc"; fi
   for c in $CONCURRENCY; do
