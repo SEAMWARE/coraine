@@ -686,6 +686,7 @@ static CorRestParam serviceParams[] =
   { "executionStatus", SE_PARAM_SERVICES_QUERY   },
   { "includeServices", SE_PARAM_INCLUDE_SERVICES },
   { "serviceDetails",  SE_PARAM_SERVICE_DETAILS  },
+  { "reportTo",        SE_PARAM_REPORT_TO        },
   { NULL,              0                         }
 };
 #endif

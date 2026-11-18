@@ -41,7 +41,8 @@
 typedef enum SeOrigin
 {
   SeInvoke,                                           // POST /entities/{id}/services/{name}
-  SeCreate                                            // POST /services
+  SeCreate,                                           // POST /services
+  SeExecutor                                          // POST /ngsi-ld/ex/v1/executor/{name} - another broker's (seExecuteFor)
 } SeOrigin;
 
 
@@ -89,6 +90,14 @@ extern void seExecutionRetentionSet(int retentionS, int maxEnded);
 // Always answers the request (corRest.out / ldError); true.
 //
 extern bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecuteFor - this broker as another broker's executor (POST /ngsi-ld/ex/v1/executor/{name})
+//
+extern bool seExecuteFor(const char* entityId, const char* serviceName, CorNode* inputP, const char* callerId, const char* reportTo);
 
 
 
@@ -191,5 +200,17 @@ extern void seExecutionTick(void* ctx, uint64_t nowNs, CorAlloc* kaP);
 // seExecutionApplyBridge - a bridge's report on an asynchronous execution (bridgeServiceApplySet)
 //
 extern void seExecutionApplyBridge(const char* executionId, const char* status, const char* progressJson, const char* outputJson, const char* errorJson);
+
+
+
+
+
+
+
+
+
+
+
+
 
 #endif  // SRC_LIB_SERVICEEXECUTION_SEEXECUTION_H_

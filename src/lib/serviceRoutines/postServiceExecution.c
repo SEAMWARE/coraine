@@ -104,10 +104,10 @@ bool postServiceExecution(void)
   //
   CorNode* uriP = (notificationP != NULL) ? corTreeLookup(corTreeLookup(notificationP, "endpoint"), "uri") : NULL;
 
-  if ((uriP != NULL) && ((uriP->type != CorString) || ((ldNotifyIsHttp(uriP->value.s) == false) && (ldNotifyTransportHas(uriP->value.s) == false))))
+  if ((uriP != NULL) && ((uriP->type != CorString) || ((ldNotifyIsHttp(uriP->value.s) == false) && (ldNotifyTransportHas(uriP->value.s) == false) && (strncmp(uriP->value.s, "cor://", 6) != 0))))
   {
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data",
-            "'notification.endpoint.uri': not an endpoint this broker notifies - http(s), a bridge's scheme, or the WebSocket connection the request came over");
+            "'notification.endpoint.uri': not an endpoint this broker notifies - http(s), cor://, a bridge's scheme, or the WebSocket connection the request came over");
     return true;
   }
 

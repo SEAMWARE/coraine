@@ -24,6 +24,7 @@
 
 #include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp
 #include "bridge/bridgeService.h"                     // bridgeServiceHas
+#include "corNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
 #include "serviceExecution/seRegistrationCheck.h"     // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
@@ -242,9 +243,15 @@ bool seRegistrationCheck(CorNode* regP)
     return bad("a Service Registration needs an 'endpoint': the URI of the service's executor");
 
   //
-  // Not HTTP: the broker executes the service itself, through the bridge that claims the scheme
+  // http(s):// - an HTTP executor; cor:// - the same requests over the cor:// transport (another coraine,
+  // say); any other scheme: the broker executes the service itself, through the bridge that claims it
   //
-  if ((ldNotifyIsHttp(endpointP->value.s) == false) && (bridgeServiceHas(endpointP->value.s) == false))
+  if (strncmp(endpointP->value.s, "cor://", 6) == 0)
+  {
+    if (ldForwardingForEndpoint(endpointP->value.s) == NULL)
+      return bad("'endpoint': no cor:// transport loaded");
+  }
+  else if ((ldNotifyIsHttp(endpointP->value.s) == false) && (bridgeServiceHas(endpointP->value.s) == false))
     return bad("'endpoint': no loaded bridge executes services of that scheme");
 
   return entitiesCheck(entitiesP) && serviceInformationCheck(siP);

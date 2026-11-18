@@ -18,7 +18,7 @@ store (corDB, mongoc); otherwise its routes answer 422.
 | **Service Execution** | one run of a service on one entity | `/ngsi-ld/v1/services`, `/ngsi-ld/v1/entities/{id}/services/{name}` |
 | **Combined / Grouped Service Execution** | several runs, in sequence or in parallel, or one per selected entity | `POST /ngsi-ld/v1/services` |
 | **Combined Service Template** | a reusable combination | `/ngsi-ld/v1/combinedServiceTemplate` |
-| **Executor** | whoever does the work: an HTTP endpoint, or a loaded bridge plugin | the registration's `endpoint` |
+| **Executor** | whoever does the work: an HTTP endpoint, a loaded bridge plugin, or another NGSI-LD broker | the registration's `endpoint` |
 
 ## Service Registrations
 
@@ -42,7 +42,7 @@ store (corDB, mongoc); otherwise its routes answer 422.
 | Member | |
 |---|---|
 | `type` | `ServiceRegistration` - required |
-| `endpoint` | the executor - required. `http`/`https`, or a scheme a loaded bridge executes (below); any other scheme is refused (400) |
+| `endpoint` | the executor - required. `http`/`https`, `cor://` (the same requests over the cor:// transport), or a scheme a loaded bridge executes (below); any other scheme is refused (400) |
 | `entities` | required, non-empty: `{ "type", "id" \| "idPattern" }` each - `type` required, not both `id` and `idPattern` |
 | `serviceInformation` | required: `serviceName` (required, expanded like an attribute name), `title`, `description`, `mode` (`synchronous` - the default - or `asynchronous`), `inputSchema`, `outputSchema` (a JSON Schema object, or `true` / `false`) |
 | `q`, `scopeQ`, `geoQ` | narrow the entities further, on the entity as stored |
@@ -182,7 +182,10 @@ these members: `executionStatus` (`executing`, `completed`, `failed`, `cancelled
 `executionOutput`, `executionError` (required with `failed`, a ProblemDetails). 204; 409 once the execution
 has ended.
 
-**Cancel** - `DELETE <endpoint>/<execution id>`, the same headers: 2xx cancelled; 409 "it goes on".
+**Cancel** - `DELETE <endpoint>/<execution id>`, the same headers: 2xx cancelled; 409 "it goes on". An endpoint
+with a query keeps it: the id goes in the path, before it.
+
+**Over `cor://`** (`"endpoint": "cor://host:port/path"`) the same requests go over the cor:// transport.
 
 | The executor | The client gets |
 |---|---|
@@ -209,6 +212,33 @@ plugin's reports through `BridgeBroker.serviceUpdateIn` - `executing`, `complete
 | refuses | 502 |
 | a synchronous service, failed | 502, the bridge's ProblemDetails |
 | a synchronous service, no answer in time | 504 - and the broker cancels it |
+
+### Another broker as the executor
+
+coraine is also an HTTP executor, for another broker: the other broker's registration has as its endpoint
+coraine's executor route, and coraine executes the service as an invocation on its own entity - with its
+own registration of the service, by an HTTP executor, a bridge, or yet another broker. Nothing of either
+broker's own goes between them: the requests of an HTTP executor, above.
+
+```json
+{ "type": "ServiceRegistration",
+  "endpoint": "http://executor.example.org:1026/ngsi-ld/ex/v1/executor/dock?reportTo=http://broker.example.org:1026",
+  "entities": [ { "type": "Robot" } ], "serviceInformation": { "serviceName": "dock", "mode": "asynchronous" } }
+```
+
+| The executor (coraine) gets | |
+|---|---|
+| `POST /ngsi-ld/ex/v1/executor/{serviceName}[?reportTo=<the broker>]`, `Service-Execution: {id}`, `{ "id": <entity>, "type": ..., <the input> }` | the service invoked on that entity, with that input; its execution has the caller's id. Synchronous: 200, the output - or the error, as a client gets it. Asynchronous: 202 |
+| `DELETE /ngsi-ld/ex/v1/executor/{serviceName}/{id}` | the execution cancelled: 204; 409 when its executor cannot (it goes on); 404 none |
+
+- **The reports**: every change of an asynchronous execution - executing, progress, completed (the output),
+  failed (the error), cancelled - goes to `PATCH <reportTo>/ngsi-ld/v1/services/{id}`, the report an HTTP
+  executor sends. An HTTP executor learns where the broker is by its configuration; coraine learns it from
+  the endpoint: `reportTo`, required for an asynchronous service (400 without it).
+- `{serviceName}` is expanded with the request's @context (a `Link` header), else the core context - as the
+  service name of an invocation.
+- **Over cor://**: `"endpoint": "cor://executor:2026/ngsi-ld/ex/v1/executor/dock?reportTo=cor://broker:2026"` -
+  the requests over cor://, and the reports too when `reportTo` is cor:// (the broker's `--corPort`).
 
 ## Combined and grouped executions
 
