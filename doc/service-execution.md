@@ -145,7 +145,9 @@ then one of `completed`, `failed` or `cancelled`.
 
 - **Timeout** - an execution that has not ended within its registration's `executionTimeout` fails:
   "Execution Timeout", 504. Checked about every 5 seconds.
-- **Retention** - an ended execution is deleted 24 hours after it ended.
+- **Retention** - an ended execution is deleted an hour after it ended (`--executionRetention`), and at most
+  1000 are kept per tenant - one more ends, the one that ended first goes (`--executionMaxEnded`). A combined
+  or grouped execution counts as one and goes with its children ([Options](options.md#service-execution)).
 - **Notifications** - every change of an execution (executing, progress, its end) is notified to the
   execution's `notification.endpoint.uri` - from `POST /services`, else the registration's:
   `{ "id", "type": "Notification", "notifiedAt", "data": [ <the execution> ] }`, compacted with the

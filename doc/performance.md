@@ -906,6 +906,36 @@ mongoc, for every query page size. It stays on by default.
 Link-time optimisation (`-flto`) is noise for the broker - three quarters of a small request's cycles
 are in the kernel. What else was tried and left out, and why, is in [the history](history/performance.md).
 
+### Service Execution
+
+**One physical core**, the broker its own executor: the loopback bridge's `loopback://inline` reports
+`executing` with progress 50 %, then `completed` - no transport, no executor time. What is left is what
+Service Execution costs in the broker: the input checked, the execution stored, its reports stored, the
+answer. TRoE on (`--troe corDB`), corDB on disk (`--dbDir`), 100 entities, a random one per request.
+
+| | per core | p50 | p99 |
+|---|---:|---:|---:|
+| **service** (synchronous, `POST /entities/{id}/services/{name}` → 200, the output) | **59 700 /s** | 0.26 ms | 1.4 ms |
+| **action** (asynchronous → 202; executing, progress, completed) | **43 000 /s** | 0.35 ms | 1.9 ms |
+| service, 64 clients | 59 500 /s | 1.0 ms | 2.8 ms |
+| action, 64 clients | 41 600 /s | 1.4 ms | 3.4 ms |
+
+*(2026-11-18, release `-O2`, libmicrohttpd, coraine 0.7.0+dev with corDB#52; the broker pinned to one physical
+core, wrk on the other 15; 16 clients unless said; medians of 3 runs of 10 s, each from an empty store
+(`test/perf/sePerf.sh corDB`). Per core = the answers / the CPU-seconds the broker used, read from
+`/proc/<pid>/stat` - the core was saturated in every run.)*
+
+An action costs more than a service because it is written three times (created, executing with its progress,
+completed) and answered before it ends. Neither the store nor TRoE moves these numbers: corDB on disk or in
+RAM, TRoE on or off, within 4 % of each other.
+
+**Two fixes behind them.** corDB found a document of its document store by walking the collection, and every
+execution is a document written three or four times: 2 840 services/s over 3 s fell to 1 710/s averaged over
+20 s as executions piled up - corDB#52 gives each collection an id index, as the entities have. And every
+5 s the broker copied every stored execution to look for the ones to expire, holding up requests: p99 0.8 s
+after 20 s. Ended executions are now kept at most `--executionMaxEnded` (1000) per tenant and
+`--executionRetention` (an hour) - the store stays small, and p99 is 1.4 ms.
+
 ## In a container
 
 Every rate above is the broker running **natively**. In a container, the same

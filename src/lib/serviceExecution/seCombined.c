@@ -776,7 +776,7 @@ void seCombinedChildEnded(const char* parentId)
       if ((db.docRetrieve(tenantP, "serviceExecutions", cP->value.s, &childP) == DB_OK) && (strcmp(str(childP, "executionStatus"), "pending") == 0))
       {
         ended(childP, "cancelled");
-        corTreeChildRemove(childP, corTreeLookup(childP, "_parent"));   // not reported back: this is the parent ending
+        corTreeChildAdd(childP, corTreeBoolean(corRest.kallocP, "_parentEnding", true));   // not reported back: this is the parent ending (it keeps its _parent - it goes with it)
         db.docReplace(tenantP, "serviceExecutions", cP->value.s, childP);
       }
     }
@@ -904,7 +904,7 @@ static bool cancelTree(CorNode* execP)
     if (terminal(str(childP, "executionStatus")))
       continue;
 
-    corTreeChildRemove(childP, corTreeLookup(childP, "_parent"));   // the parent is ending: not told back
+    corTreeChildAdd(childP, corTreeBoolean(corRest.kallocP, "_parentEnding", true));   // the parent is ending: not told back (it keeps its _parent - it goes with it)
 
     if (strcmp(str(childP, "type"), "ServiceExecution") != 0)
     {
@@ -932,11 +932,10 @@ static bool cancelTree(CorNode* execP)
 
 // -----------------------------------------------------------------------------
 //
-// deleteTree - an ended parent and its children deleted
+// seCombinedDeleteTree - an ended execution deleted, and its children (a combined or grouped one's)
 //
-static void deleteTree(CorNode* execP)
+void seCombinedDeleteTree(Tenant* tenantP, CorNode* execP)
 {
-  Tenant*  tenantP   = (Tenant*) corNgsild.tenantP;
   CorNode* childrenP = corTreeLookup(execP, "_children");
 
   for (CorNode* cP = (childrenP != NULL) ? childrenP->value.head : NULL; cP != NULL; cP = cP->next)
@@ -944,7 +943,7 @@ static void deleteTree(CorNode* execP)
     CorNode* childP = NULL;
 
     if (db.docRetrieve(tenantP, "serviceExecutions", cP->value.s, &childP) == DB_OK)
-      deleteTree(childP);
+      seCombinedDeleteTree(tenantP, childP);
   }
 
   db.docDelete(tenantP, "serviceExecutions", str(execP, "id"));
@@ -960,7 +959,7 @@ bool seCombinedCancel(CorNode* execP)
 {
   if (terminal(str(execP, "executionStatus")))
   {
-    deleteTree(execP);
+    seCombinedDeleteTree((Tenant*) corNgsild.tenantP, execP);
     corRest.out.httpStatusCode = 204;
     return true;
   }

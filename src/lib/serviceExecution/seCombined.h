@@ -29,7 +29,8 @@
 //
 #include <stdbool.h>                                  // bool
 
-#include "corTree/CorNode.h"                          // CorNode
+#include "corTree/CorNode.h"                         // CorNode
+#include "db/Tenant.h"                                // Tenant
 
 
 
@@ -58,6 +59,14 @@ extern void seCombinedChildEnded(const char* parentId);
 // cancelled (409 if one cannot be), the rest cancelled; ended, it and its children deleted
 //
 extern bool seCombinedCancel(CorNode* execP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seCombinedDeleteTree - an ended execution deleted, and its children (a combined or grouped one's)
+//
+extern void seCombinedDeleteTree(Tenant* tenantP, CorNode* execP);
 
 
 
