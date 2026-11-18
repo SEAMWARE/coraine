@@ -97,6 +97,17 @@ extern bool seExecute(SeOrigin origin, const char* entityId, const char* service
 //
 // seExecuteFor - this broker as another broker's executor (POST /ngsi-ld/ex/v1/executor/{name})
 //
+// -----------------------------------------------------------------------------
+//
+// seRemoteExecutors - some service is executed over http(s):// or cor:// - an invocation then waits for
+// the network, and may be called back, so it does not run inline on an I/O thread (inlineDispatch.c).
+// Set by a registration that names such an executor (seRegistrationCheck) or by the first execution
+// handed to one; never cleared. false: every executor is a bridge, in the broker - nothing to wait for.
+//
+extern volatile bool seRemoteExecutors;
+
+
+
 extern bool seExecuteFor(const char* entityId, const char* serviceName, CorNode* inputP, const char* callerId, const char* reportTo);
 
 

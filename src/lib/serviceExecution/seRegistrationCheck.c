@@ -25,6 +25,7 @@
 #include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp
 #include "bridge/bridgeService.h"                     // bridgeServiceHas
 #include "corNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
+#include "serviceExecution/seExecution.h"             // seRemoteExecutors
 #include "serviceExecution/seRegistrationCheck.h"     // Own interface
 #if !COR_FEATURE_GEOQ
 #include "serviceRoutines/geoNotInThisBuild.h"       // geoQueryRefused, geoQRefused
@@ -250,7 +251,10 @@ bool seRegistrationCheck(CorNode* regP)
   {
     if (ldForwardingForEndpoint(endpointP->value.s) == NULL)
       return bad("'endpoint': no cor:// transport loaded");
+    seRemoteExecutors = true;
   }
+  else if (ldNotifyIsHttp(endpointP->value.s) == true)
+    seRemoteExecutors = true;                         // an invocation now may wait for the network (inlineDispatch.c)
   else if ((ldNotifyIsHttp(endpointP->value.s) == false) && (bridgeServiceHas(endpointP->value.s) == false))
     return bad("'endpoint': no loaded bridge executes services of that scheme");
 

@@ -62,6 +62,7 @@
 //
 // Defaults - the time a service may take, and how long a finished execution is kept
 //
+volatile bool seRemoteExecutors = false;              // a service is executed over http(s):// or cor:// (seRemoteExecutorsSet)
 int64_t seExecutionRetentionNs = 3600LL * 1000000000LL;       // --executionRetention (seExecutionRetentionSet)
 static int64_t retentionFromNs  = 0;                           // the broker's start: what ended before is seeded
 
@@ -1042,6 +1043,8 @@ static void forward(CorNode* execP, bool cancel, SeForward* resultP)
     forwardBridge(execP, cancel, resultP);
     return;
   }
+
+  seRemoteExecutors = true;                           // a registration stored before a restart: from now on
 
   if (cancel == true)
   {

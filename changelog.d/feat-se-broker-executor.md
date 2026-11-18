@@ -5,5 +5,5 @@
 
 ### Fixed
 
-- Service Execution: invoking a service (`POST /ngsi-ld/v1/entities/{id}/services/{name}`) no longer runs on the I/O thread that read it - it waits for the executor, and an executor that called back on that thread (an HTTP executor's PATCH report) waited for it until the call timed out.
+- Service Execution: once a service is executed over http(s):// or cor://, invoking a service (`POST /ngsi-ld/v1/entities/{id}/services/{name}`) no longer runs on the I/O thread that read it - it may wait for the network, and an executor that called back on that thread (an HTTP executor's PATCH report) waited for it until the call timed out. With bridge executors only, invocations still run inline.
 - Service Execution: a cancel sent to an HTTP executor whose endpoint has a query puts the execution id in the path, before the query.
