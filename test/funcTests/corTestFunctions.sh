@@ -1966,6 +1966,22 @@ COR_DDS_ROS2_IMAGE="${COR_DDS_ROS2_IMAGE:-eprosima/vulcanexus:jazzy-desktop}"
 COR_DDS_DOMAIN="${COR_DDS_DOMAIN:-0}"
 
 
+# ros2RunArgs - the docker run options every ROS 2 container of the tests shares
+#
+# ⭐ AS THE TEST'S OWN USER, NOT root. The containers share the host's /dev/shm (--ipc=host) with the
+# broker's dds bridge, and Fast DDS keeps its shared-memory ports there under WELL-KNOWN names
+# (fastdds_port7411, ...). The image runs as root, so a container that was killed (docker rm -f) left
+# those segments owned by root, mode 0644 - and every later run started as the user could neither open
+# nor recreate them ("Failed to create port segment ... File exists", "send: Operation not permitted"):
+# eight bridge_dds_* tests failed until /dev/shm was cleaned by hand (2026-11-18). Owned by the user,
+# the leftovers are reused or replaced by the next run. HOME and ROS_HOME: a user with no passwd entry
+# in the image has neither, and rclpy writes its logs under ROS_HOME.
+#
+ros2RunArgs() {
+  echo "--ipc=host --user $(id -u):$(id -g) -e HOME=/tmp -e ROS_HOME=/tmp/.ros -e ROS_DOMAIN_ID=$COR_DDS_DOMAIN"
+}
+
+
 # ros2NodeStart <talker|listener> - start a ROS 2 demo node on the DDS domain
 #
 ros2NodeStart() {
@@ -1974,7 +1990,7 @@ ros2NodeStart() {
 
   docker rm -f "$name" > /dev/null 2>&1
 
-  docker run --rm -d --name "$name" --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" \
+  docker run --rm -d --name "$name" $(ros2RunArgs) \
          "$COR_DDS_ROS2_IMAGE" \
          bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/demo_nodes_py/'"$node" > /dev/null 2>&1 \
     || { echo "ros2NodeStart: could not start the ROS 2 $node" >&2; return 1; }
@@ -2008,7 +2024,7 @@ ros2ServiceStart() {
 
   docker rm -f "$name" > /dev/null 2>&1
 
-  docker run --rm -d --name "$name" --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" \
+  docker run --rm -d --name "$name" $(ros2RunArgs) \
          "$COR_DDS_ROS2_IMAGE" \
          bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/demo_nodes_py/'"$node" > /dev/null 2>&1 \
     || { echo "ros2ServiceStart: could not start the ROS 2 $node" >&2; return 1; }
