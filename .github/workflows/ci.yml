@@ -255,6 +255,10 @@ jobs:
           # --troe corDB (-troeDb corDB), the same expectations - the TRoE tests only (~1 min).
           #
           - { db: corDB,  name: 'troe-corDB', from: 1, to: 0, troeDb: 'corDB', tags: 'troe' }
+          # corCep's rule engine as the bridge plugin cep.so (--bridges cep), built against THIS stack, its 38
+          # plugin-form tests run against THIS coraine - a change here that breaks the plugin (the bridge contract,
+          # notification delivery, start and stop, the exported cor-lib symbols) fails here, not in corCep's CI.
+          - { db: corDB,  name: 'cep-plugin', from: 1, to: 0, cep: 'yes' }
 
     #
     # The base image is PUBLIC, so the job needs no registry credential at all -
@@ -438,6 +442,7 @@ jobs:
       # runs, and on 2026-11-03 (troe-corDB, 3 min as a rule, 40 min that time) not even the log was kept.
       #
       - name: Functional tests - ${{ matrix.shard.db }} ${{ matrix.shard.name }}
+        if: matrix.shard.cep != 'yes'
         timeout-minutes: 25
         working-directory: stack/coraine
         run: |
@@ -452,6 +457,32 @@ jobs:
           # `only` names a single test file; empty means the shard's index range.
           ../corLibs/bin/corTest -db ${{ matrix.shard.db }} --noColor $bt $tr $tg \
               --fromIx ${{ matrix.shard.from }} $to ${{ matrix.shard.only }}
+
+      #
+      # The cep-plugin shard: corCep's main, beside the stack - cep.so links no cor-lib, it uses coraine's, so it is
+      # built against these very ones - and its tests in the plugin form (CEP_PLUGIN=1: the coraine just installed,
+      # restarted with --bridges cep by each test; corCep's test/funcTests/corTestFunctions.sh). The tests of the
+      # standalone only (/dry-run, its notification port) are left out by corCep's makefile.
+      #
+      - name: Check out corCep
+        if: matrix.shard.cep == 'yes'
+        uses: actions/checkout@v4
+        with:
+          repository: SEAMWARE/corCep
+          path: stack/corCep
+
+      - name: corCep's plugin tests (cep.so in this coraine)
+        if: matrix.shard.cep == 'yes'
+        timeout-minutes: 15
+        working-directory: stack/corCep
+        run: |
+          # THIS coraine, and no other: the binary make di installed is the one this job built (byte for byte), and
+          # every coraine the tests start is asked its commit (GET /build) - CEP_CORAINE_SHA, checked by the harness
+          sha=$(git -C ../coraine rev-parse --short HEAD)
+          cmp /usr/local/bin/coraine ../coraine/BUILD_DEBUG/src/app/coraine/coraine
+          echo "coraine $sha: $(/usr/local/bin/coraine --version | head -1)"
+          make functest-plugin CORTEST=$GITHUB_WORKSPACE/stack/corLibs/bin/corTest CORTEST_ARGS=--noColor \
+               CEP_CORAINE=/usr/local/bin/coraine CEP_SEAMWARE_PLUGINS=/opt/seamware/plugins CEP_CORAINE_SHA=$sha
 
       #
       # corTestClient's own stderr goes to /tmp/corTestClient.<port>.log and is the only
@@ -482,6 +513,10 @@ jobs:
             stack/coraine/test/funcTests/cases/*.out
             stack/coraine/test/funcTests/cases/*.diff
             stack/coraine/test/funcTests/cases/*.log
+            stack/corCep/test/funcTests/cases/*.out
+            stack/corCep/test/funcTests/cases/*.diff
+            /tmp/corcep-functest/
+            /tmp/corcep-plugin/coraine.log
             /tmp/coraine*.log
             /tmp/smoke.log
             /tmp/corTestClient.*.log
