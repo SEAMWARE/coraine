@@ -13,12 +13,13 @@
 //
 // SE_PARAM_* - Service Execution's URL parameters, registered by the broker (corRestParamAdd).
 // LD_PARAM_* grow from bit 0 (55 now), the broker's own from the top: ddsSync 63 (bridgeServiceSync.h),
-// the admin plugin 62 (adminRegister.c) and 61 (the bridge inventory, adminBridgeInventory.h), GET /entities' page position 59 (getEntities.h). Three are 56-58: the three filters of GET /services
+// the admin plugin 62 (adminRegister.c) and 61 (the bridge inventory, adminBridgeInventory.h), GET /entities' page position 59 (getEntities.h), the executor's reportTo 60. Three are 56-58: the three filters of GET /services
 // share one - they are allowed on that route only, and together.
 //
 #define SE_PARAM_INCLUDE_SERVICES  (1ULL << 56)   // GET /entities, /entities/{id}
 #define SE_PARAM_SERVICE_DETAILS   (1ULL << 57)   // GET /entities, /entities/{id}
 #define SE_PARAM_SERVICES_QUERY    (1ULL << 58)   // GET /services: entityId, serviceName, executionStatus
+#define SE_PARAM_REPORT_TO         (1ULL << 60)   // /ngsi-ld/ex/v1/executor: reportTo - where another broker wants its reports
 
 
 

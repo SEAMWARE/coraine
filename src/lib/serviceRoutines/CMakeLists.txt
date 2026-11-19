@@ -158,6 +158,7 @@ IF (COR_FEATURE_SERVICE_EXECUTION)
     getServiceExecutions.c
     getServiceExecution.c
     patchServiceExecution.c
+    serviceExecutor.c
     deleteServiceExecution.c
     postCombinedServiceTemplate.c
     getCombinedServiceTemplate.c

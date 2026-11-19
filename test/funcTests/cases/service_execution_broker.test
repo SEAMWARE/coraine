@@ -1,0 +1,277 @@
+#
+# FILE            service_execution_broker.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Service Execution (doc/service-execution.md, "Another broker as the executor"): a service whose executor
+# is another coraine. A (CB) has the registrations, their endpoint B's executor route
+# /ngsi-ld/ex/v1/executor/{name}?reportTo=<A>; B executes them through its loopback bridge. Between the two
+# the requests of an HTTP executor: A POSTs the invocation (Service-Execution: its id), B answers - the
+# output, or 202 and PATCH /ngsi-ld/v1/services/{id} on A for every change - and A notifies its own
+# client. A cancel is A's DELETE <endpoint>/{id}. Over http://, then - the registrations PATCHed to
+# cor:// - over cor://, both ways.
+#
+# REQUIRE_FEATURE: SERVICE_EXECUTION
+# REQUIRE_FEATURE: COR_PROTOCOL
+#
+--NAME--
+Service Execution - another broker as the executor, over http:// and over cor://
+
+--TAGS--
+service execution cor
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart -corPort $((CB_PORT + 1000))
+coraineStart -role CP1 --bridges loopback -corPort $((CP1_PORT + 1000))
+ftExecStart
+
+--RUN--
+
+#
+# 01. urn:R1 on A and on B; B: echo, fail (sync), progress, hold, stuck (async) - loopback://; A: the same, executed by B over http://
+# 02. B's executor route: no Service-Execution header - 400; an asynchronous service without reportTo - 400
+# 03. http:// - invoke echo {speed 3} on A: 200, B's output; fail: 502, B's ProblemDetails
+# 04. http:// - invoke progress on A: 202; completed, progress 50, output done - and A notifies its client
+# 05. http:// - hold: DELETE on A 204, cancelled on A and on B; stuck: DELETE 409, still executing
+# 06. The registrations on A PATCHed to cor://
+# 07. cor:// - echo and fail
+# 08. cor:// - progress: completed, reported to A over cor://
+# 09. cor:// - hold cancelled; stuck 409
+#
+
+regB() {
+  corCurl --port $CP1_PORT --url /ngsi-ld/v1/serviceRegistrations --payload "{\"type\":\"ServiceRegistration\",\"endpoint\":\"loopback://$1\",\"entities\":[{\"type\":\"Robot\"}],\"serviceInformation\":{\"serviceName\":\"$1\",\"mode\":\"$2\"}}" | head -1
+}
+regA() {
+  corCurl --url /ngsi-ld/v1/serviceRegistrations --payload "{\"id\":\"urn:SR:$1\",\"type\":\"ServiceRegistration\",\"endpoint\":\"http://localhost:$CP1_PORT/ngsi-ld/ex/v1/executor/$1?reportTo=http://localhost:$CB_PORT\",\"entities\":[{\"type\":\"Robot\"}],\"notification\":{\"endpoint\":{\"uri\":\"http://localhost:$FT_EXEC_PORT/notify\"}},\"serviceInformation\":{\"serviceName\":\"$1\",\"mode\":\"$2\"}}" | head -1
+}
+invoke() {
+  corCurl --url "/ngsi-ld/v1/entities/urn:R1/services/$1" --payload "${2:-{\"go\":1\}}" > /tmp/se.out
+  sed -n '1p' /tmp/se.out
+  sed -n '/^[[{"]/,$p' /tmp/se.out
+}
+lastId() { grep -i '^Service-Execution:' /tmp/se.out | awk '{print $2}' | tr -d '\r'; }
+awaitStatus() {   # awaitStatus <port> <id> <status>
+  for i in $(seq 1 50); do
+    s=$(corCurl --port $1 --url /ngsi-ld/v1/services/$2 | sed -n '/^{/,$p' | python3 -c "import json,sys; print(json.load(sys.stdin)['executionStatus'])")
+    [ "$s" == "$3" ] && break
+    sleep 0.1
+  done
+  corCurl --port $1 --url /ngsi-ld/v1/services/$2 | sed -n '/^{/,$p' | python3 -c "
+import json,sys
+e = json.load(sys.stdin)
+print(e['serviceName'], e['executionStatus'], 'progress', json.dumps(e.get('executionProgress')), 'output', json.dumps(e.get('executionOutput')))"
+}
+onB() {           # onB <service> - B's last execution of the service
+  corCurl --port $CP1_PORT --url "/ngsi-ld/v1/services" | sed -n '/^\[/,$p' | python3 -c "
+import json,sys
+e = [x for x in json.load(sys.stdin) if x['serviceName'] == '$1'][-1]
+print('on B:', e['serviceName'], e['executionStatus'])"
+}
+notified() {      # notified <id> - A's notifications of the execution, once it completed
+  for i in $(seq 1 50); do
+    ftExecNotifications | python3 -c "
+import json,sys
+sys.exit(0 if any((n['data'][0]['id'] == '$1') and (n['data'][0]['executionStatus'] == 'completed') for n in json.load(sys.stdin)) else 1)" && break
+    sleep 0.1
+  done
+  ftExecNotifications | python3 -c "
+import json,sys
+for n in json.load(sys.stdin):
+    e = n['data'][0]
+    if e['id'] == '$1':
+        print(n['type'], e['executionStatus'], json.dumps(e.get('executionProgress')), json.dumps(e.get('executionOutput')))"
+}
+round() {         # round <step numbers...> - echo/fail, progress, hold/stuck
+  echo "$1. $T - invoke echo {speed 3} on A: 200, B's output; fail: 502, B's ProblemDetails"
+  echo "======================================================================================"
+  invoke echo '{"speed":3}'
+  invoke fail
+  echo
+  echo
+
+  echo "$2. $T - invoke progress on A: 202; completed, progress 50, output done - and A notifies its client"
+  echo "===================================================================================================="
+  invoke progress
+  P=$(lastId)
+  awaitStatus $CB_PORT $P completed
+  notified $P
+  echo
+  echo
+
+  echo "$3. $T - hold: DELETE on A 204, cancelled on A and on B; stuck: DELETE 409, still executing"
+  echo "============================================================================================"
+  invoke hold
+  H=$(lastId)
+  sleep 0.2
+  corCurl --url /ngsi-ld/v1/services/$H -X DELETE | head -1
+  awaitStatus $CB_PORT $H cancelled
+  onB hold
+  invoke stuck
+  S=$(lastId)
+  sleep 0.2
+  corCurl --url /ngsi-ld/v1/services/$S -X DELETE | sed -n '1p;/"detail"/p' | sed 's/urn:ngsi-ld:ServiceExecution:[0-9a-f:]*/<id>/'
+  awaitStatus $CB_PORT $S executing
+  echo
+  echo
+}
+
+echo "01. urn:R1 on A and on B; B: echo, fail, progress, hold, stuck - loopback://; A: the same, executed by B over http://"
+echo "===================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Robot"}' | head -1
+for s in echo:synchronous fail:synchronous progress:asynchronous hold:asynchronous stuck:asynchronous; do regB ${s%%:*} ${s##*:}; done
+for s in echo:synchronous fail:synchronous progress:asynchronous hold:asynchronous stuck:asynchronous; do regA ${s%%:*} ${s##*:}; done
+echo
+echo
+
+
+echo "02. B's executor route: no Service-Execution header - 400; an asynchronous service without reportTo - 400"
+echo "=========================================================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/ex/v1/executor/progress --payload '{"id":"urn:R1","type":"Robot"}' | sed -n '1p;/"detail"/p'
+corCurl --port $CP1_PORT --url /ngsi-ld/ex/v1/executor/progress --payload '{"id":"urn:R1","type":"Robot"}' -H "Service-Execution: urn:ngsi-ld:ServiceExecution:x1" | sed -n '1p;/"detail"/p'
+echo
+echo
+
+
+T="http://"
+round 03 04 05
+
+
+echo "06. The registrations on A PATCHed to cor://"
+echo "============================================"
+for s in echo fail progress hold stuck; do
+  corCurl --url /ngsi-ld/v1/serviceRegistrations/urn:SR:$s -X PATCH --payload "{\"endpoint\":\"cor://localhost:$((CP1_PORT + 1000))/ngsi-ld/ex/v1/executor/$s?reportTo=cor://localhost:$((CB_PORT + 1000))\"}" | head -1
+done
+echo
+echo
+
+
+T="cor://"
+round 07 08 09
+
+
+--EXPECT--
+01. urn:R1 on A and on B; B: echo, fail, progress, hold, stuck - loopback://; A: the same, executed by B over http://
+====================================================================================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. B's executor route: no Service-Execution header - 400; an asynchronous service without reportTo - 400
+==========================================================================================================
+HTTP/1.1 400 Bad Request
+  "detail": "an execution handed over names itself in a 'Service-Execution' header",
+HTTP/1.1 400 Bad Request
+  "detail": "an asynchronous service reports to the broker that asked for it: the endpoint's '?reportTo=' (its http(s):// or cor:// address)",
+
+
+03. http:// - invoke echo {speed 3} on A: 200, B's output; fail: 502, B's ProblemDetails
+======================================================================================
+HTTP/1.1 200 OK
+{
+  "id": "urn:R1",
+  "speed": 3,
+  "type": "Robot"
+}
+
+HTTP/1.1 502 Bad Gateway
+{
+  "detail": "asked to fail",
+  "status": 502,
+  "title": "Loopback Failure",
+  "type": "https://example.org/errors/Loopback"
+}
+
+
+
+04. http:// - invoke progress on A: 202; completed, progress 50, output done - and A notifies its client
+====================================================================================================
+HTTP/1.1 202 Accepted
+progress completed progress {"percent": 50} output {"done": true}
+Notification executing null null
+Notification executing {"percent": 50} null
+Notification completed {"percent": 50} {"done": true}
+
+
+05. http:// - hold: DELETE on A 204, cancelled on A and on B; stuck: DELETE 409, still executing
+============================================================================================
+HTTP/1.1 202 Accepted
+HTTP/1.1 204 No Content
+hold cancelled progress null output null
+on B: hold cancelled
+HTTP/1.1 202 Accepted
+HTTP/1.1 409 Conflict
+  "detail": "the service's executor cannot cancel Service Execution '<id>' - it goes on",
+stuck executing progress null output null
+
+
+06. The registrations on A PATCHed to cor://
+============================================
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+HTTP/1.1 204 No Content
+
+
+07. cor:// - invoke echo {speed 3} on A: 200, B's output; fail: 502, B's ProblemDetails
+======================================================================================
+HTTP/1.1 200 OK
+{
+  "id": "urn:R1",
+  "speed": 3,
+  "type": "Robot"
+}
+
+HTTP/1.1 502 Bad Gateway
+{
+  "detail": "asked to fail",
+  "status": 502,
+  "title": "Loopback Failure",
+  "type": "https://example.org/errors/Loopback"
+}
+
+
+
+08. cor:// - invoke progress on A: 202; completed, progress 50, output done - and A notifies its client
+====================================================================================================
+HTTP/1.1 202 Accepted
+progress completed progress {"percent": 50} output {"done": true}
+Notification executing null null
+Notification executing {"percent": 50} null
+Notification completed {"percent": 50} {"done": true}
+
+
+09. cor:// - hold: DELETE on A 204, cancelled on A and on B; stuck: DELETE 409, still executing
+============================================================================================
+HTTP/1.1 202 Accepted
+HTTP/1.1 204 No Content
+hold cancelled progress null output null
+on B: hold cancelled
+HTTP/1.1 202 Accepted
+HTTP/1.1 409 Conflict
+  "detail": "the service's executor cannot cancel Service Execution '<id>' - it goes on",
+stuck executing progress null output null
+
+
+--TEARDOWN--
+ftExecStop
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

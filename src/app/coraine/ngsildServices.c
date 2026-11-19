@@ -123,6 +123,7 @@
 #include "serviceRoutines/getServiceExecutions.h"         // getServiceExecutions
 #include "serviceRoutines/getServiceExecution.h"          // getServiceExecution
 #include "serviceRoutines/patchServiceExecution.h"        // patchServiceExecution
+#include "serviceRoutines/serviceExecutor.h"            // postServiceExecutor, deleteServiceExecutor
 #include "serviceRoutines/deleteServiceExecution.h"       // deleteServiceExecution
 #include "serviceRoutines/postCombinedServiceTemplate.h"   // postCombinedServiceTemplate
 #include "serviceRoutines/getCombinedServiceTemplate.h"    // getCombinedServiceTemplate
@@ -317,6 +318,8 @@ CorRestServiceSimplified ngsildCoreServices[] =
   { CorVerbGet,    "/ngsi-ld/v1/services/*", SVCX(getServiceExecution),    LD_PARAM_OPTIONS | LD_PARAM_SYSATTRS,                                                     LdOpNone },
   { CorVerbPatch,  "/ngsi-ld/v1/services/*", SVCX(patchServiceExecution),  0,                                                                                        LdOpNone },
   { CorVerbDelete, "/ngsi-ld/v1/services/*", SVCX(deleteServiceExecution), 0,                                                                                        LdOpNone },
+  { CorVerbPost,   "/ngsi-ld/ex/v1/executor/*",   SVCX(postServiceExecutor),   SE_PARAM_REPORT_TO,                                                                   LdOpNone },   // another broker's executor
+  { CorVerbDelete, "/ngsi-ld/ex/v1/executor/*/*", SVCX(deleteServiceExecutor), SE_PARAM_REPORT_TO,                                                                   LdOpNone },
 
   // EntityMap CRUD (§ 5.14)
   { CorVerbGet,    "/ngsi-ld/v1/entityMaps",    REGS(createEntityMap), LD_PARAMS_GET_ENTITIES, LdOpNone },

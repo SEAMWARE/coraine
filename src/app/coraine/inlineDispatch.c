@@ -20,6 +20,9 @@
 #include "corNgsild/ldRegCache.h"                      // ldRegCacheItemsTotal
 
 #include "bridge/bridgeServiceSync.h"                  // bridgeSyncDefault
+#if COR_FEATURE_SERVICE_EXECUTION
+#include "serviceExecution/seExecution.h"             // seRemoteExecutors
+#endif
 
 #include "inlineDispatch.h"                            // Own interface
 
@@ -320,6 +323,34 @@ static bool ddsSyncWaits(void)
 
 
 
+#if COR_FEATURE_SERVICE_EXECUTION
+// -----------------------------------------------------------------------------
+//
+// serviceInvocation - is this POST /ngsi-ld/v1/entities/{id}/services/{name}? (Service Execution)
+//
+// An invocation waits for the service's executor. With every executor a bridge (in the broker) that is
+// no wait at all, and the invocation runs inline. Once a service is executed over http(s):// or cor://
+// (seRemoteExecutors) it may wait for the network - and an executor that answers by calling this broker
+// back (an HTTP executor's PATCH report) could be read by this very I/O thread, which waits: both would
+// wait until the call timed out. The entity id may hold '/' (a URL):
+// the last "/services/" decides, and nothing after it but the name.
+//
+static bool serviceInvocation(const char* path)
+{
+  if (corRest.in.verb != CorVerbPost)
+    return false;
+
+  const char* servicesP = NULL;
+
+  for (const char* sP = strstr(path, "/services/"); sP != NULL; sP = strstr(sP + 1, "/services/"))
+    servicesP = sP;
+
+  return (servicesP != NULL) && (servicesP[10] != 0) && (strchr(&servicesP[10], '/') == NULL);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // inlineDispatchCheck - may this request run on the I/O thread that read it? (CorRestInlineHook)
@@ -339,6 +370,11 @@ static bool inlineDispatchCheck(void)
 
   if (ddsSyncWaits() == true)
     return false;                                        // it waits for a bridge service's reply
+
+#if COR_FEATURE_SERVICE_EXECUTION
+  if ((seRemoteExecutors == true) && (serviceInvocation(path) == true))
+    return false;                                        // it may wait for an executor over the network - which may call back
+#endif
 
   if (corRest.in.contentMime == CorMimeLdJson)
     return bodyContextCached();                          // the body's own @context - and no Link

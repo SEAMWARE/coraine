@@ -10,6 +10,7 @@
 #include <stdlib.h>                                   // qsort
 #include <pthread.h>                                  // pthread_mutex_*
 #include <string.h>                                   // strcmp, strlen, strncmp
+#include <strings.h>                                  // strcasecmp
 #include <time.h>                                     // clock_gettime
 
 #include "corBase/corUriPasswordMask.h"               // corUriPasswordMask
@@ -40,6 +41,8 @@
 #include "corNgsild/ldNotifyTransport.h"              // ldNotifyIsHttp, ldNotifyTransportSend
 #include "corNgsild/ldIso8601Duration.h"              // ldIso8601DurationParseNs
 #include "corNgsild/ldServiceDescription.h"           // ldServiceDescriptionIs
+#include "corNgsild/LdForwarding.h"                   // LdForwardRequest, LdForwardResponse, LdForwardingPlugin
+#include "corNgsild/ldForwarding.h"                   // ldForwardingForEndpoint
 
 #include "db/DbDriver.h"                              // db, DB_*
 #include "db/Tenant.h"                                // Tenant
@@ -49,6 +52,7 @@
 #include "serviceExecution/seRegistrationMatch.h"     // seRegistrationMatches
 #include "serviceExecution/seRetention.h"            // seRetentionPush, seRetentionSeeded, seRetentionMaxEnded
 #include "serviceExecution/seCombined.h"              // seCombinedChildEnded, seCombinedCancel, seCombinedChildrenEmbed
+#include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
 #include "serviceExecution/seExecution.h"             // Own interface
 #include "coraineTraceLevels.h"                       // CtService
 
@@ -58,6 +62,7 @@
 //
 // Defaults - the time a service may take, and how long a finished execution is kept
 //
+volatile bool seRemoteExecutors = false;              // a service is executed over http(s):// or cor:// (seRemoteExecutorsSet)
 int64_t seExecutionRetentionNs = 3600LL * 1000000000LL;       // --executionRetention (seExecutionRetentionSet)
 static int64_t retentionFromNs  = 0;                           // the broker's start: what ended before is seeded
 
@@ -203,8 +208,13 @@ void seExecutionRenderAll(CorNode* execP)
 // created the execution. http(s) is POSTed; any other URI goes through the transports (WebSocket,
 // mqtt://) as a Subscription's notification does. A failure is logged, and the execution goes on.
 //
+static void report(CorNode* execP);
+
 static void notify(CorNode* execP)
 {
+  if (corTreeLookup(execP, "_reportTo") != NULL)
+    report(execP);                                    // we are another broker's executor: it gets our reports
+
   CorNode*    notificationP = corTreeLookup(execP, "notification");
   CorNode*    endpointP     = (notificationP != NULL) ? corTreeLookup(notificationP, "endpoint") : NULL;
   const char* uri           = (endpointP != NULL) ? str(endpointP, "uri") : NULL;
@@ -244,6 +254,48 @@ static void notify(CorNode* execP)
 
   if (contextUrl != NULL)
     snprintf(link, sizeof(link), "<%s>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"", contextUrl);
+
+  //
+  // cor:// - a client (another broker, say) listening on cor://: the notification is a POST over the
+  // cor:// forwarding transport
+  //
+  if (strncmp(uri, "cor://", 6) == 0)
+  {
+    const LdForwardingPlugin* pluginP = ldForwardingForEndpoint(uri);
+    LdForwardRequest          freq;
+    LdForwardResponse         fresp;
+    CorRestKeyValue           headerV[3];
+    int                       headers = 0;
+
+    headerV[headers].key = (char*) "Content-Type"; headerV[headers].value = (char*) "application/json"; headerV[headers++].bit = 0;
+    if (link[0] != 0)
+    {
+      headerV[headers].key = (char*) "Link"; headerV[headers].value = link; headerV[headers++].bit = 0;
+    }
+    if ((corNgsild.tenantName != NULL) && (corNgsild.tenantName[0] != 0))
+    {
+      headerV[headers].key = (char*) "NGSILD-Tenant"; headerV[headers].value = (char*) corNgsild.tenantName; headerV[headers++].bit = 0;
+    }
+
+    memset(&freq, 0, sizeof(freq));
+    memset(&fresp, 0, sizeof(fresp));
+    freq.endpoint         = uri;
+    freq.verb             = CorVerbPost;
+    freq.headerV          = headerV;
+    freq.headerCount      = headers;
+    freq.body             = body;
+    freq.bodyLen          = (int) strlen(body);
+    freq.connectTimeoutMs = 5000;
+    freq.requestTimeoutMs = 10000;
+    fresp.allocP          = &corRest.kalloc;
+
+    if ((pluginP == NULL) || (pluginP->send == NULL) || (pluginP->send(&freq, &fresp) != 0) || (fresp.statusCode < 200) || (fresp.statusCode > 299))
+    {
+      char shown[1024];
+      COR_W("Service Execution '%s': notification to %s FAILED (%d)", str(execP, "id"), corUriPasswordMask(uri, shown, sizeof(shown)), fresp.statusCode);
+    }
+    return;
+  }
 
   if (ldNotifyIsHttp(uri) == false)
   {
@@ -825,71 +877,218 @@ static void forwardBridge(CorNode* execP, bool cancel, SeForward* resultP)
 
 // -----------------------------------------------------------------------------
 //
-// forward - an HTTP request to the executor: POST the invocation, or DELETE (cancel)
+// forwardingBody - a cor:// answer as a tree: what the peer sent as a tree, else its JSON text parsed
+// (or the text as a JSON string); NULL for none
+//
+static CorNode* forwardingBody(LdForwardResponse* respP)
+{
+  if (respP->bodyTree != NULL)
+    return respP->bodyTree;
+
+  if ((respP->body == NULL) || (respP->bodyLen <= 0))
+    return NULL;
+
+  char* copy = (char*) corAlloc(&corRest.kalloc, respP->bodyLen + 1);
+
+  memcpy(copy, respP->body, respP->bodyLen);
+  copy[respP->bodyLen] = 0;
+
+  CorNode* treeP = corJsonParse(corRest.corJsonP, copy);
+
+  if (treeP != NULL)
+    return treeP;
+
+  char* text = (char*) corAlloc(&corRest.kalloc, respP->bodyLen + 1);
+
+  memcpy(text, respP->body, respP->bodyLen);
+  text[respP->bodyLen] = 0;
+
+  return corTreeString(corRest.kallocP, NULL, text);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// SeExchange - the outcome of a request to an executor, or of a report to the broker that asked
+//
+typedef struct SeExchange
+{
+  int      status;                                    // the HTTP status (0: no answer)
+  int      error;                                     // 0, SE_EXCHANGE_TIMEOUT or SE_EXCHANGE_UNREACHABLE
+  char     detail[256];                               // what went wrong in the transport
+  CorNode* bodyP;                                     // the answer's body, in the request's arena
+} SeExchange;
+
+#define SE_EXCHANGE_TIMEOUT      1
+#define SE_EXCHANGE_UNREACHABLE  2
+
+
+
+// -----------------------------------------------------------------------------
+//
+// exchange - one request over http(s):// or cor:// (the scheme says which), with the Service Execution
+// headers: Service-Execution, the tenant, the body's Content-Type
+//
+static void exchange(const char* url, CorRestVerb verb, const char* execId, const char* body, int requestTimeoutMs, SeExchange* xP)
+{
+  memset(xP, 0, sizeof(SeExchange));
+
+  if (strncmp(url, "cor://", 6) == 0)
+  {
+    const LdForwardingPlugin* pluginP = ldForwardingForEndpoint(url);
+    CorRestKeyValue           headerV[3];
+    int                       headers = 0;
+
+    if ((pluginP == NULL) || (pluginP->send == NULL))
+    {
+      xP->error = SE_EXCHANGE_UNREACHABLE;
+      snprintf(xP->detail, sizeof(xP->detail), "no cor:// transport loaded");
+      return;
+    }
+
+    headerV[headers].key = (char*) "Service-Execution"; headerV[headers].value = (char*) execId; headerV[headers++].bit = 0;
+    if (body != NULL)
+    {
+      headerV[headers].key = (char*) "Content-Type"; headerV[headers].value = (char*) "application/json"; headerV[headers++].bit = 0;
+    }
+    if ((corNgsild.tenantName != NULL) && (corNgsild.tenantName[0] != 0))
+    {
+      headerV[headers].key = (char*) "NGSILD-Tenant"; headerV[headers].value = (char*) corNgsild.tenantName; headerV[headers++].bit = 0;
+    }
+
+    LdForwardRequest  req;
+    LdForwardResponse resp;
+
+    memset(&req, 0, sizeof(req));
+    memset(&resp, 0, sizeof(resp));
+    req.endpoint         = url;
+    req.verb             = verb;
+    req.headerV          = headerV;
+    req.headerCount      = headers;
+    req.body             = body;
+    req.bodyLen          = (body != NULL) ? (int) strlen(body) : 0;
+    req.connectTimeoutMs = 5000;
+    req.requestTimeoutMs = requestTimeoutMs;
+    resp.allocP          = &corRest.kalloc;
+
+    pluginP->send(&req, &resp);
+
+    if (resp.error != 0)
+    {
+      xP->error = (strstr(resp.errorDetail, "imeout") != NULL) ? SE_EXCHANGE_TIMEOUT : SE_EXCHANGE_UNREACHABLE;
+      snprintf(xP->detail, sizeof(xP->detail), "%s", resp.errorDetail);
+      return;
+    }
+
+    xP->status = resp.statusCode;
+    xP->bodyP  = forwardingBody(&resp);
+    return;
+  }
+
+  CorRestClientRequest  req;
+  CorRestClientResponse resp;
+
+  corRestClientRequestInit(&req, verb, url, NULL);
+  corRestClientRequestHeader(&req, "Service-Execution", execId);
+  ldTenantHeaderAdd(&req, corNgsild.tenantName);
+
+  if (body != NULL)
+  {
+    corRestClientRequestHeader(&req, "Content-Type", "application/json");
+    corRestClientRequestBody(&req, body, strlen(body));
+  }
+
+  corRestClientRequestTimeout(&req, 5000, requestTimeoutMs);
+  corRestClientSend(&req, &resp);
+
+  if (resp.error == CORR_ERR_TIMEOUT)
+    xP->error = SE_EXCHANGE_TIMEOUT;
+  else if (resp.error != 0)
+  {
+    xP->error = SE_EXCHANGE_UNREACHABLE;
+    snprintf(xP->detail, sizeof(xP->detail), "%s", resp.errorDetail);
+  }
+  else
+  {
+    xP->status = resp.statusCode;
+    xP->bodyP  = responseBody(&resp);
+  }
+
+  corRestClientResponseCleanup(&resp);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// forward - a request to the executor: POST the invocation, or DELETE (cancel)
+//
+// http(s):// or cor:// - the same requests either way (doc/service-execution.md, "An HTTP executor"); any
+// other scheme is a bridge's. The endpoint may carry a query (another coraine as the executor: ?reportTo=):
+// the cancel's execution id goes in the path, before it.
 //
 static void forward(CorNode* execP, bool cancel, SeForward* resultP)
 {
   const char* endpoint  = str(execP, "_endpoint");
   const char* execId    = str(execP, "id");
   int64_t     timeoutNs = num(execP, "_timeoutNs");
-  char        url[1024];
+  char        url[2048];
+  char*       body      = NULL;
 
   memset(resultP, 0, sizeof(SeForward));
 
-  if (ldNotifyIsHttp(endpoint) == false)
+  if ((ldNotifyIsHttp(endpoint) == false) && (strncmp(endpoint, "cor://", 6) != 0))
   {
     forwardBridge(execP, cancel, resultP);
     return;
   }
 
+  seRemoteExecutors = true;                           // a registration stored before a restart: from now on
+
   if (cancel == true)
-    snprintf(url, sizeof(url), "%s%s%s", endpoint, (endpoint[strlen(endpoint) - 1] == '/') ? "" : "/", execId);
+  {
+    const char* query   = strchr(endpoint, '?');
+    int         pathLen = (query != NULL) ? (int) (query - endpoint) : (int) strlen(endpoint);
+    const char* slash   = ((pathLen > 0) && (endpoint[pathLen - 1] == '/')) ? "" : "/";
+
+    snprintf(url, sizeof(url), "%.*s%s%s%s", pathLen, endpoint, slash, execId, (query != NULL) ? query : "");
+  }
   else
+  {
+    char why[512];
+
     snprintf(url, sizeof(url), "%s", endpoint);
 
-  CorRestClientRequest  req;
-  CorRestClientResponse resp;
-
-  corRestClientRequestInit(&req, (cancel == true) ? CorVerbDelete : CorVerbPost, url, NULL);
-  corRestClientRequestHeader(&req, "Service-Execution", execId);
-  ldTenantHeaderAdd(&req, corNgsild.tenantName);
-
-  if (cancel == false)
-  {
-    char  why[512];
-    char* body = invocationBody(execP, why, sizeof(why));
-
-    if (body == NULL)
+    if ((body = invocationBody(execP, why, sizeof(why))) == NULL)
     {
       resultP->clientStatus = 400;
       resultP->errorP       = problem(LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", 400, why);
       return;
     }
-
-    corRestClientRequestHeader(&req, "Content-Type", "application/json");
-    corRestClientRequestBody(&req, body, strlen(body));
   }
 
-  corRestClientRequestTimeout(&req, 5000, (int) (timeoutNs / 1000000));
-  corRestClientSend(&req, &resp);
+  SeExchange x;
 
-  char shown[1024];
-  COR_T(CtService, "Service Execution '%s': %s %s - %d (error %d)", execId, (cancel == true) ? "DELETE" : "POST", corUriPasswordMask(url, shown, sizeof(shown)), resp.statusCode, resp.error);
+  exchange(url, (cancel == true) ? CorVerbDelete : CorVerbPost, execId, body, (int) (timeoutNs / 1000000), &x);
 
-  if ((resp.error == 0) && (resp.statusCode >= 200) && (resp.statusCode <= 299))
+  char shown[2048];
+  COR_T(CtService, "Service Execution '%s': %s %s - %d (error %d)", execId, (cancel == true) ? "DELETE" : "POST", corUriPasswordMask(url, shown, sizeof(shown)), x.status, x.error);
+
+  if ((x.error == 0) && (x.status >= 200) && (x.status <= 299))
   {
     resultP->accepted = true;
-    resultP->outputP  = responseBody(&resp);
+    resultP->outputP  = x.bodyP;
   }
-  else if (resp.error == CORR_ERR_TIMEOUT)
+  else if (x.error == SE_EXCHANGE_TIMEOUT)
   {
     resultP->clientStatus = 504;
     resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Timeout", 504, "the service's executor did not answer in time");
   }
-  else if (resp.error != 0)
+  else if (x.error != 0)
   {
     resultP->clientStatus = 503;
-    resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Unreachable", 503, (resp.errorDetail[0] != 0) ? resp.errorDetail : "the service's executor could not be reached");
+    resultP->errorP       = problem(LD_ERROR_INTERNAL_ERROR, "Executor Unreachable", 503, (x.detail[0] != 0) ? x.detail : "the service's executor could not be reached");
   }
   else
   {
@@ -897,22 +1096,216 @@ static void forward(CorNode* execP, bool cancel, SeForward* resultP)
     // The executor refused: its ProblemDetails (else one made of its answer); a 4xx is the client's
     // to see as it is, anything else is a 502
     //
-    CorNode* bodyP = responseBody(&resp);
+    resultP->clientStatus = ((x.status >= 400) && (x.status <= 499)) ? x.status : 502;
 
-    resultP->clientStatus = ((resp.statusCode >= 400) && (resp.statusCode <= 499)) ? resp.statusCode : 502;
-
-    if ((bodyP != NULL) && (bodyP->type == CorObject) && (corTreeLookup(bodyP, "type") != NULL))
-      resultP->errorP = bodyP;
+    if ((x.bodyP != NULL) && (x.bodyP->type == CorObject) && (corTreeLookup(x.bodyP, "type") != NULL))
+      resultP->errorP = x.bodyP;
     else
     {
       char detail[256];
 
-      snprintf(detail, sizeof(detail), "the service's executor answered %d", resp.statusCode);
-      resultP->errorP = problem(LD_ERROR_INTERNAL_ERROR, "Executor Refused", resp.statusCode, detail);
+      snprintf(detail, sizeof(detail), "the service's executor answered %d", x.status);
+      resultP->errorP = problem(LD_ERROR_INTERNAL_ERROR, "Executor Refused", x.status, detail);
     }
   }
+}
 
-  corRestClientResponseCleanup(&resp);
+
+
+// -----------------------------------------------------------------------------
+//
+// The report senders - the reports go out on threads of their own, never on the thread that stored
+// the change: that is often the very request the other broker is waiting for (its POST, its cancel),
+// and a report sent from it would wait for that broker while that broker waits for us - with one
+// worker over there (a store that never waits, one core), until the report timed out.
+//
+// SE_REPORT_SENDERS threads, an execution always on the same one (its id hashed): its reports go in
+// the order they were made, and one not sent yet is replaced by the execution's next (reportQueue).
+//
+#define SE_REPORT_SENDERS 4
+
+typedef struct SeReport
+{
+  struct SeReport* next;
+  Tenant*          tenantP;
+  char*            url;
+  char*            execId;
+  char*            body;
+} SeReport;
+
+typedef struct SeReportQ
+{
+  pthread_mutex_t  mutex;
+  pthread_cond_t   cond;
+  SeReport*        head;
+  SeReport*        tail;
+} SeReportQ;
+
+static SeReportQ      reportQV[SE_REPORT_SENDERS];
+static pthread_once_t reportOnce = PTHREAD_ONCE_INIT;
+
+
+
+static void* reportSender(void* arg)
+{
+  SeReportQ* qP = (SeReportQ*) arg;
+
+  for (;;)
+  {
+    pthread_mutex_lock(&qP->mutex);
+    while (qP->head == NULL)
+      pthread_cond_wait(&qP->cond, &qP->mutex);
+
+    SeReport* rP = qP->head;
+
+    qP->head = rP->next;
+    if (qP->head == NULL)
+      qP->tail = NULL;
+    pthread_mutex_unlock(&qP->mutex);
+
+    bridgeThreadBind(rP->tenantP);                    // an arena and the tenant, for this thread
+
+    SeExchange x;
+
+    exchange(rP->url, CorVerbPatch, rP->execId, rP->body, 10000, &x);
+
+    if (((x.error != 0) || (x.status < 200) || (x.status > 299)) && (x.status != 409))   // 409: ended over there (cancelled, timed out)
+    {
+      char shown[2048];
+
+      COR_W("Service Execution '%s': report to %s FAILED (%d%s%s)", rP->execId, corUriPasswordMask(rP->url, shown, sizeof(shown)), x.status, (x.detail[0] != 0) ? ", " : "", x.detail);
+    }
+
+    free(rP->url);
+    free(rP->execId);
+    free(rP->body);
+    free(rP);
+  }
+
+  return NULL;
+}
+
+
+
+static void reportSendersStart(void)
+{
+  for (int ix = 0; ix < SE_REPORT_SENDERS; ix++)
+  {
+    pthread_t tid;
+
+    pthread_mutex_init(&reportQV[ix].mutex, NULL);
+    pthread_cond_init(&reportQV[ix].cond, NULL);
+    reportQV[ix].head = NULL;
+    reportQV[ix].tail = NULL;
+
+    if (pthread_create(&tid, NULL, reportSender, &reportQV[ix]) == 0)
+    {
+      pthread_detach(tid);
+    }
+    else
+      COR_E("Service Execution: cannot start a report sender thread");
+  }
+}
+
+
+
+static void reportQueue(const char* url, const char* execId, const char* body)
+{
+  SeReport* rP = (SeReport*) calloc(1, sizeof(SeReport));
+
+  pthread_once(&reportOnce, reportSendersStart);
+
+  if (rP == NULL)
+    return;
+
+  rP->tenantP = (Tenant*) corNgsild.tenantP;
+  rP->url     = strdup(url);
+  rP->execId  = strdup(execId);
+  rP->body    = strdup(body);
+
+  unsigned int hash = 5381;
+
+  for (const char* cP = execId; *cP != 0; cP++)
+    hash = hash * 33 + (unsigned char) *cP;
+
+  SeReportQ* qP = &reportQV[hash % SE_REPORT_SENDERS];
+
+  pthread_mutex_lock(&qP->mutex);
+
+  //
+  // The execution's previous report not sent yet (the last one queued): this one replaces it - a report
+  // is the execution as it is now (status, progress, output, error), so the newer says all the older did
+  //
+  if ((qP->tail != NULL) && (strcmp(qP->tail->execId, rP->execId) == 0))
+  {
+    free(qP->tail->body);
+    qP->tail->body = rP->body;
+    pthread_mutex_unlock(&qP->mutex);
+    free(rP->url);
+    free(rP->execId);
+    free(rP);
+    return;
+  }
+
+  if (qP->tail != NULL)
+    qP->tail->next = rP;
+  else
+    qP->head = rP;
+  qP->tail = rP;
+  pthread_cond_signal(&qP->cond);
+  pthread_mutex_unlock(&qP->mutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// report - this broker is another broker's executor (seExecuteFor): an asynchronous execution's change
+// reported to it, as an HTTP executor reports (doc/service-execution.md, "An HTTP executor"):
+//
+//   PATCH <reportTo>/ngsi-ld/v1/services/{id}     Service-Execution: {id}
+//   { "executionStatus": ..., "executionProgress": ..., "executionOutput": ..., "executionError": ... }
+//
+// The execution has the caller's id. Over http(s):// or cor://, as reportTo says - on a report sender
+// thread (reportQueue). A synchronous one is not reported: its answer is the report.
+//
+static void report(CorNode* execP)
+{
+  const char* reportTo = str(execP, "_reportTo");
+  const char* execId   = str(execP, "id");
+  const char* mode     = str(execP, "_mode");
+  const char* status   = str(execP, "executionStatus");
+
+  if ((mode == NULL) || (strcmp(mode, "asynchronous") != 0) || (status == NULL) || (strcmp(status, "pending") == 0))
+    return;
+
+  if ((strcmp(status, "executing") == 0) && (corTreeLookup(execP, "executionProgress") == NULL))
+    return;                                           // nothing new: the other broker set it executing as it handed it over
+
+  CorNode* bodyP = corTreeObject(corRest.kallocP, NULL);
+  char     url[2048];
+  int      len   = (int) strlen(reportTo);
+
+  corTreeChildAdd(bodyP, corTreeString(corRest.kallocP, "executionStatus", status));
+
+  const char* memberV[] = { "executionProgress", "executionOutput", "executionError" };
+
+  for (unsigned int ix = 0; ix < sizeof(memberV) / sizeof(memberV[0]); ix++)
+  {
+    CorNode* mP = corTreeLookup(execP, memberV[ix]);
+
+    if (mP != NULL)
+      corTreeChildAdd(bodyP, corTreeClone(corRest.kallocP, mP));
+  }
+
+  int   size = corJsonFastRenderSize(bodyP) + 1;
+  char* body = (char*) corAlloc(&corRest.kalloc, size);
+
+  corJsonFastRender(bodyP, body);
+
+  snprintf(url, sizeof(url), "%.*s/ngsi-ld/v1/services/%s", ((len > 0) && (reportTo[len - 1] == '/')) ? len - 1 : len, reportTo, execId);
+
+  reportQueue(url, execId, body);
 }
 
 
@@ -1014,6 +1407,7 @@ CorNode* seExecutionBuild(const char* entityId, const char* serviceName, CorNode
 
   corTreeChildAdd(execP, corTreeString(corRest.kallocP,  "_registration", str(regP, "id")));
   corTreeChildAdd(execP, corTreeString(corRest.kallocP,  "_endpoint",     str(regP, "endpoint")));
+
   corTreeChildAdd(execP, corTreeString(corRest.kallocP,  "_mode",         (sync == true) ? "synchronous" : "asynchronous"));
   corTreeChildAdd(execP, corTreeInteger(corRest.kallocP, "_timeoutNs",    timeoutNs));
 
@@ -1072,7 +1466,7 @@ void seExecutionStart(CorNode* execP, SeForward* resultP)
 //
 // seExecute -
 //
-bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP)
+static bool execute(SeOrigin origin, const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP, const char* callerId, const char* reportTo)
 {
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   int     status  = 0;
@@ -1097,9 +1491,35 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
     return true;
   }
 
+  const char* mode = str(execP, "_mode");
+  bool        sync = (strcmp(mode, "synchronous") == 0);
+
+  if (callerId != NULL)
+  {
+    //
+    // Another broker's execution (seExecuteFor): ours has its id, and its asynchronous one reports there
+    //
+    CorNode* existingP = NULL;
+
+    if ((db.docRetrieve != NULL) && (db.docRetrieve(tenantP, "serviceExecutions", callerId, &existingP) == DB_OK))
+    {
+      ldError(409, LD_ERROR_CONFLICT, "Conflict", "Service Execution '%s' is already here", callerId);
+      return true;
+    }
+
+    if ((sync == false) && (reportTo == NULL))
+    {
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "an asynchronous service reports to the broker that asked for it: the endpoint's '?reportTo=' (its http(s):// or cor:// address)");
+      return true;
+    }
+
+    member(execP, corTreeString(corRest.kallocP, "id", callerId));
+
+    if (reportTo != NULL)
+      corTreeChildAdd(execP, corTreeString(corRest.kallocP, "_reportTo", reportTo));
+  }
+
   const char* execId = str(execP, "id");
-  const char* mode   = str(execP, "_mode");
-  bool        sync   = (strcmp(mode, "synchronous") == 0);
 
   if (db.docCreate(tenantP, "serviceExecutions", execId, execP) != DB_OK)
   {
@@ -1131,6 +1551,8 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
     corRestOutHeaderAdd("Location", location);
     corRest.out.httpStatusCode = 201;
   }
+  else if ((origin == SeExecutor) && (sync == false))
+    corRest.out.httpStatusCode = 202;                 // accepted - the reports follow (report())
   else if (sync == true)
   {
     //
@@ -1154,6 +1576,29 @@ bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, C
   }
 
   return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecute -
+//
+bool seExecute(SeOrigin origin, const char* entityId, const char* serviceName, CorNode* inputP, CorNode* notificationP)
+{
+  return execute(origin, entityId, serviceName, inputP, notificationP, NULL, NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// seExecuteFor - this broker as another broker's executor: callerId is that broker's execution, which
+// ours takes as its id; an asynchronous one reports to reportTo (report())
+//
+bool seExecuteFor(const char* entityId, const char* serviceName, CorNode* inputP, const char* callerId, const char* reportTo)
+{
+  return execute(SeExecutor, entityId, serviceName, inputP, NULL, callerId, reportTo);
 }
 
 

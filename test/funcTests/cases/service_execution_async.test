@@ -283,10 +283,10 @@ response 201 /ngsi-ld/v1/services/<id>
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 276
+Content-Length: 284
 
 {
-  "detail": "'notification.endpoint.uri': not an endpoint this broker notifies - http(s), a bridge's scheme, or the WebSocket connection the request came over",
+  "detail": "'notification.endpoint.uri': not an endpoint this broker notifies - http(s), cor://, a bridge's scheme, or the WebSocket connection the request came over",
   "status": 400,
   "title": "Bad Request Data",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
