@@ -109,6 +109,27 @@ echo
 echo
 
 
+echo "12. GET temperature/value with Accept application/ld+json - a number: application/json, the @context in a Link header"
+echo "====================================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/temperature/value -H "Accept: application/ld+json"
+echo
+echo
+
+
+echo "13. GET location/value with Accept application/ld+json - an object: the same - no @context inside the value"
+echo "==========================================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/location/value -H "Accept: application/ld+json"
+echo
+echo
+
+
+echo "14. GET refDevice/value with Accept application/ld+json - a string: the same"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:ngsi-ld:E1/attrs/refDevice/value -H "Accept: application/ld+json"
+echo
+echo
+
+
 --EXPECT--
 01. Create E1 (Property+unitCode, GeoProperty, Relationship)
 ============================================================
@@ -262,6 +283,46 @@ Content-Length: 210
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
+
+
+12. GET temperature/value with Accept application/ld+json - a number: application/json, the @context in a Link header
+=====================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 2
+
+45
+
+
+13. GET location/value with Accept application/ld+json - an object: the same - no @context inside the value
+===========================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 38
+
+{
+  "coordinates": [
+    10,
+    20
+  ],
+  "type": "Point"
+}
+
+
+
+14. GET refDevice/value with Accept application/ld+json - a string: the same
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 22
+
+"urn:ngsi-ld:Device:B"
 
 
 --TEARDOWN--
