@@ -22,7 +22,8 @@
 # /proc/<pid>/stat) - not wall time x cores: a broker that does not saturate its core is not flattered.
 #
 # Env: PERF_DURATION (10s) PERF_REPEATS (3) PERF_CONCURRENCY ("16 64") PERF_ENTITIES (100) PERF_PORT (1029)
-#      PERF_THREADS (8)  PERF_PG_* (mongo: the TimescaleDB)
+#      PERF_THREADS (8)  PERF_PG_ARGS, PERF_PG_RESET (mongo: more TimescaleDB options, a reset of its own;
+#      by default the history goes to the database 'seperf', dropped before every measurement)
 #      PERF_SE_STORE_ARGS (corDB: the store arguments instead of --database corDB --dbDir ... --troe corDB, to
 #      take the store or TRoE out of the picture)
 #
@@ -31,7 +32,7 @@ STORE=${1:-corDB}
 PORT=${PERF_PORT:-1029}
 DURATION=${PERF_DURATION:-10s}
 REPEATS=${PERF_REPEATS:-3}
-CONCURRENCY=${PERF_CONCURRENCY:-16 64}         # not 256 (yet): libmicrohttpd stalls with ~256 connections opened at once - the broker misses their reads (2026-11-18)
+CONCURRENCY=${PERF_CONCURRENCY:-16 64 256}
 ENTITIES=${PERF_ENTITIES:-100}
 THREADS=${PERF_THREADS:-8}
 CORES=${PERF_BROKER_CORES:-1}
@@ -49,7 +50,7 @@ loadCpus=$(IFS=,; echo "${phys[*]:CORES}")
 
 case "$STORE" in
   corDB) storeArgs() { echo "${PERF_SE_STORE_ARGS:---database corDB --dbDir $WORK/db --troe corDB}"; } ;;
-  mongo) storeArgs() { echo "--database mongoc --dbHost localhost --dbName seperf --troe timescale ${PERF_PG_ARGS:-}"; } ;;
+  mongo) storeArgs() { echo "--database mongoc --dbHost localhost --dbName seperf --troe timescale --troeName seperf ${PERF_PG_ARGS:-}"; } ;;
   *)     echo "sePerf.sh: store corDB or mongo" >&2; exit 1 ;;
 esac
 
@@ -61,6 +62,7 @@ emptyStore() {
   rm -rf "$WORK"; mkdir -p "$WORK/db"
   if [ "$STORE" = mongo ]; then
     mongosh --quiet --eval 'db.getSiblingDB("seperf").dropDatabase()' >/dev/null 2>&1 || mongo --quiet --eval 'db.getSiblingDB("seperf").dropDatabase()' >/dev/null
+    psql -h localhost -U postgres -d postgres -qc "DROP DATABASE IF EXISTS seperf WITH (FORCE)" >/dev/null 2>&1   # the history (PGPASSWORD)
     [ -n "${PERF_PG_RESET:-}" ] && eval "$PERF_PG_RESET"
   fi
 }

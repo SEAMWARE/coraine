@@ -1,7 +1,8 @@
 # Performance and footprint
 
 Every number on this page was measured on one machine, from release builds, and
-each section says how. Re-measured on 2026-10-10 for 0.5.0, the broker's own code
+each section says how. Measured on 2026-11-18: Service Execution, the clients curve
+(libmicrohttpd) and a spot check of every throughput scenario against the 0.5.0 numbers; on 2026-11-19 today's `main` with PGO, a profile of the queries and the two fixes it led to. Re-measured on 2026-10-10 for 0.5.0, the broker's own code
 profile-guided: the libmicrohttpd + `corDB` rows of the first throughput tables, the writes
 table (both `corDB` on disk) and "Profile-guided". Re-measured on 2026-10-05, after corDB's log
 became memory-mapped (a write's record is in the kernel before the response) and with the
@@ -492,6 +493,95 @@ a different claim from a peak.
 corHttp holds p99 two to three times lower up to 200 clients. Past that both
 servers are queueing and the tail is the queue, not the server.
 
+**Re-measured 2026-11-18, libmicrohttpd only.** That was after the stall at ~256 connections was found and fixed. The stall was libmicrohttpd's own epoll loop waiting out its full timeout after a full batch of events. The fix is the patch this stack builds libmicrohttpd with, from [corLibs](https://github.com/SEAMWARE-cor/corLibs) #39, and it has been sent upstream.
+
+| Clients | libmicrohttpd 1.0.10, patched | p99 | libmicrohttpd 1.0.10, as released | p99 |
+|---:|---:|---:|---:|---:|
+| 10 | 18 097 | 0.46 ms | 18 010 | 0.45-0.47 ms |
+| 50 | 18 029 | 2.7 ms | 17 850 | 2.8 ms |
+| 200 | 17 801 | 11.6 ms | 17 655 | 11.6-11.9 ms |
+| 1000 | 17 578 | 1.06-1.22 s | 17 458 | 1.23-1.39 s |
+
+*Conditions: 2026-11-18 23:37, release `-O2` without PGO, coraine `fe7019c7` (#589), `corDB` on disk (`--dbDir`), one physical core. The data was 100 small `Vehicle` entities (speed, brand, location), queried with `limit=20`, using wrk `-t8` for 10 s per point on 15 other cores. The two libraries ran in ABBA order, and each figure is the mean of two runs. The `corHttp` column of the table above was not re-measured, and the two tables use different data, so compare their shape, not their rates.*
+
+The rate stays flat, down 3 % from 10 to 1000 clients, and the two libraries give the same numbers. The patch fixes the stall and costs nothing. At 1000 clients the tail is the queue: 1 000 connections on a core serving ~17 500 requests a second wait ~57 ms on average, and wrk's p99 catches the ones served last.
+
+### Spot check, 2026-11-18
+
+This check ran every `perfRun.sh` scenario on one core, libmicrohttpd + `corDB` on disk, with the same build as above (`-O2`, **no PGO**). The patched and the released libmicrohttpd ran in ABBA order, 2026-11-18 23:40 to 11-19 00:45. The two libraries agree on every scenario within the run-to-run spread. The largest difference is batch create's p99, 11 % higher with the patch, on runs that were 4 % apart. The table compares tonight's numbers with the PGO `--dbDir` column of "Profile-guided" below (coraine 0.5.0, 2026-10-10):
+
+| One core, libmicrohttpd, `corDB` on disk | 2026-11-18, no PGO | range of 4 runs | vs 0.5.0 PGO |
+|---|---:|---:|---:|
+| query, 1 entity | 76 589 | 75 517-77 234 | -7.4 % |
+| query, 20 entities | 11 128 | 10 911-11 304 | -11.5 % |
+| query, 100 entities | 2 433 | 2 395-2 459 | -11.5 % |
+| query, 20 entities, 200 connections | 11 080 | 10 932-11 160 | -11.2 % |
+| retrieve | 87 741 | 86 042-88 977 | -3.5 % |
+| PATCH, 1 connection | 43 294 | 36 785-46 199 | -11.0 % |
+| PATCH, 50 connections | 95 855 | 95 309-96 805 | -8.2 % |
+| create | 54 358 | 53 821-54 664 | -0.6 % |
+| create, 1 connection | 33 068 | 31 886-33 561 | -2.8 % |
+| merge | 70 852 | 69 001-72 313 | -9.8 % |
+| delete | 125 543 | 121 507-127 324 | -0.9 % |
+| batch update (20) | 8 792 | 8 708-8 871 | -12.3 % |
+| batch create (20) | 5 600 | 5 513-5 715 | -4.6 % |
+| batch delete (20) | 23 169 | 23 014-23 450 | -2.7 % |
+| PATCH, 1 subscriber | 21 266 | 21 045-21 550 | -3.5 % |
+| PATCH, ~210 subscriptions | 20 148 | 19 952-20 411 | -5.9 % |
+
+PGO is worth +1 % to +9 % on this build (see "Profile-guided"), which covers most of the gap, but not all of it: the queries are 11.5 % lower against PGO's +8 %, batch update 12.3 % lower against PGO's +7 %. The night of 2026-11-19 followed that up, below.
+
+### Where the queries went, 2026-11-19
+
+**Today's `main` with PGO.** coraine `main` (`edc2c52c`) and every library at its `main`, `make pgo PGO_RESTORE_DEBUG=0`, three perfRun runs, the same machine and configuration as the spot check (one core, libmicrohttpd, `corDB` `--dbDir`), 02:22-03:12. Medians, against 0.5.0's PGO `--dbDir` column of "Profile-guided":
+
+| One core, libmicrohttpd, `corDB` on disk | `main` PGO | range of 3 runs | vs 0.5.0 PGO |
+|---|---:|---:|---:|
+| query, 1 entity | 80 454 | 80 330-81 748 | -2.7 % |
+| query, 20 entities | 12 177 | 12 102-12 230 | -3.2 % |
+| query, 100 entities | 2 655 | 2 632-2 656 | -3.5 % |
+| query, 20 entities, 200 connections | 12 088 | 12 085-12 135 | -3.1 % |
+| retrieve | 92 041 | 91 372-94 242 | +1.2 % |
+| PATCH, 1 connection | 48 853 | 46 457-49 636 | +0.5 % |
+| PATCH, 50 connections | 103 491 | 102 838-106 632 | -0.9 % |
+| create | 59 683 | 59 014-59 887 | +9.1 % |
+| create, 1 connection | 35 910 | 33 341-35 947 | +5.5 % |
+| merge | 75 976 | 75 362-77 344 | -3.3 % |
+| delete | 122 217 | 119 895-126 273 | -3.5 % |
+| batch update (20) | 9 740 | 9 658-9 834 | -2.8 % |
+| batch create (20) | 5 796 | 5 736-5 841 | -1.3 % |
+| batch delete (20) | 23 697 | 23 337-23 860 | -0.5 % |
+| PATCH, 1 subscriber | 21 987 | 21 952-22 203 | -0.3 % |
+| PATCH, ~210 subscriptions | 20 979 | 20 441-21 039 | -2.0 % |
+
+The gap is down to ~3 % on the queries and batch update, with create 5-9 % faster. These are runs five weeks apart, not ABBA, so 3 % is within what the machine's day-to-day state can move. The 0.5.0 tables below stand.
+
+**coraine#589 checked.** `main` (`edc2c52c`) and #589's branch (`fe7019c7`, Service Execution), built the same way from clean trees, release without PGO, one core, 10 s queries interleaved: 11.1-11.5 k/s for both. #589 costs nothing on the query path.
+
+**Profile.** `perf record` of the broker on the query scenario (limit 20, 50 connections, entities of five attributes), PGO `main`:
+
+- `corTimeIso` **~7.7 %**: the response turned every createdAt/modifiedAt (entity and each attribute) into an ISO string, then stripped them, since the request did not ask for sysAttrs. 12 of the 13 strings per entity were thrown away.
+- libc float printing **~8 %**: corJson's render-size estimate printed every float to measure it, then the render printed it again.
+- the JSON render itself: `pushEscapedStringF` ~16 %, the size estimate (`escapedStringLen`) 6-7 %.
+
+Neither waste is new. 0.5.0's sources (corNgsild `5cfed34`, corJson `bd0c7b4`) do the same, so these explain where the time goes, not the 3 %.
+
+**Fixed: [corNgsild#128](https://github.com/SEAMWARE-cor/corNgsild/pull/128)** strips the system attributes before the ISO conversion, and **[corJson#17](https://github.com/SEAMWARE-cor/corJson/pull/17)** makes a float's size a bound instead of a second print (fuzzed against the printer over 9 million values, never below it). Measured together, perfRun on one core, libmicrohttpd, `corDB` `--dbDir`, release **without** PGO, ABBA order (A B B A, 2026-11-19 04:59-06:05). A = `main`, B = `main` + both PRs:
+
+| One core, libmicrohttpd, `corDB` on disk | A (`main`) | B (+ both) | gain | p99 A -> B |
+|---|---:|---:|---:|---:|
+| query, 1 entity | 79 004 | 83 941 | +6.2 % | 0.7 -> 0.6 ms |
+| query, 20 entities | 11 577 | 13 576 | **+17.3 %** | 4.2 -> 3.6 ms |
+| query, 100 entities | 2 517 | 2 976 | **+18.2 %** | 19.2 -> 16.2 ms |
+| query, 20 entities, 200 connections | 11 560 | 13 514 | **+16.9 %** | 17.7 -> 14.9 ms |
+| query, rare type in 300 000 entities, offset 1000 | 8 422 | 9 308 | +10.5 % | 5.8 -> 5.2 ms |
+| retrieve | 89 952 | 98 312 | +9.3 % | 0.6 -> 0.5 ms |
+| PATCH, 1 connection | 42 895 | 46 935 | +9.4 % | |
+| merge | 71 947 | 74 592 | +3.7 % | 1.0 -> 1.2 ms |
+| PATCH (50), create, delete, batches, subscriptions | | | -0.7 % to +4.4 %, the runs overlapping | unchanged |
+
+Both B runs beat both A runs on every query scenario. The writes don't render entities, so they don't change. The gain is on top of PGO's (the two are independent: one removes work, the other lays the remaining work out better), which puts the queries well past 0.5.0's numbers once the two PRs are in.
+
 ### Profile-guided: `make pgo`
 
 A release build compiled twice: once instrumented (`-fprofile-generate`), run through the work it is
@@ -908,26 +998,78 @@ are in the kernel. What else was tried and left out, and why, is in [the history
 
 ### Service Execution
 
-**One physical core**, the broker its own executor: the loopback bridge's `loopback://inline` reports
-`executing` with progress 50 %, then `completed` - no transport, no executor time. What is left is what
-Service Execution costs in the broker: the input checked, the execution stored, its reports stored, the
-answer. TRoE on (`--troe corDB`), corDB on disk (`--dbDir`), 100 entities, a random one per request.
+Services (synchronous: `POST /entities/{id}/services/{name}` → 200, the output) and actions
+(asynchronous → 202; then executing, progress 50 %, completed), a second a core. Four setups:
 
-| | per core | p50 | p99 |
-|---|---:|---:|---:|
-| **service** (synchronous, `POST /entities/{id}/services/{name}` → 200, the output) | **59 700 /s** | 0.26 ms | 1.4 ms |
-| **action** (asynchronous → 202; executing, progress, completed) | **43 000 /s** | 0.35 ms | 1.9 ms |
-| service, 64 clients | 59 500 /s | 1.0 ms | 2.8 ms |
-| action, 64 clients | 41 600 /s | 1.4 ms | 3.4 ms |
+| | brokers | the executor |
+|---|---|---|
+| **1** | one | its own loopback bridge (`loopback://inline`: executing with progress 50 %, then completed - no transport, no executor time) |
+| **2** | A and B, A's services executed by B over **cor://** | B's loopback bridge, as in 1 |
+| **3** | as 2, both on **MongoDB + TimescaleDB** | as 2 |
+| **4** | as 2 and 3, over **HTTP** | as 2 |
 
-*(2026-11-18, release `-O2`, libmicrohttpd, coraine 0.7.0+dev with corDB#52; the broker pinned to one physical
-core, wrk on the other 15; 16 clients unless said; medians of 3 runs of 10 s, each from an empty store
-(`test/perf/sePerf.sh corDB`). Per core = the answers / the CPU-seconds the broker used, read from
-`/proc/<pid>/stat` - the core was saturated in every run.)*
+Between A and B the requests of an HTTP executor ([Another broker as the executor](service-execution.md#another-broker-as-the-executor)):
+A hands the execution to B's executor route, B runs it and - an action - reports every change to A
+(`PATCH /ngsi-ld/v1/services/{id}`), A stores it. **An action counts once it is completed on A**: the rate
+is the actions over wrk's run plus the time until A had none executing any more (the drain).
 
-An action costs more than a service because it is written three times (created, executing with its progress,
-completed) and answered before it ends. Neither the store nor TRoE moves these numbers: corDB on disk or in
-RAM, TRoE on or off, within 4 % of each other.
+**Every broker on one physical core of its own**; TRoE on everywhere (`--troe corDB`, or TimescaleDB);
+corDB on disk (`--dbDir`); 100 entities, a random one per request. **Per core** = the calls / the
+CPU-seconds the brokers used (A and B together, from `/proc/<pid>/stat`, until the last action completed) -
+not wall time × cores. The database servers' CPU is not in it, and is given beside it.
+
+**Setup 1 - one broker, one core:**
+
+| one core | corDB | | | MongoDB + TimescaleDB | | |
+|---|---:|---:|---:|---:|---:|---:|
+| | **per core** | p50 | p99 | rate | p50 | p99 |
+| **service**, 16 clients | **59 900 /s** | 0.25 ms | 1.4 ms | 5 900 /s | 2.7 ms | 5.1 ms |
+| service, 64 | 59 700 /s | 1.0 ms | 2.9 ms | 6 100 /s | 10.4 ms | 17.1 ms |
+| service, 256 | 58 300 /s | 4.2 ms | 9.1 ms | 5 900 /s | 42.8 ms | 51.7 ms |
+| **action**, 16 clients | **43 000 /s** | 0.35 ms | 2.0 ms | 2 360 /s | 6.7 ms | 9.0 ms |
+| action, 64 | 42 100 /s | 1.4 ms | 3.5 ms | 2 340 /s | 26.9 ms | 34.3 ms |
+| action, 256 | 42 000 /s | 5.7 ms | 12.8 ms | ~2 300 /s | 108 ms | 130 ms |
+
+On MongoDB the broker does not fill its core (0.6-0.9 of it): MongoDB and TimescaleDB set the pace, and
+their CPU is not counted here (setups 3 and 4 count it).
+
+**Setups 2-4 - two brokers, one core each.** Rate, and per core of the pair:
+
+| | **2** corDB, cor:// | | **4** corDB, HTTP | | **4** corDB, HTTP, A with 8 workers | | **3** MongoDB, cor:// | | **4** MongoDB, HTTP | |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| | rate | per core | rate | per core | rate | per core | rate | per core | rate | per core |
+| **service**, 16 clients | **18 750 /s** | 15 600 | 16 970 /s | 12 200 | **27 000 /s** | 14 300 | 4 540 /s | 2 660 | 4 580 /s | 2 570 |
+| service, 64 | 18 900 /s | 15 400 | 16 300 /s | 12 200 | 29 200 /s | 15 500 | 4 700 /s | 2 750 | 4 500 /s | 2 550 |
+| service, 256 | 19 150 /s | 15 300 | 16 600 /s | 12 000 | 30 500 /s | 15 900 | 4 710 /s | 2 840 | 4 520 /s | 2 540 |
+| **action**, 16 clients | **12 100 /s** | 7 450 | 5 960 /s | 4 970 | **13 000 /s** | 7 780 | 1 870 /s | 1 390 | 1 870 /s | 1 290 |
+| action, 64 | 11 900 /s | 7 460 | 4 810 /s | 4 130 | 11 800 /s | 7 430 | 1 810 /s | 1 350 | 1 120 /s | 1 150 |
+| action, 256 | 11 800 /s | 7 360 | 4 600 /s | 3 950 | 11 600 /s | 7 500 | 1 800 /s | 1 340 | 1 080 /s | 1 120 |
+
+| latency (p50 / p99) | 2 corDB, cor:// | 4 corDB, HTTP | 4 HTTP, 8 workers | 3 MongoDB, cor:// | 4 MongoDB, HTTP |
+|---|---|---|---|---|---|
+| service, 16 clients | 0.82 / 4.1 ms | 0.93 / 3.5 ms | 0.54 / 2.4 ms | 3.4 / 6.8 ms | 3.3 / 6.8 ms |
+| action (the 202), 16 clients | 1.3 / 3.9 ms | 1.1 / 76 ms | 0.73 / 164 ms | 8.4 / 12.8 ms | 8.4 / 12.2 ms |
+| the drain after a 10 s run, actions, 16 / 256 clients | 0.01 / 0.01 s | 12.4 / 22.6 s | 4.6 / 8.3 s | 0.02 / 0.3 s | 0.02 / 9.1 s |
+| the database servers' CPU (cores), service / action | - | - | - | 4.0 / 2.8 | 4.0 / 2.8 |
+
+- **cor:// is the faster link, and keeps up**: an action is completed on A as fast as A accepts it (the
+  drain stays at milliseconds). Over HTTP the reports fall behind: A accepts the actions faster than B's
+  reports come in, and they complete up to 22 s after the last one was accepted - the rate above counts the
+  completions, not the 202s.
+- **Over HTTP A needs workers.** corDB on one core gives a broker one worker (`--connectionPoolSize 0`: a
+  store that never waits); A's invocations wait for B, and B's reports wait for A's one worker. With 8
+  (`--connectionPoolSize 8`) HTTP passes cor:// for services (30 500/s against 19 150/s - on the HTTP client
+  side many requests are in flight at once, on cor:// one connection carries them) and equals it for actions.
+- **Two brokers cost** a quarter of setup 1 per core for services (15 600 against 59 900) and a sixth for
+  actions (7 450 against 43 000): each call crosses a transport twice, and an action's reports a third time.
+- **On MongoDB the database is the bottleneck**: four of the machine's cores in mongod and the TimescaleDB
+  server for 4 600 services a second - more than both brokers together.
+
+*(2026-11-18 22:57-23:40, release `-O2` (no PGO), coraine `fe7019c7` (#589) with corNgsild#127, libmicrohttpd
+1.0.10 with the stack's two patches, MongoDB 4.4.30 (the `mongo:4.4` container) and PostgreSQL 18.6 +
+TimescaleDB 2.25.1 on the same machine (not pinned - on the load generator's cores); A on CPU 0, B on CPU 1, wrk (8 threads) on 2-15; medians of 3
+runs of 10 s, each from empty stores; `test/perf/sePerf.sh` (setup 1) and `test/perf/sePerf2.sh` (2-4).
+Machine as in "Profile-guided".)*
 
 **Two fixes behind them.** corDB found a document of its document store by walking the collection, and every
 execution is a document written three or four times: 2 840 services/s over 3 s fell to 1 710/s averaged over
