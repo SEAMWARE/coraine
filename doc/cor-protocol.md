@@ -55,17 +55,17 @@ written in it.
 ## Key numbers
 
 Three `corDB` brokers chained A -> B -> C, a GET on A, 16 connections; each broker on two cores,
-built-in server, release build with PGO, deep idle states, two runs (2026-10-02,
+built-in server, release build with PGO, deep idle states, two runs (2026-11-19,
 [details § 6](cor-protocol-details.md#6-what-is-built-and-what-it-measures)):
 
 | Entity | Mode | req/s | p99 |
 |---|---|---:|---:|
-| 4 attributes | HTTP all the way | 42,992-44,418 | 0.85-2.23 ms |
-| 4 attributes | cor:// between the brokers, HTTP client | 79,991-80,764 | 333-346 us |
-| 4 attributes | cor:// all the way | 91,490-91,945 | 235-237 us |
-| 20 attributes | HTTP all the way | 24,415-25,127 | 1.26-1.30 ms |
-| 20 attributes | cor:// between the brokers, HTTP client | 39,703-40,871 | 784-810 us |
-| 20 attributes | cor:// all the way | 50,988-53,642 | 398-402 us |
+| 4 attributes | HTTP all the way | 40,718-40,934 | 1.44-2.19 ms |
+| 4 attributes | cor:// between the brokers, HTTP client | 76,319-76,453 | 415-429 us |
+| 4 attributes | cor:// all the way | 86,930-90,067 | 242-253 us |
+| 20 attributes | HTTP all the way | 24,720-25,376 | 1.27-1.30 ms |
+| 20 attributes | cor:// between the brokers, HTTP client | 35,200-40,809 | 0.90-1.90 ms |
+| 20 attributes | cor:// all the way | 46,813-48,306 | 424-446 us |
 
 One broker, no forwarding: cor:// and HTTP are at parity on throughput (~145,000 against ~142,000
 req/s with 16 connections), the p99 under load 209 us against 4-9 ms. On the wire, with the NGSI-LD

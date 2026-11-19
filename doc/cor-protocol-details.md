@@ -415,16 +415,16 @@ the whole suite runs with every request over cor:// as well (`COR_TRANSPORT=cor`
 **Three brokers chained** (`test/perf/corChain.sh`): `corDB` brokers A -> B -> C, A and B each
 registered with the next, a GET on A - every request crosses both hops twice. Each broker on two
 cores, the built-in server, the release build with PGO (as the Docker image), deep idle states, two
-runs each (2026-10-02):
+runs each (2026-11-19, `main` `ae9645b4`):
 
 | Entity | Mode | 1 conn req/s | p50 | 16 conns req/s | p50 | p99 |
 |---|---|---|---|---|---|---|
-| 4 attributes | http | 8,003-8,067 | 128 us | 42,992-44,418 | 342-349 us | 0.85-2.23 ms |
-| 4 attributes | cor (hops) | 12,829-12,998 | 69 us | 79,991-80,764 | 202-203 us | 333-346 us |
-| 4 attributes | **cor-all** | **11,405-11,407** | **91 us** | **91,490-91,945** | **171-172 us** | **235-237 us** |
-| 20 attributes | http | 4,651-5,694 | 156-217 us | 24,415-25,127 | 631-654 us | 1.26-1.30 ms |
-| 20 attributes | cor (hops) | 6,578-8,653 | 112-157 us | 39,703-40,871 | 373-383 us | 784-810 us |
-| 20 attributes | **cor-all** | **6,880-6,980** | **145-147 us** | **50,988-53,642** | **292-312 us** | **398-402 us** |
+| 4 attributes | http | 10,137-10,296 | 92 us | 40,718-40,934 | 368-372 us | 1.44-2.19 ms |
+| 4 attributes | cor (hops) | 13,593-13,794 | 69 us | 76,319-76,453 | 208 us | 415-429 us |
+| 4 attributes | **cor-all** | **13,465-13,842** | **67-70 us** | **86,930-90,067** | **174-181 us** | **242-253 us** |
+| 20 attributes | http | 5,013-5,581 | 157-215 us | 24,720-25,376 | 616-630 us | 1.27-1.30 ms |
+| 20 attributes | cor (hops) | 7,442-7,847 | 118-120 us | 35,200-40,809 | 377-430 us | 0.90-1.90 ms |
+| 20 attributes | **cor-all** | **6,660-6,800** | **154 us** | **46,813-48,306** | **329-340 us** | **424-446 us** |
 
 - **http** - every hop HTTP and JSON; the client is wrk
 - **cor (hops)** - the two forwarding hops cor://, the client still wrk over HTTP
