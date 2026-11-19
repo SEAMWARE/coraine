@@ -38,7 +38,7 @@ coraineStart --troe timescale --troeSync --bridges dds --bridgeConfig $BRIDGE_CO
 
 echo "01. The Fibonacci server comes up - discovered, and carried on the catch-all"
 echo "==========================================================================="
-docker run --rm -d --name cor_ros2_action_server --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
+docker run --rm -d --name cor_ros2_action_server $(ros2RunArgs) "$COR_DDS_ROS2_IMAGE" \
   bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/examples_rclpy_minimal_action_server/server' > /dev/null
 for i in $(seq 1 300); do
   corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:dds:default?pick=fibonacci' 2>/dev/null | grep -q '"fibonacci"' && break

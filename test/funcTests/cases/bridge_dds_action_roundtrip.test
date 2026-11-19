@@ -52,7 +52,7 @@ coraineStart --troe timescale --troeSync --bridges dds --bridgeConfig $BRIDGE_CO
 
 echo "01. A goal of order 3 to the Fibonacci server - DDS first, so 202"
 echo "================================================================="
-docker run --rm -d --name cor_ros2_action_server --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
+docker run --rm -d --name cor_ros2_action_server $(ros2RunArgs) "$COR_DDS_ROS2_IMAGE" \
   bash -c 'exec python3 /opt/ros/$ROS_DISTRO/lib/examples_rclpy_minimal_action_server/server' > /dev/null
 bridgeChannelAwait dds fibonacci endpointDiscovered true 30
 corCurl --url /ngsi-ld/v1/entities/urn:R:1/attrs/compute -X PATCH --payload '{ "type": "Property", "value": { "order": 3 } }'

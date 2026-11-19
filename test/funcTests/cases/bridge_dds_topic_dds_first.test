@@ -39,7 +39,7 @@ docker rm -f cor_ros2_echo >/dev/null 2>&1
 # The echo FIRST, so that the topic is announced by the time the broker's
 # DDS participant starts discovering
 #
-docker run --rm -d --name cor_ros2_echo --ipc=host -e ROS_DOMAIN_ID="$COR_DDS_DOMAIN" "$COR_DDS_ROS2_IMAGE" \
+docker run --rm -d --name cor_ros2_echo $(ros2RunArgs) "$COR_DDS_ROS2_IMAGE" \
   bash -c 'source /opt/ros/$ROS_DISTRO/setup.bash; exec ros2 topic echo --no-daemon /cmd_vel geometry_msgs/msg/Twist' > /dev/null
 sleep 3
 BRIDGE_CONFIG=$(bridgeConfig -b dds \
