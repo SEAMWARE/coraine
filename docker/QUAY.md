@@ -187,3 +187,12 @@ Running it needs two things the image cannot supply for itself — the topic
 mapping, which is the deployment's, and `ipc: host`, without which Fast DDS
 cannot reach a participant on the same machine over shared memory. Both are in
 `docker/docker-compose-dds.yml`.
+
+## The rule engine
+
+`cep.so`, [corCep](https://github.com/SEAMWARE/corCep)'s rules inside the broker, ships in every `coraine` too
+(132 KB) and is loaded only on `--bridges cep`:
+
+    docker run ... quay.io/seamware/coraine:<tag> --bridges cep --cep-tenant <tenant>
+
+The image build loads it once, so an image whose plugin does not fit its broker is not published.

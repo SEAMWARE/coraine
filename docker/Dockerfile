@@ -290,6 +290,14 @@ RUN ldconfig \
        fi \
     && echo "dds bridge plugin present, and it resolves every library it needs"
 
+#
+# corCep's plugin, cep.so (--bridges cep): built by corLibs' umbrella against these very cor-libs - it links none, it
+# uses coraine's. Loaded here once (-U loads the plugins --bridges names), so an image whose cep.so does not fit its
+# coraine fails to build rather than at a user's start.
+#
+RUN coraine --bridges cep -U 2>&1 | grep -q -- "--cep-tenant" \
+    && echo "cep bridge plugin present, and coraine loads it"
+
 EXPOSE 1026
 
 # /version: answered without touching the store, and exempt from the memory budget - over the budget

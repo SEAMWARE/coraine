@@ -1017,11 +1017,13 @@ with each bridge: [DDS and ROS 2](dds.md), [The MQTT bridge](mqtt-bridge.md),
 `-br` · `CORAINE_BRIDGES` · String · no default - no bridge is loaded
 · values: a comma-separated list of bridge plugins, at most 8 - short names resolve to `/opt/seamware/plugins/bridge/<name>.so` (`$SEAMWARE_PLUGIN_DIR/bridge/<name>.so`), a name with a `/` is a path · plugin: core
 
-Loads the bridge plugins. `coraine -u` lists the ones installed (`ckan`, `dds`, `loopback`, `modbus`,
-`mqtt`; `loopback` has no transport and serves the tests). A plugin's own options are added to the
+Loads the bridge plugins. `coraine -u` lists the ones installed (`cep`, `ckan`, `dds`, `loopback`, `modbus`,
+`mqtt`; `loopback` has no transport and serves the tests; `cep` neither - it is corCep's rule engine, in process:
+[The rule engine in the broker](cep-plugin.md)). A plugin's own options are added to the
 command line and to `coraine -u` under `Bridge (<name>) plugin options:`. The transports are opened last
 in the startup, once everything else is up. `GET /version` lists the loaded bridges under `bridges`.
-With `mqtt`, subscriptions can notify `mqtt://` and `mqtts://` endpoints. Refused at start - a plugin
+With `mqtt`, subscriptions can notify `mqtt://` and `mqtts://` endpoints; with `cep`, `inproc://cep/...`
+(corCep's own). Refused at start - a plugin
 that is not there, or whose `init` fails:
 
     bridge plugin 'nosuch' (/opt/seamware/plugins/bridge/nosuch.so): not found

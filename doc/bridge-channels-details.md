@@ -2098,7 +2098,8 @@ parallel vtable section for invocation, mirroring the spec API. OPC-UA's
   Service Execution stops being free.
 - **Notifications over the bridges** - settled: a notification to a scheme other than HTTP
   (`mqtt://`, `mqtts://`) is delivered by the bridge plugin that claims the scheme (`BridgeDriver`
-  ABI 10, `notifySchemes` / `notify`; `mqtt.so` - [The MQTT bridge](mqtt-bridge.md)). HTTP
+  ABI 10, `notifySchemes` / `notify`; `mqtt.so` - [The MQTT bridge](mqtt-bridge.md); `cep.so` claims
+  `inproc`, in process - [The rule engine in the broker](cep-plugin.md)). HTTP
   notifications stay in [corRest](https://github.com/SEAMWARE-cor/corRest)'s client. A Subscription naming a scheme no loaded bridge claims is
   refused at creation.
 
