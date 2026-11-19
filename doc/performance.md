@@ -2,7 +2,7 @@
 
 Every number on this page was measured on one machine, from release builds, and
 each section says how. Measured on 2026-11-18: Service Execution, the clients curve
-(libmicrohttpd) and a spot check of every throughput scenario against the 0.5.0 numbers. Re-measured on 2026-10-10 for 0.5.0, the broker's own code
+(libmicrohttpd) and a spot check of every throughput scenario against the 0.5.0 numbers; on 2026-11-19 today's `main` with PGO, a profile of the queries and the two fixes it led to. Re-measured on 2026-10-10 for 0.5.0, the broker's own code
 profile-guided: the libmicrohttpd + `corDB` rows of the first throughput tables, the writes
 table (both `corDB` on disk) and "Profile-guided". Re-measured on 2026-10-05, after corDB's log
 became memory-mapped (a write's record is in the kernel before the response) and with the
@@ -529,7 +529,58 @@ This check ran every `perfRun.sh` scenario on one core, libmicrohttpd + `corDB` 
 | PATCH, 1 subscriber | 21 266 | 21 045-21 550 | -3.5 % |
 | PATCH, ~210 subscriptions | 20 148 | 19 952-20 411 | -5.9 % |
 
-PGO is worth +1 % to +9 % on this build (see "Profile-guided"), which covers most of the gap, but not all of it. The queries are 11.5 % lower against PGO's +8 %, and batch update is 12.3 % lower against PGO's +7 %. That leaves them 3-5 % lower than PGO explains. Seven weeks of features lie between the two builds, and this check can't say which of them costs the difference. Finding out takes 0.5.0 and today's `main`, both built with PGO, run in ABBA order. Until then, the tables below stand as what 0.5.0 measured, with their dates.
+PGO is worth +1 % to +9 % on this build (see "Profile-guided"), which covers most of the gap, but not all of it: the queries are 11.5 % lower against PGO's +8 %, batch update 12.3 % lower against PGO's +7 %. The night of 2026-11-19 followed that up, below.
+
+### Where the queries went, 2026-11-19
+
+**Today's `main` with PGO.** coraine `main` (`edc2c52c`) and every library at its `main`, `make pgo PGO_RESTORE_DEBUG=0`, three perfRun runs, the same machine and configuration as the spot check (one core, libmicrohttpd, `corDB` `--dbDir`), 02:22-03:12. Medians, against 0.5.0's PGO `--dbDir` column of "Profile-guided":
+
+| One core, libmicrohttpd, `corDB` on disk | `main` PGO | range of 3 runs | vs 0.5.0 PGO |
+|---|---:|---:|---:|
+| query, 1 entity | 80 454 | 80 330-81 748 | -2.7 % |
+| query, 20 entities | 12 177 | 12 102-12 230 | -3.2 % |
+| query, 100 entities | 2 655 | 2 632-2 656 | -3.5 % |
+| query, 20 entities, 200 connections | 12 088 | 12 085-12 135 | -3.1 % |
+| retrieve | 92 041 | 91 372-94 242 | +1.2 % |
+| PATCH, 1 connection | 48 853 | 46 457-49 636 | +0.5 % |
+| PATCH, 50 connections | 103 491 | 102 838-106 632 | -0.9 % |
+| create | 59 683 | 59 014-59 887 | +9.1 % |
+| create, 1 connection | 35 910 | 33 341-35 947 | +5.5 % |
+| merge | 75 976 | 75 362-77 344 | -3.3 % |
+| delete | 122 217 | 119 895-126 273 | -3.5 % |
+| batch update (20) | 9 740 | 9 658-9 834 | -2.8 % |
+| batch create (20) | 5 796 | 5 736-5 841 | -1.3 % |
+| batch delete (20) | 23 697 | 23 337-23 860 | -0.5 % |
+| PATCH, 1 subscriber | 21 987 | 21 952-22 203 | -0.3 % |
+| PATCH, ~210 subscriptions | 20 979 | 20 441-21 039 | -2.0 % |
+
+The gap is down to ~3 % on the queries and batch update, with create 5-9 % faster. These are runs five weeks apart, not ABBA, so 3 % is within what the machine's day-to-day state can move. The 0.5.0 tables below stand.
+
+**coraine#589 checked.** `main` (`edc2c52c`) and #589's branch (`fe7019c7`, Service Execution), built the same way from clean trees, release without PGO, one core, 10 s queries interleaved: 11.1-11.5 k/s for both. #589 costs nothing on the query path.
+
+**Profile.** `perf record` of the broker on the query scenario (limit 20, 50 connections, entities of five attributes), PGO `main`:
+
+- `corTimeIso` **~7.7 %**: the response turned every createdAt/modifiedAt (entity and each attribute) into an ISO string, then stripped them, since the request did not ask for sysAttrs. 12 of the 13 strings per entity were thrown away.
+- libc float printing **~8 %**: corJson's render-size estimate printed every float to measure it, then the render printed it again.
+- the JSON render itself: `pushEscapedStringF` ~16 %, the size estimate (`escapedStringLen`) 6-7 %.
+
+Neither waste is new. 0.5.0's sources (corNgsild `5cfed34`, corJson `bd0c7b4`) do the same, so these explain where the time goes, not the 3 %.
+
+**Fixed: [corNgsild#128](https://github.com/SEAMWARE-cor/corNgsild/pull/128)** strips the system attributes before the ISO conversion, and **[corJson#17](https://github.com/SEAMWARE-cor/corJson/pull/17)** makes a float's size a bound instead of a second print (fuzzed against the printer over 9 million values, never below it). Measured together, perfRun on one core, libmicrohttpd, `corDB` `--dbDir`, release **without** PGO, ABBA order (A B B A, 2026-11-19 04:59-06:05). A = `main`, B = `main` + both PRs:
+
+| One core, libmicrohttpd, `corDB` on disk | A (`main`) | B (+ both) | gain | p99 A -> B |
+|---|---:|---:|---:|---:|
+| query, 1 entity | 79 004 | 83 941 | +6.2 % | 0.7 -> 0.6 ms |
+| query, 20 entities | 11 577 | 13 576 | **+17.3 %** | 4.2 -> 3.6 ms |
+| query, 100 entities | 2 517 | 2 976 | **+18.2 %** | 19.2 -> 16.2 ms |
+| query, 20 entities, 200 connections | 11 560 | 13 514 | **+16.9 %** | 17.7 -> 14.9 ms |
+| query, rare type in 300 000 entities, offset 1000 | 8 422 | 9 308 | +10.5 % | 5.8 -> 5.2 ms |
+| retrieve | 89 952 | 98 312 | +9.3 % | 0.6 -> 0.5 ms |
+| PATCH, 1 connection | 42 895 | 46 935 | +9.4 % | |
+| merge | 71 947 | 74 592 | +3.7 % | 1.0 -> 1.2 ms |
+| PATCH (50), create, delete, batches, subscriptions | | | -0.7 % to +4.4 %, the runs overlapping | unchanged |
+
+Both B runs beat both A runs on every query scenario. The writes don't render entities, so they don't change. The gain is on top of PGO's (the two are independent: one removes work, the other lays the remaining work out better), which puts the queries well past 0.5.0's numbers once the two PRs are in.
 
 ### Profile-guided: `make pgo`
 
