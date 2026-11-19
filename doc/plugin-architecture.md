@@ -55,6 +55,10 @@ There are **six** kinds of plugin:
   `coraine-build --bridges` names them:
   [`corCkanBridge`](https://github.com/SEAMWARE-cor/corCkanBridge) and
   [`corOpcuaBridge`](https://github.com/SEAMWARE-cor/corOpcuaBridge) (open62541).
+  And, built last by the umbrella, `cep` - [corCep](https://github.com/SEAMWARE/corCep)'s
+  rule engine inside the broker ([The rule engine in the broker](cep-plugin.md)). It is the one
+  bridge that carries no protocol: it claims the notification scheme `inproc`, and the
+  notifications of its own subscriptions reach it in process.
 
   ⭐ This is a *different axis* from the communication protocols above, and the
   two are easy to confuse. A communication protocol is how a **client reaches
@@ -132,7 +136,8 @@ the **`SEAMWARE_PLUGIN_DIR`** environment variable
     ├── modbus.so          # Modbus TCP, from corModbusBridge
     ├── mqtt.so            # MQTT, from corMqttBridge
     ├── ckan.so            # CKAN, from corCkanBridge (coraine-build --bridges ckan)
-    └── opcua.so           # OPC UA, from corOpcuaBridge (coraine-build --bridges opcua)
+    ├── opcua.so           # OPC UA, from corOpcuaBridge (coraine-build --bridges opcua)
+    └── cep.so             # corCep's rule engine, in process (inproc://), from corCep
 ```
 
 A plugin can also be given as a **full path** (any argument containing a `/`),
@@ -355,6 +360,7 @@ the headers — read these before writing a plugin:
 | **mqtt** | Bridge | MQTT, through libmosquitto. Delivers Subscription notifications to `mqtt://` and `mqtts://` endpoints (TS 104 243), which therefore need `--bridges mqtt` - without it such a Subscription is refused. Its Channels map MQTT topics to attributes, both ways. See [The MQTT bridge](mqtt-bridge.md). Lives in [`corMqttBridge`](https://github.com/SEAMWARE-cor/corMqttBridge); the broker itself does not link libmosquitto. |
 | **dds** | Bridge | DDS topics ↔ entity attributes, via eProsima's DDS Enabler. Lives in [`corDdsBridge`](https://github.com/SEAMWARE-cor/corDdsBridge) and ships in the ordinary image, loaded only on `--bridges dds`. It links 21.4 MiB over nine libraries against the broker's own 4.28 MiB over three; an image that carries it and never loads it costs that disk space and nothing else. |
 | **ckan** | Bridge | An open data portal's datasets (CKAN's API), discovered and read into entities through DataChannels. Lives in [`corCkanBridge`](https://github.com/SEAMWARE-cor/corCkanBridge), no library, built by `coraine-build --bridges ckan`. |
+| **cep** | Bridge | Not a transport: [corCep](https://github.com/SEAMWARE/corCep)'s rule engine, in process. It claims the notification scheme `inproc`; its subscriptions name `inproc://cep/notify/<secret>/<n>`, the broker matches every write against them as against any subscription and hands the notification over after the response - no HTTP. Its reads and actions are NGSI-LD requests to the broker (HTTP on 127.0.0.1 today). Built against the very cor-libs of the broker it is loaded into, by the corLibs umbrella; ships in the image, loaded only on `--bridges cep`. See [The rule engine in the broker](cep-plugin.md). |
 | **opcua** | Bridge | An OPC UA server, through open62541: its Variables as Channels (monitored in, Writes out), its Objects as AssetChannels - a model browsed into a graph of entities. Sign / SignAndEncrypt with certificates and a trust list, a user and password. Lives in [`corOpcuaBridge`](https://github.com/SEAMWARE-cor/corOpcuaBridge), built by `coraine-build --bridges opcua`. |
 
 ## Writing a new plugin (sketch)
