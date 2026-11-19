@@ -347,34 +347,31 @@ only at `limit=1` - a figure quoted without its page size says little:
 
 | Response | req/s per core | **entities/s per core** |
 |---|---:|---:|
-| 1 entity | **82 672** | 82 672 |
-| 20 entities | 12 577 | **251 540** |
-| 100 entities | 2 750 | **275 000** |
+| 1 entity | **84 634** | 84 634 |
+| 20 entities | 13 976 | **279 520** |
+| 100 entities | 3 126 | **312 600** |
 
-*(libmicrohttpd + `corDB` on disk (`--dbDir`, the durable configuration), PGO release with the broker's
-own code profile-guided, 2026-10-10, coraine 0.5.0 - the conditions in "Profile-guided"; in RAM the
-same build within 2 %. The per-request cost is fixed, so the bigger the page the more of it is
+*(libmicrohttpd + `corDB` on disk (`--dbDir`, the durable configuration), PGO release, coraine `main` `ae9645b4`, 2026-11-19 evening - the conditions in ["`main`, 2026-11-19 evening"](#main-2026-11-19-evening). The per-request cost is fixed, so the bigger the page the more of it is
 amortised — and the entities/s column is still climbing at 100.)*
 
 **All four builds, `limit=20`:**
 
 | Configuration | req/s per core | entities/s per core |
 |---------------|---------------:|--------------------:|
-| libmicrohttpd + `corDB` | **12 577** | **251 540** |
-| `corHttp` + `corDB` | 9 508 | 190 160 |
-| libmicrohttpd + `mongoc` | 7 342 | 146 840 |
-| `corHttp` + `mongoc` | 4 634 | 92 680 |
+| `corHttp` + `corDB` | **14 074** | **281 480** |
+| libmicrohttpd + `corDB` | 13 976 | 279 520 |
+| libmicrohttpd + `mongoc` | 7 248 | 144 960 |
+| `corHttp` + `mongoc` | 6 914 | 138 280 |
 
-*(libmicrohttpd + `corDB` 2026-10-10, PGO release, `corDB` on disk (`--dbDir`). libmicrohttpd +
-`mongoc` 2026-10-05, PGO release (the libraries only, before #307), against MongoDB 8.2 on the host
-network, pinned to seven other cores. `corHttp` rows 2026-09-16, without PGO; its `mongoc` row against
-MongoDB 4.4 through a port mapping (`docker run -p`), which costs a database round trip - a floor,
-not re-measured since.)*
+*(All four 2026-11-19, coraine `main` `ae9645b4`, PGO release (each server its own profile-guided
+build), the median of three runs. `corDB` on disk (`--dbDir`); `mongoc` against MongoDB 8.2 in a
+container on the host network, pinned to seven other physical cores, the load generator on the eight
+left. `corHttp` with `--httpLoops 1`. The conditions in ["`main`, 2026-11-19 evening"](#main-2026-11-19-evening).)*
 
 Every `perfRun.sh` scenario on `mongoc`, two cores, 2026-10-08: ["mongoc: every scenario"](#mongoc-every-scenario-2026-10-08).
 
-One core of a laptop CPU, going through MongoDB, still serves ~7 300 NGSI-LD
-queries a second, delivering 147 000 entities each second.
+One core of a laptop CPU, going through MongoDB, still serves ~7 200 NGSI-LD
+queries a second, delivering 145 000 entities each second.
 
 ### Where a request runs
 
@@ -455,18 +452,17 @@ attributes) the p99 goes to 12-24 ms.
 
 | Operation | req/s | **entities/s** | vs one at a time |
 |---|---:|---:|---:|
-| `PATCH` one attribute, 50 clients | 104 400 | 104 400 | — |
-| `PATCH`, 1 client | 48 625 | 48 625 | — |
-| batch update, 20 per request | 10 022 | **200 440** | **1.9×** |
-| merge (`PATCH /entities/{id}`), 50 clients | 78 548 | 78 548 | — |
-| create one entity | 54 707 | 54 707 | — |
-| batch create, 20 per request | 5 873 | **117 460** | **2.1×** |
-| delete one entity | 126 714 | 126 714 | — |
-| batch delete, 20 per request | 23 814 | **476 280** | **3.8×** |
+| `PATCH` one attribute, 50 clients | 101 528 | 101 528 | — |
+| `PATCH`, 1 client | 48 861 | 48 861 | — |
+| batch update, 20 per request | 10 144 | **202 880** | **2.0×** |
+| merge (`PATCH /entities/{id}`), 50 clients | 76 114 | 76 114 | — |
+| create one entity | 59 954 | 59 954 | — |
+| batch create, 20 per request | 6 117 | **122 340** | **2.0×** |
+| delete one entity | 129 873 | 129 873 | — |
+| batch delete, 20 per request | 23 592 | **471 840** | **3.6×** |
 
-*(2026-10-10, libmicrohttpd, `corDB` on disk (`--dbDir`, the durable configuration), PGO release with
-the broker's own code profile-guided - the conditions in "Profile-guided", which also has the same
-build in RAM. Deletes are measured against a store of 40 000 entities, refilled before every repeat -
+*(2026-11-19, libmicrohttpd, `corDB` on disk (`--dbDir`, the durable configuration), PGO release,
+coraine `main` `ae9645b4`, 2026-11-19 evening - the conditions in ["`main`, 2026-11-19 evening"](#main-2026-11-19-evening). Deletes are measured against a store of 40 000 entities, refilled before every repeat -
 a delete consumes what it measures.)*
 
 Batching is worth two to four times per entity: one HTTP request, one
@@ -581,6 +577,46 @@ Neither waste is new. 0.5.0's sources (corNgsild `5cfed34`, corJson `bd0c7b4`) d
 | PATCH (50), create, delete, batches, subscriptions | | | -0.7 % to +4.4 %, the runs overlapping | unchanged |
 
 Both B runs beat both A runs on every query scenario. The writes don't render entities, so they don't change. The gain is on top of PGO's (the two are independent: one removes work, the other lays the remaining work out better), which puts the queries well past 0.5.0's numbers once the two PRs are in.
+
+### `main`, 2026-11-19 evening
+
+Every `perfRun.sh` scenario on all four builds, today's `main` after the query work of the night before
+(corNgsild#128, corJson#17) was merged. Medians of three runs, requests/s:
+
+| One core | libmicrohttpd, `corDB` | `corHttp`, `corDB` | libmicrohttpd, `mongoc` | `corHttp`, `mongoc` | libmicrohttpd, `corDB`: vs the night before |
+|---|---:|---:|---:|---:|---:|
+| query, 1 entity | 84 634 | 81 885 | 20 504 | 17 678 | +5.2 % |
+| query, 20 entities | 13 976 | 14 074 | 7 248 | 6 914 | +14.8 % |
+| query, 100 entities | 3 126 | 3 134 | 1 581 | 1 568 | +17.7 % |
+| query, 20 entities, 200 connections | 13 966 | 14 055 | 7 457 | 6 401 | +15.5 % |
+| retrieve | 97 566 | 92 473 | 23 312 | 19 660 | +6.0 % |
+| PATCH, 1 connection | 48 861 | 47 997 | 4 932 | 4 897 | +0.0 % |
+| PATCH, 50 connections | 101 528 | 94 385 | 14 278 | 12 358 | -1.9 % |
+| create | 59 954 | 58 089 | 23 495 | 18 924 | +0.5 % |
+| create, 1 connection | 34 027 | 37 029 | 9 049 | 9 321 | -5.2 % |
+| merge | 76 114 | 72 279 | 16 507 | 14 736 | +0.2 % |
+| delete | 129 873 | 110 834 | 19 984 | 16 798 | +6.3 % |
+| batch update (20) | 10 144 | 11 342 | 2 239 | 2 291 | +4.1 % |
+| batch create (20) | 6 117 | 6 983 | 6 725 | 6 432 | +5.5 % |
+| batch delete (20) | 23 592 | 30 548 | 8 115 | 7 791 | -0.4 % |
+| PATCH, 1 subscriber | 22 236 | 41 552 | 8 386 | 8 113 | +1.1 % |
+| PATCH, ~210 subscriptions | 21 215 | 37 834 | 7 938 | 7 743 | +1.1 % |
+
+The queries gained the 15-18 % the night's A/B measured; everything else is within the run-to-run
+spread. `corHttp` sends notifications at about twice libmicrohttpd's rate (PATCH, 1 subscriber), as in
+0.5.0.
+
+| | |
+|---|---|
+| Source | coraine `main` `ae9645b4`, every library at its `main` |
+| Builds | `make pgo PGO_RESTORE_DEBUG=0` + `make install_pgo`, once with libmicrohttpd and once with `COR_HTTP_SERVER=builtin`, each trained by `pgoTrain.sh` |
+| Machine | as in "Profile-guided"; idle states **deep**; no browser running |
+| Load | `perfRun.sh`, `PERF_BROKER_CORES=1` (the broker on CPU 0), 5 s x 3 per scenario, `PERF_RARE_ENTITIES=100 PERF_BIG_ENTITIES=1000` (those scenarios not reported); `--httpLoops 1` on `corHttp` |
+| Store | `corDB` on disk (`--dbDir`, the default `--dbSync`); `mongoc` against MongoDB 8.2 in a container on the host network, `--cpuset-cpus 1-7`, `PERF_RESERVED_CORES=7`, the load generator on CPUs 8-15 |
+| Runs | 2026-11-19 17:11-20:43: libmicrohttpd `corDB`, then `mongoc`, then `corHttp` `corDB`, then `mongoc`; each run waited for the load average to drop below 1.5 |
+
+**Core scaling** (`coreScale.sh`: `limit=20` queries on its own fixture, libmicrohttpd, `corDB` in RAM): 17 307 requests/s on one physical
+core, 32 873 on two, 58 007 on four, 102 302 on eight - 5.9 times one core's rate on eight.
 
 ### Profile-guided: `make pgo`
 

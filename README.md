@@ -183,18 +183,17 @@ physical core and the load generator kept off it.
 
 | Build | Disk added | RAM idle | RAM · 100 k entities | Start-up | req/s per core | entities/s per core |
 |-------|-----------:|---------:|---------------------:|---------:|---------------:|--------------------:|
-| `corHttp` + `corDB` | **4.8 MiB** | 17 MiB | 354 MiB | 12 ms | 9 508 | 190 160 |
-| `corHttp` + `mongoc` | 11.6 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 4 634 | 92 680 |
-| libmicrohttpd + `corDB` | 12.6 MiB | **13 MiB** | 358 MiB | **9 ms** | **12 577** | **251 540** |
-| libmicrohttpd + `mongoc` | 19.3 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 7 342 | 146 840 |
+| `corHttp` + `corDB` | **4.8 MiB** | 17 MiB | 354 MiB | 12 ms | **14 074** | **281 480** |
+| `corHttp` + `mongoc` | 11.6 MiB | 24 MiB | 45 MiB *+ mongod* | 31 ms | 6 914 | 138 280 |
+| libmicrohttpd + `corDB` | 12.6 MiB | **13 MiB** | 358 MiB | **9 ms** | 13 976 | 279 520 |
+| libmicrohttpd + `mongoc` | 19.3 MiB | 20 MiB | 68 MiB *+ mongod* | 26 ms | 7 248 | 144 960 |
 
 <sub>AMD Ryzen 9 8940HX laptop, 16 physical cores, Ubuntu 26.04, release build,
 `COR_FEATURE_ICU_COLLATION=OFF`. `GET /entities?type=Vehicle&limit=20`, 20
 entities per response. **Disk added** counts only what a bare `ubuntu:26.04`
 does not already carry (2026-10-21). `mongod` adds 1.02–1.15 GiB resident and cores of its
-own; `corDB` adds nothing. Rates: libmicrohttpd + `corDB` 2026-10-10 (0.5.0, PGO release, `corDB`
-on disk with `--dbDir`), libmicrohttpd + `mongoc` 2026-10-05 (PGO release, MongoDB 8.2 on the host
-network), `corHttp` rows and the other columns 2026-09-16. Measured **natively** - in a container see below.</sub>
+own; `corDB` adds nothing. Rates: all four 2026-11-19 (`main`, PGO release, `corDB` on disk with
+`--dbDir`, MongoDB 8.2 on the host network), the other columns 2026-09-16. Measured **natively** - in a container see below.</sub>
 
 Six things worth taking from that table:
 
@@ -209,14 +208,14 @@ Six things worth taking from that table:
   the store and its temporal history on disk, in the same process. On eight cores
   the history costs a write 4-43 % (PATCH: 120 379/s against 145 664 without it);
   in TimescaleDB it costs coraine + MongoDB 1-80 % (PATCH: 13 215/s against 17 486).
-- **The page size is the claim.** 12 577 requests/s per core at `limit=20` is
-  **251 540 entities/s per core**; at `limit=1` it is 82 672 of each; at
-  `limit=100` it is **275 000 entities/s**. A requests/s figure without the
+- **The page size is the claim.** 13 976 requests/s per core at `limit=20` is
+  **279 520 entities/s per core**; at `limit=1` it is 84 634 of each; at
+  `limit=100` it is **312 600 entities/s**. A requests/s figure without the
   response size beside it means nothing.
 - **Batching is worth two to four times per entity.** A `PATCH` one at a time
-  is 104 400 entities/s per core; twenty per request is 200 440. Creates:
-  54 707 against 117 460. Deletes: 126 714 against **476 280** (`corDB` on
-  disk, `--dbDir`, 2026-10-10).
+  is 101 528 entities/s per core; twenty per request is 202 880. Creates:
+  59 954 against 122 340. Deletes: 129 873 against **471 840** (`corDB` on
+  disk, `--dbDir`, 2026-11-19).
 - **In a container it depends on the network setup.** With `--net=host` there
   is no measurable difference. With a port mapping (`docker run -p`, the usual
   way) expect **5-15% less**, and up to **30% less for a single client** waiting
