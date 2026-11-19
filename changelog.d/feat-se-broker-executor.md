@@ -1,4 +1,4 @@
-### Added
+### New
 
 - Service Execution: coraine as another broker's Service Executor - `POST /ngsi-ld/ex/v1/executor/{serviceName}` and `DELETE /ngsi-ld/ex/v1/executor/{serviceName}/{id}` take the requests a broker sends an HTTP executor; the service is executed as an invocation on coraine's own entity, and an asynchronous execution's every change is reported to the broker that asked with `PATCH <reportTo>/ngsi-ld/v1/services/{id}` (`?reportTo=` in the endpoint). Two coraines chain their services this way (doc/service-execution.md, "Another broker as the executor").
 - Service Execution: a registration's endpoint may be `cor://` - the executor's requests over the cor:// transport; and an execution's `notification.endpoint` may be `cor://`.
