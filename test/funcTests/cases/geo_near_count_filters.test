@@ -1,0 +1,89 @@
+#
+# FILE            geo_near_count_filters.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# georel=near with count=true: NGSILD-Results-Count is the number of Entities the query matches - its type and q
+# applied, as to the Entities returned. On mongoc the count was of every Entity near the point: of any type, matching
+# the q or not (15 'Vehicles' near a point where 12 Vehicles exist in all).
+#
+# Near the point [0, 0] (within 1000 m): 2 Cars, 1 free and 1 taken; 1 Bike. Far away: 1 Car.
+#
+--NAME--
+georel=near with count=true: the count has the type and the q applied
+
+--TAGS--
+geo query count
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+count() {
+  curl -s -D - -o /tmp/nearCountBody.json "localhost:$CB_PORT/ngsi-ld/v1/entities?$1&georel=near;maxDistance==1000&geometry=Point&coordinates=%5B0,0%5D&count=true&limit=100" \
+    | grep -i '^NGSILD-Results-Count' | tr -d '\r'
+  python3 -c 'import json; print("returned", len(json.load(open("/tmp/nearCountBody.json"))))'
+}
+
+echo "01. Four entities: two Cars and a Bike near [0,0], a Car far away"
+echo "================================================================="
+for e in 'Car:1|Car|free|0.001' 'Car:2|Car|taken|0.002' 'Bike:1|Bike|free|0.003' 'Car:3|Car|free|10'; do
+  IFS='|' read id type status lon <<< "$e"
+  curl -s -o /dev/null -w '%{http_code}\n' localhost:$CB_PORT/ngsi-ld/v1/entities -H 'Content-Type: application/json' \
+    -d '{"id": "urn:ngsi-ld:'$id'", "type": "'$type'", "status": {"type": "Property", "value": "'$status'"}, "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": ['$lon', 0]}}}'
+done
+echo
+echo
+
+echo "02. type=Car near [0,0] - 2"
+echo "==========================="
+count 'type=Car'
+echo
+echo
+
+echo "03. type=Car, q=status==\"free\" near [0,0] - 1"
+echo "==============================================="
+count 'type=Car&q=status==%22free%22'
+echo
+echo
+
+echo "04. No type, q=status==\"free\" near [0,0] - 2 (Car:1, Bike:1)"
+echo "=============================================================="
+count 'q=status==%22free%22'
+echo
+echo
+
+--EXPECT--
+01. Four entities: two Cars and a Bike near [0,0], a Car far away
+=================================================================
+201
+201
+201
+201
+
+
+02. type=Car near [0,0] - 2
+===========================
+NGSILD-Results-Count: 2
+returned 2
+
+
+03. type=Car, q=status=="free" near [0,0] - 1
+===============================================
+NGSILD-Results-Count: 1
+returned 1
+
+
+04. No type, q=status=="free" near [0,0] - 2 (Car:1, Bike:1)
+==============================================================
+NGSILD-Results-Count: 2
+returned 2
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/nearCountBody.json
+corDbDrop

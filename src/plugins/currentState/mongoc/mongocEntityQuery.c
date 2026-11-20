@@ -1927,6 +1927,24 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
         bson_append_document_end(&stages, &stageDoc);
       }
 
+      // $match stage - the type, id, scope and q filters, as the body pipeline has them: without it
+      // the count was of every Entity near the point, of any type, matching the q or not
+      {
+        bson_t matchFilter;
+        bson_init(&matchFilter);
+        bsonAppendNonGeoMatch(&matchFilter, filterP);
+        if (!bson_empty(&matchFilter))
+        {
+          char key[16];
+          int  keyLen = snprintf(key, sizeof(key), "%d", stageIx++);
+          bson_t stageDoc;
+          bson_append_document_begin(&stages, key, keyLen, &stageDoc);
+          bson_append_document(&stageDoc, "$match", 6, &matchFilter);
+          bson_append_document_end(&stages, &stageDoc);
+        }
+        bson_destroy(&matchFilter);
+      }
+
       // $count stage — emits a single document { n: <total> }.
       {
         char key[16];
