@@ -132,6 +132,14 @@ static Tenant* tenantOfDatabase(const char* db)
   if ((strncmp(db, mongocDbName, dbNameLen) == 0) && (db[dbNameLen] == '-') && (db[dbNameLen + 1] != 0))
     return tenantGetOrCreate(&db[dbNameLen + 1]);
 
+  // A reserved tenant's database: "<prefix>_r-<name>" - the other instance reserved it; so does this one
+  int markLen = strlen(TENANT_RESERVED_DB_MARK);
+  if ((strncmp(db, mongocDbName, dbNameLen) == 0) && (strncmp(&db[dbNameLen], TENANT_RESERVED_DB_MARK, markLen) == 0) && (db[dbNameLen + markLen] != 0))
+  {
+    const char* name = &db[dbNameLen + markLen];
+    return (tenantReserve(name) == true) ? tenantGetOrCreate(name) : NULL;
+  }
+
   return NULL;
 }
 

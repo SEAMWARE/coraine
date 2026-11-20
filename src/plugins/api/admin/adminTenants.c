@@ -24,7 +24,7 @@
 // adminGetTenants -
 //
 // Returns a JSON array of tenant names (strings).
-// The default tenant is not included.
+// The default tenant is not included, nor a reserved tenant (tenantReserve).
 //
 bool adminGetTenants(void)
 {
@@ -32,7 +32,10 @@ bool adminGetTenants(void)
   CorNode* root  = corTreeArray(allocP, NULL);
 
   for (Tenant* tP = tenantList; tP != NULL; tP = tP->next)
-    corTreeChildAdd(root, corTreeString(allocP, NULL, tP->name));
+  {
+    if (tP->reserved == false)
+      corTreeChildAdd(root, corTreeString(allocP, NULL, tP->name));
+  }
 
   corRest.out.responseTree = root;
   corNgsild.rawResponse = true;                       // not an Entity

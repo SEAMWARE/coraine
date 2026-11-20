@@ -50,7 +50,19 @@ typedef struct Tenant
   struct Tenant*  liveTenantP;    // a Snapshot's own tenant: the tenant the snapshot was taken on - NULL for any other
   const char*     snapshotId;     // a Snapshot's own tenant: the snapshot's id (borrowed from its cache item) - NULL for any other
   struct Tenant*  next;           // linked list
+  bool            reserved;       // a reserved tenant (tenantReserve): its own database, left out of tenant listings
 } Tenant;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// TENANT_RESERVED_DB_MARK - what tells a reserved tenant's database from an ordinary one's: "<prefix>_r-<name>"
+// for mongoc (an ordinary tenant's is "<prefix>-<name>"), "_r-<name>" for corDB's directory (an ordinary
+// tenant's directory never holds a '_' - corDB escapes it)
+//
+#define TENANT_RESERVED_DB_MARK  "_r-"
+#define TENANT_RESERVED_MAX      8
 
 
 
@@ -211,5 +223,39 @@ extern bool tenantRegCacheItemDrop(Tenant* tP, const char* regId);
 // tenantRegCacheItemRefresh - re-read one registration from the DB into the cache
 //
 extern bool tenantRegCacheItemRefresh(Tenant* tP, const char* regId);
+
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantReserve - make a tenant name a reserved tenant's (--reservedTenants; a plugin: cep.so its rules tenant)
+//
+// A reserved tenant is reached as any other (NGSILD-Tenant: <name>, the broker's access control), but its data
+// lives apart - a database of its own, under TENANT_RESERVED_DB_MARK - and it is left out of /admin/tenants and
+// of what plugins see as the tenants (tenantIsData). corCep keeps its rules in one: an ordinary tenant's
+// queries, /types and /attributes never meet a rule.
+//
+// Before the tenant exists, or when it already is reserved. False when an ORDINARY tenant of that name exists
+// (its data is in an ordinary database - reserving the name would not move it), when the name is empty or too
+// long, or when TENANT_RESERVED_MAX names are reserved already.
+//
+extern bool tenantReserve(const char* name);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantIsReserved - is the name a reserved tenant's (case-insensitive, as tenant names are)
+//
+extern bool tenantIsReserved(const char* name);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantIsData - a tenant that holds data: not reserved, not a Snapshot's own
+//
+extern bool tenantIsData(Tenant* tP);
 
 #endif  // DB_TENANT_H_

@@ -1,0 +1,153 @@
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# FILE            reserved_tenant_cordb.test
+#
+# --reservedTenants (corCep's rules tenant): a reserved tenant is reached as any other - NGSILD-Tenant - but
+# its data lives apart, corDB's directory "_r-<name>", and /admin/tenants does not list it. A restart without
+# the option finds it reserved by its directory. A name reserved while an ORDINARY tenant of it has data is
+# refused at start: made a reserved tenant, that data would never be seen.
+#
+# REQUIRE_DB: corDB
+#
+--NAME--
+A reserved tenant (--reservedTenants), corDB: its own directory, not listed, found again at restart
+
+--TAGS--
+tenant corDB
+
+--INIT--
+D=/tmp/corTest-reserved_tenant_cordb
+rm -rf $D
+coraineStart --dbDir $D --apiPlugins admin --reservedTenants cep
+
+--RUN--
+
+#
+# 01. A Rule in the reserved tenant 'cep', a Lamp in the default tenant and one in 'home' - 201 x 3
+# 02. q=name in the default tenant: the Lamp only - in 'cep': the Rule only
+# 03. GET /admin/tenants: 'home' - not 'cep'
+# 04. --dbDir: '_r-cep' for the reserved tenant, 'home' for the ordinary one
+# 05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed
+# 06. --reservedTenants home, with 'home' an ordinary tenant's data: exit 1, the directory and the name named
+#
+D=/tmp/corTest-reserved_tenant_cordb
+J='Content-Type: application/json'
+U=http://localhost:$CB_PORT/ngsi-ld/v1
+
+echo "01. A Rule in 'cep', a Lamp in the default tenant and one in 'home' - 201 x 3"
+echo "=============================================================================="
+curl -s -o /dev/null -w '%{http_code}\n' $U/entities -H "$J" -H 'NGSILD-Tenant: cep' -d '{"id": "urn:ngsi-ld:Rule:r1", "type": "Rule", "name": {"type": "Property", "value": "r1"}}'
+curl -s -o /dev/null -w '%{http_code}\n' $U/entities -H "$J" -d '{"id": "urn:ngsi-ld:Lamp:1", "type": "Lamp", "name": {"type": "Property", "value": "lamp"}}'
+curl -s -o /dev/null -w '%{http_code}\n' $U/entities -H "$J" -H 'NGSILD-Tenant: home' -d '{"id": "urn:ngsi-ld:Lamp:2", "type": "Lamp", "name": {"type": "Property", "value": "lamp"}}'
+echo
+echo
+
+
+echo "02. q=name in the default tenant: the Lamp only - in 'cep': the Rule only"
+echo "========================================================================="
+curl -s "$U/entities?q=name&options=keyValues"
+curl -s "$U/entities?q=name&options=keyValues" -H 'NGSILD-Tenant: cep'
+echo
+echo
+
+
+echo "03. GET /admin/tenants: 'home' - not 'cep'"
+echo "=========================================="
+curl -s http://localhost:$CB_PORT/admin/tenants
+echo
+echo
+
+
+echo "04. --dbDir: '_r-cep' for the reserved tenant, 'home' for the ordinary one"
+echo "==========================================================================="
+ls $D
+echo
+echo
+
+
+echo "05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed"
+echo "=================================================================================="
+coraineStop
+coraineStart --dbDir $D --apiPlugins admin
+curl -s "$U/entities?type=Rule&options=keyValues" -H 'NGSILD-Tenant: cep'
+curl -s http://localhost:$CB_PORT/admin/tenants
+echo
+echo
+
+
+echo "06. --reservedTenants home, with 'home' an ordinary tenant's data: exit 1, the directory and the name named"
+echo "=========================================================================================================="
+coraineStop
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --dbDir $D) --reservedTenants home > /tmp/reservedTenant.$$ 2>&1
+echo "exit: $?"
+grep -o "corDB: '[^']*' is an ordinary tenant's data, and 'home' is reserved (--reservedTenants) - not started" /tmp/reservedTenant.$$
+rm -f /tmp/reservedTenant.$$
+echo
+echo
+
+
+--EXPECT--
+01. A Rule in 'cep', a Lamp in the default tenant and one in 'home' - 201 x 3
+==============================================================================
+201
+201
+201
+
+
+02. q=name in the default tenant: the Lamp only - in 'cep': the Rule only
+=========================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Lamp:1",
+    "type": "Lamp",
+    "name": "lamp"
+  }
+]
+[
+  {
+    "id": "urn:ngsi-ld:Rule:r1",
+    "type": "Rule",
+    "name": "r1"
+  }
+]
+
+
+03. GET /admin/tenants: 'home' - not 'cep'
+==========================================
+[
+  "home"
+]
+
+
+04. --dbDir: '_r-cep' for the reserved tenant, 'home' for the ordinary one
+===========================================================================
+_
+_r-cep
+_storageFormat
+home
+
+
+05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed
+==================================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Rule:r1",
+    "type": "Rule",
+    "name": "r1"
+  }
+]
+[
+  "home"
+]
+
+
+06. --reservedTenants home, with 'home' an ordinary tenant's data: exit 1, the directory and the name named
+==========================================================================================================
+exit: 1
+corDB: '/tmp/corTest-reserved_tenant_cordb/home' is an ordinary tenant's data, and 'home' is reserved (--reservedTenants) - not started
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-reserved_tenant_cordb

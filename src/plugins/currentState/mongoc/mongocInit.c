@@ -207,14 +207,28 @@ int mongocInit(void)
   {
     for (int ix = 0; dbNames[ix] != NULL; ix++)
     {
-      // Match databases named "{prefix}-{tenantname}"
+      // Match databases named "{prefix}-{tenantname}" - and a reserved tenant's, "{prefix}_r-{tenantname}"
       if (strncmp(dbNames[ix], mongocDbName, prefixLen) != 0)
         continue;
-      if (dbNames[ix][prefixLen] != '-')
-        continue;
 
-      const char* tenantName = &dbNames[ix][prefixLen + 1];
-      if (tenantName[0] == 0)
+      const char* tenantName = NULL;
+      int         markLen    = strlen(TENANT_RESERVED_DB_MARK);
+
+      if (dbNames[ix][prefixLen] == '-')
+      {
+        tenantName = &dbNames[ix][prefixLen + 1];
+        // An ordinary tenant's database, and the name reserved: made a reserved tenant, its data would never be seen
+        if (tenantIsReserved(tenantName) == true)
+          COR_X(1, "mongoc: the database '%s' is an ordinary tenant's, and '%s' is reserved (--reservedTenants) - not started", dbNames[ix], tenantName);
+      }
+      else if (strncmp(&dbNames[ix][prefixLen], TENANT_RESERVED_DB_MARK, markLen) == 0)
+      {
+        tenantName = &dbNames[ix][prefixLen + markLen];
+        if ((tenantName[0] != 0) && (tenantReserve(tenantName) == false))
+          continue;                                 // an ordinary tenant of the name exists - the log says so
+      }
+
+      if ((tenantName == NULL) || (tenantName[0] == 0))
         continue;
 
       Tenant* tP = tenantGetOrCreate(tenantName);

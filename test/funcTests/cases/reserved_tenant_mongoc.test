@@ -1,0 +1,153 @@
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# FILE            reserved_tenant_mongoc.test
+#
+# --reservedTenants (corCep's rules tenant), mongoc: as reserved_tenant_cordb.test - the reserved tenant's
+# database is "<prefix>_r-<name>" (an ordinary tenant's "<prefix>-<name>"), found again at restart by its name.
+#
+# REQUIRE_DB: mongoc
+#
+--NAME--
+A reserved tenant (--reservedTenants), mongoc: its own database, not listed, found again at restart
+
+--TAGS--
+tenant mongoc
+
+--INIT--
+corDbDrop
+corDbDrop -tenant home
+corDbDrop -tenant cep -reserved
+coraineStart --apiPlugins admin --reservedTenants cep
+
+--RUN--
+
+#
+# 01. A Rule in the reserved tenant 'cep', a Lamp in the default tenant and one in 'home' - 201 x 3
+# 02. q=name in the default tenant: the Lamp only - in 'cep': the Rule only
+# 03. GET /admin/tenants: 'home' - not 'cep'
+# 04. The databases: '<prefix>_r-cep' for the reserved tenant, '<prefix>-home' for the ordinary one
+# 05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed
+# 06. --reservedTenants home, with 'home' an ordinary tenant's database: exit 1, the database and the name named
+#
+J='Content-Type: application/json'
+U=http://localhost:$CB_PORT/ngsi-ld/v1
+
+echo "01. A Rule in 'cep', a Lamp in the default tenant and one in 'home' - 201 x 3"
+echo "=============================================================================="
+curl -s -o /dev/null -w '%{http_code}\n' $U/entities -H "$J" -H 'NGSILD-Tenant: cep' -d '{"id": "urn:ngsi-ld:Rule:r1", "type": "Rule", "name": {"type": "Property", "value": "r1"}}'
+curl -s -o /dev/null -w '%{http_code}\n' $U/entities -H "$J" -d '{"id": "urn:ngsi-ld:Lamp:1", "type": "Lamp", "name": {"type": "Property", "value": "lamp"}}'
+curl -s -o /dev/null -w '%{http_code}\n' $U/entities -H "$J" -H 'NGSILD-Tenant: home' -d '{"id": "urn:ngsi-ld:Lamp:2", "type": "Lamp", "name": {"type": "Property", "value": "lamp"}}'
+echo
+echo
+
+
+echo "02. q=name in the default tenant: the Lamp only - in 'cep': the Rule only"
+echo "========================================================================="
+curl -s "$U/entities?q=name&options=keyValues"
+curl -s "$U/entities?q=name&options=keyValues" -H 'NGSILD-Tenant: cep'
+echo
+echo
+
+
+echo "03. GET /admin/tenants: 'home' - not 'cep'"
+echo "=========================================="
+curl -s http://localhost:$CB_PORT/admin/tenants
+echo
+echo
+
+
+echo "04. The databases: '<prefix>_r-cep' for the reserved tenant, '<prefix>-home' for the ordinary one"
+echo "===================================================================================================="
+corRoleLookup CB
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval "db.adminCommand('listDatabases').databases.map(d => d.name).filter(n => (n === '$COR_ROLE_DB_PREFIX') || n.startsWith('$COR_ROLE_DB_PREFIX-') || n.startsWith('${COR_ROLE_DB_PREFIX}_r-')).sort().join('\\n')" | sed "s/^$COR_ROLE_DB_PREFIX/<prefix>/"
+echo
+echo
+
+
+echo "05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed"
+echo "=================================================================================="
+coraineStop
+coraineStart --apiPlugins admin
+curl -s "$U/entities?type=Rule&options=keyValues" -H 'NGSILD-Tenant: cep'
+curl -s http://localhost:$CB_PORT/admin/tenants
+echo
+echo
+
+
+echo "06. --reservedTenants home, with 'home' an ordinary tenant's database: exit 1, the database and the name named"
+echo "================================================================================================================="
+coraineStop
+timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB) --reservedTenants home > /tmp/reservedTenant.$$ 2>&1
+echo "exit: $?"
+grep -o "mongoc: the database '[^']*' is an ordinary tenant's, and 'home' is reserved (--reservedTenants) - not started" /tmp/reservedTenant.$$ | sed "s/'[^']*-home'/'<prefix>-home'/"
+rm -f /tmp/reservedTenant.$$
+echo
+echo
+
+
+--EXPECT--
+01. A Rule in 'cep', a Lamp in the default tenant and one in 'home' - 201 x 3
+==============================================================================
+201
+201
+201
+
+
+02. q=name in the default tenant: the Lamp only - in 'cep': the Rule only
+=========================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Lamp:1",
+    "type": "Lamp",
+    "name": "lamp"
+  }
+]
+[
+  {
+    "id": "urn:ngsi-ld:Rule:r1",
+    "type": "Rule",
+    "name": "r1"
+  }
+]
+
+
+03. GET /admin/tenants: 'home' - not 'cep'
+==========================================
+[
+  "home"
+]
+
+
+04. The databases: '<prefix>_r-cep' for the reserved tenant, '<prefix>-home' for the ordinary one
+====================================================================================================
+<prefix>
+<prefix>-home
+<prefix>_r-cep
+
+
+05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed
+==================================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Rule:r1",
+    "type": "Rule",
+    "name": "r1"
+  }
+]
+[
+  "home"
+]
+
+
+06. --reservedTenants home, with 'home' an ordinary tenant's database: exit 1, the database and the name named
+=================================================================================================================
+exit: 1
+mongoc: the database '<prefix>-home' is an ordinary tenant's, and 'home' is reserved (--reservedTenants) - not started
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corDbDrop -tenant home
+corDbDrop -tenant cep -reserved

@@ -37,7 +37,7 @@ options, and its options are also documented with the plugin.
 - [Distributed operations](#distributed-operations) - 5
 - [High availability](#high-availability) - 1
 - [Bridges](#bridges) - 5
-- [The database and the history - choosing the plugins](#the-database-and-the-history-choosing-the-plugins) - 4
+- [The database and the history - choosing the plugins](#the-database-and-the-history-choosing-the-plugins) - 5
 - [Choosing the auth plugin](#choosing-the-auth-plugin) - 1
 
 ## The plugins
@@ -1196,6 +1196,27 @@ Snapshot reads `"snapshotStatus": "preparing"` until the capture is done, and th
 sent from that thread. The `202` has no body either way. Any `--database`.
 
     coraine --database corDB --asyncSnapshot
+
+### `--reservedTenants`
+
+`-reservedTenants` · `CORAINE_RESERVEDTENANTS` · String · default: none
+· values: a comma-separated list of tenant names, at most 8 · plugin: core
+
+Tenants kept apart from the data: corCep's rules tenant (`cep`) is one. A reserved tenant is reached as any
+other - `NGSILD-Tenant: <name>`, the broker's access control - but its data is in a database of its own,
+which no ordinary tenant's can be: mongoc's `<--dbName>_r-<name>` (an ordinary tenant's is
+`<--dbName>-<name>`), corDB's directory `_r-<name>` under `--dbDir` (an ordinary tenant's directory never
+holds a `_`). `GET /admin/tenants` does not list it. The rules corCep keeps there never show in an
+ordinary tenant's queries, `/types` or `/attributes`.
+
+A tenant's database is chosen when the tenant is created, so the names are reserved before the store
+loads. A reserved tenant's database found at start reserves its name by itself: a restart without the
+option keeps it apart. A name with an ORDINARY tenant's data already in the store is refused - made a
+reserved tenant, that data would never be seen: the broker does not start,
+`corDB: '<dbDir>/home' is an ordinary tenant's data, and 'home' is reserved (--reservedTenants) - not started`
+(mongoc: `the database '<dbName>-home' is an ordinary tenant's ...`).
+
+    coraine --database corDB --dbDir /var/lib/coraine/db --reservedTenants cep
 
 ## Choosing the auth plugin
 
