@@ -36,11 +36,13 @@
 #include "corNgsild/ldRender.h"                       // ldToConcise, ldToSimplified
 #include "corNgsild/ldEntityMatch.h"                  // ldEntityMatchType
 
+#include "linkedEntities/ldLinkedEntities.h"         // ldLinkedEntitiesInlineAttr
+
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
 
 #if COR_FEATURE_AUTH
-#include "auth/auth.h"                               // authEntityStoredCheck
+#include "auth/auth.h"                               // authEntityStoredCheck, authEntityWanted, authEntityDeny
 #endif
 #include "serviceRoutines/getEntityAttr.h"           // Own interface
 
@@ -58,6 +60,25 @@ bool getEntityAttr(void)
     return true;
 #endif
   const char* attrWild = corRest.in.wildcard[1];
+
+  //
+  // join (TS 104 176 § 7.5.3.1): "inline" or "@none" - an attribute has no flat form (flat is an array of
+  // entities)
+  //
+  if ((corNgsild.join != NULL) && (strcmp(corNgsild.join, "flat") == 0))
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid request", "'join' on an attribute must be 'inline' or '@none'");
+    return true;
+  }
+  bool joinInline = (corNgsild.join != NULL) && (strcmp(corNgsild.join, "inline") == 0);
+
+#if COR_FEATURE_AUTH
+  if (joinInline && (authEntityWanted() == true))   // its linked entities are not asked about one by one - as Retrieve Entity
+  {
+    authEntityDeny("join=inline is not decided entity by entity");
+    return true;
+  }
+#endif
 
   ldContextResolve();
 
@@ -145,6 +166,13 @@ bool getEntityAttr(void)
   corTreeChildRemove(entityP, attrWrapperP);
   CorNode* wrap = corTreeObject(corRest.kallocP, NULL);
   corTreeChildAdd(wrap, attrWrapperP);
+
+  //
+  // join=inline: the linked entities nested in the Relationship, down to joinLevel (default 1, § 7.7.4) - walked
+  // while the attribute is still in storage shape, as Retrieve Entity does
+  //
+  if (joinInline)
+    ldLinkedEntitiesInlineAttr(wrap, entityId, (corNgsild.joinLevel > 0) ? corNgsild.joinLevel : 1, tenantP);
 
   ldEntityToApi(wrap, &corRest.kalloc);
 

@@ -738,6 +738,24 @@ CorNode* ldLinkedEntitiesInline(CorNode* primaryP, int joinLevel, Tenant* tenant
 
 // -----------------------------------------------------------------------------
 //
+// ldLinkedEntitiesInlineAttr -
+//
+void ldLinkedEntitiesInlineAttr(CorNode* holderP, const char* primaryId, int joinLevel, Tenant* tenantP)
+{
+  if (holderP == NULL || primaryId == NULL || joinLevel < 1 || tenantP == NULL)
+    return;
+
+  VisitedNode* visited = visitedAppend(NULL, primaryId);
+  visited              = visitedSeedFromContainedBy(visited);
+
+  inlineWalk(holderP, joinLevel, &visited, tenantP, NULL, NULL);   // no pick/omit on Retrieve Attribute
+  visitedFree(visited);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // idsAppend - append one target id to the grow-on-demand id vector
 //
 static void idsAppend(const char*** outIdsP, int* outCountP, int* outCapP, const char* id)

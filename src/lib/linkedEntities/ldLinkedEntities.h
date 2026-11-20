@@ -65,6 +65,17 @@ extern CorNode* ldLinkedEntitiesInline(CorNode* primaryP, int joinLevel, Tenant*
 
 // -----------------------------------------------------------------------------
 //
+// ldLinkedEntitiesInlineAttr - the inline representation for one attribute (TS 104 176 § 7.5.3.1: Retrieve
+// Attribute takes join=inline): holderP holds the attribute, still in storage shape, as its only member; the
+// entity it belongs to is primaryId, which counts as visited. The linked entities are nested as `entity` /
+// `entityList`, already in API shape - the caller converts the attribute itself.
+//
+extern void ldLinkedEntitiesInlineAttr(CorNode* holderP, const char* primaryId, int joinLevel, Tenant* tenantP);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // ldLinkedEntitiesExpandArrayFlat - flat-expand every primary in arrayP
 //
 // In-place: appends fetched targets to the same CorArray. The visited-
