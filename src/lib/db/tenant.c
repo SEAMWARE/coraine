@@ -88,6 +88,23 @@ bool tenantIsData(Tenant* tP)
 
 // -----------------------------------------------------------------------------
 //
+// tenantDataVisit -
+//
+void tenantDataVisit(void (*fn)(const char* name, void* ctx), void* ctx)
+{
+  fn("", ctx);
+
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
+  {
+    if (tenantIsData(tP) == true)
+      fn(tP->name, ctx);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // tenantReserve -
 //
 bool tenantReserve(const char* name)

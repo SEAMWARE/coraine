@@ -6,3 +6,6 @@
   not listed by `GET /admin/tenants`. Found again at start by its database; a name whose ordinary tenant
   already has data is refused.
   ([Command-line options](doc/options.md#--reservedtenants))
+- Plugins can reserve a tenant themselves (`tenantReserve`) and visit the data tenants - the default one and
+  every ordinary tenant, the reserved ones left out (`tenantDataVisit`): corCep's `cep.so` runs its rules in
+  each of them.

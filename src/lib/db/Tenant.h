@@ -258,4 +258,14 @@ extern bool tenantIsReserved(const char* name);
 //
 extern bool tenantIsData(Tenant* tP);
 
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantDataVisit - fn for the default tenant ("") and every tenant that holds data (tenantIsData), by the name a
+// client knows it by - what a plugin's "every tenant" is (cep.so: a rule with no 'tenant' runs in each). Lock-free:
+// the list is only ever prepended to, and a tenant is published complete; one made meanwhile may be left out.
+//
+extern void tenantDataVisit(void (*fn)(const char* name, void* ctx), void* ctx);
+
 #endif  // DB_TENANT_H_
