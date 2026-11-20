@@ -1,5 +1,5 @@
 #
-# Debian packages: coraine and coraine-dev, for Ubuntu 26.04, Ubuntu 24.04 and Debian 13, amd64 and arm64.
+# Debian packages: coraine, coraine-cep and coraine-dev, for Ubuntu 26.04, Ubuntu 24.04 and Debian 13, amd64 and arm64.
 #
 # Built, install-tested and kept as artifacts of the run; published to a signed apt repository once one
 # exists (the `publish` job below - skipped until the repository's domain and signing key are set up).
@@ -201,7 +201,7 @@ jobs:
           name: source
           path: dist
 
-      - name: Build coraine + coraine-dev (packaging/deb/build.sh)
+      - name: Build coraine + coraine-cep + coraine-dev (packaging/deb/build.sh)
         env:
           BUILD_KIND: ${{ inputs.build_kind || 'pgo' }}
           DEB_REVISION: ${{ inputs.revision }}

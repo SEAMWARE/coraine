@@ -29,11 +29,14 @@ export DEBIAN_FRONTEND=noninteractive
 . /etc/os-release
 echo "test-install: $PRETTY_NAME, $(dpkg --print-architecture)"
 
-step "1. apt install ./coraine_*.deb"
+step "1. apt install ./coraine_*.deb (and coraine-cep, which it Depends on)"
 apt-get update -qq
 deb=$(ls "$DIR"/coraine_*.deb)
-apt-get install -y --no-install-recommends "$deb" curl systemd > /tmp/apt.log || { cat /tmp/apt.log; fail "apt-get install"; }
+cep=$(ls "$DIR"/coraine-cep_*.deb)
+apt-get install -y --no-install-recommends "$deb" "$cep" curl systemd > /tmp/apt.log || { cat /tmp/apt.log; fail "apt-get install"; }
 dpkg -s coraine | sed -n '/^Version/p;/^Depends/p'
+dpkg -s coraine | grep -q "^Depends:.*coraine-cep (= $(dpkg -s coraine-cep | sed -n 's/^Version: //p'))" \
+  || fail "coraine does not Depend on exactly the coraine-cep installed"
 
 step "2. every library resolves"
 for f in /usr/bin/coraine /usr/bin/coraine-import /usr/bin/c3 $(find /opt/seamware -type f -name '*.so*'); do
@@ -115,6 +118,10 @@ coraine --database corDB --auth fdsc -u > /tmp/u.log 2>&1 || { cat /tmp/u.log; f
 grep -q -- "--fdscDiscovery" /tmp/u.log || { cat /tmp/u.log; fail "--auth fdsc: no fdsc options"; }
 echo "--auth fdsc: loads"
 [ ! -e /opt/seamware/plugins/bridge/dds.so ] || fail "the DDS bridge is in the package"
+[ "$(dpkg -S /opt/seamware/plugins/bridge/cep.so | cut -d: -f1)" = coraine-cep ] || fail "cep.so is not coraine-cep's"
+coraine --database corDB --bridges cep -U > /tmp/u.log 2>&1 || { cat /tmp/u.log; fail "--bridges cep"; }
+grep -q -- "--cep-tenant" /tmp/u.log || { cat /tmp/u.log; fail "--bridges cep: no cep options"; }
+echo "--bridges cep: loads (coraine-cep)"
 
 step "6. remove, purge"
 apt-get remove -y coraine > /dev/null
@@ -122,7 +129,9 @@ apt-get remove -y coraine > /dev/null
 apt-get purge -y coraine > /dev/null
 [ ! -e /etc/default/coraine ] || fail "purge left /etc/default/coraine"
 [ -d /var/lib/coraine/db ] || fail "purge took the data (it must not)"
-echo "removed and purged; /var/lib/coraine kept"
+apt-get purge -y coraine-cep > /dev/null
+[ ! -e /opt/seamware/plugins/bridge/cep.so ] || fail "purge left cep.so"
+echo "removed and purged (coraine-cep too); /var/lib/coraine kept"
 
 echo
 echo "test-install: PASS - $(basename "$deb")"
