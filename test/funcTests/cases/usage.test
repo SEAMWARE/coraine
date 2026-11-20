@@ -297,6 +297,7 @@ Usage: coraine  [--usage/-u (usage)]
   --troe                  (-troe)               CORAINE_TROE                  Optional   String   none
   --troeSync              (-troeSync)           CORAINE_TROESYNC              Optional   Bool     false
   --apiPlugins            (-api)                CORAINE_APIPLUGINS            Optional   String   -
+  --reservedTenants       (-reservedTenants)    CORAINE_RESERVEDTENANTS       Optional   String   -
   --bridges               (-br)                 CORAINE_BRIDGES               Optional   String   -
   --auth                  (-auth)               CORAINE_AUTH                  Optional   String   -
   --sseStreams            (-sseStreams)         CORAINE_SSESTREAMS            Optional   Int      1000
