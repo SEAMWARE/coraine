@@ -27,6 +27,7 @@
 #include "corAlloc/corAlloc.h"                    // CorAlloc, corAllocBufferInit, corAllocThreadSafe
 #include "corLog/corLog.h"                        // COR_I, COR_V, COR_X
 #include "corLog/corLogGlobals.h"                  // corLogInfo, corLogVerbose
+#include "corLog/corLogRing.h"                     // corLogRingInit
 #include "corBase/corCpuCount.h"                   // corCpuCount
 #include "corBase/corBaseInit.h"                   // corBaseInit, corBaseTraceLevelsSet
 #include "corBase/corDaemonize.h"                  // corDaemonize
@@ -229,6 +230,9 @@ bool           fg           = false;   // -fg: deprecated, the foreground is the
 bool           daemonMode   = false;   // --daemon/-bg: detach from the terminal (corDaemonize)
 char*          logDir       = "/var/log/coraine";
 char*          logTo        = "stdout";
+#if COR_FEATURE_LOG_LINES
+int            logLines     = 256;          // KiB of the log kept in memory for GET /admin/log/lines (0: none)
+#endif
 bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
 int            poolSize     = 0;
 int            httpLoops    = 0;   // 0: auto - see the corCpuCount call in main()
@@ -332,6 +336,9 @@ static CorArg kargV[] =
   { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgHid, _vp false,    _vp false, _vp true, "deprecated, no effect: the broker runs in the foreground by default - accepted with a warning line, refused from 0.8.0" },
   { "--daemon",             "-bg",          CorArgBool,   _vp &daemonMode,   CorArgOpt, _vp false,    _vp false, _vp true, "run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg" },
   { "--logDir",             "-logDir",      CorArgString, _vp &logDir,       CorArgOpt, _vp "/var/log/coraine", NULL, NULL, "the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old" },
+#if COR_FEATURE_LOG_LINES
+  { "--logLines",           "-logLines",    CorArgInt,    _vp &logLines,     CorArgOpt, _vp 256,   _vp 0,     _vp 65536, "KiB of the recent log kept in memory, for GET /admin/log/lines (the admin API) - whatever --logTo is (0: none)" },
+#endif
   { "--logTo",              "-logTo",       CorArgString, _vp &logTo,        CorArgOpt, _vp "stdout", NULL, NULL,     "where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)" },
   { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept any TLS certificate (a self-signed one) on every outgoing HTTPS request - notifications, forwards, @context downloads, and mqtts:// with the MQTT bridge (endpoints inside a trusted network)" },
   { "--noInline",           "-noInline",    CorArgBool,  _vp &noInline,    CorArgOpt, _vp false, _vp false, _vp true, "hand every request to a worker thread - no request runs on the I/O thread that read it" },
@@ -2025,6 +2032,11 @@ int main(int argC, char* argV[])
   }
 
   startupLog("coraine", traceLevels, (logFile == true) ? logDir : NULL, logStdout);   // the log, and the libraries' log through it - as coraine-import's
+
+#if COR_FEATURE_LOG_LINES
+  if ((logLines > 0) && (corLogRingInit((size_t) logLines * 1024) == false))
+    COR_X(1, "--logLines %d: no memory for it", logLines);
+#endif
 
   if (fg == true)
     COR_W("-fg: the broker runs in the foreground by default now - the option is refused from 0.8.0");

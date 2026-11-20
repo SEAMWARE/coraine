@@ -1120,6 +1120,7 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 | `GET /admin/health` | liveness |
 | `GET /admin/version` | version, git SHA, build timestamp |
 | `GET /admin/log` | current log/trace levels, and `traces`: whether this build has traces compiled in (Debug and Coverage builds; a release build takes trace levels and traces nothing) — `PUT`/`POST`/`PATCH`/`DELETE` change them at runtime |
+| `GET /admin/log/lines` | the broker's recent log, from what it keeps in memory (`--logLines`, 256 KiB by default) - whatever `--logTo` is: `{"lines": [...], "matched", "kept"}`, oldest first, each line with its UTC time first (`2026-11-20T12:51:24.486Z E: ...`). `?lines=` the last N of those that match (1-2000, default 100), `?types=` the line types (letters: `E` error, `W` warning, `I` info, `V` verbose, `T` trace, `X` exit - `types=EW`), `?match=` a text the line contains, `?since=` a UTC time (`2026-11-20T12:00:00Z`, or with milliseconds). 400: another value; 409: `--logLines 0`; 501: `COR_FEATURE_LOG_LINES` is off |
 | `GET /admin/tenants` | the tenants in use |
 | `GET /admin/plugins` | which plugins are loaded |
 | `GET /admin/metrics` | Prometheus metrics (when compiled in) |
@@ -1129,7 +1130,8 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 | `GET /admin/bridges/{bridge}/inventory` | what a loaded bridge's source can carry, for a mapping tool: `?from=` where to start, in the source's terms (OPC UA: a NodeId; none: the Objects folder), `?depth=` how many levels (0-16, default 1; a bridge may cap it lower). The JSON is the bridge's own. 404: no such bridge loaded, or no such `from`; 501: the bridge has no inventory (or `COR_FEATURE_BRIDGE_INVENTORY` is off); 503: its source cannot answer (not connected, timed out) |
 
 Log and trace levels are changeable on a running broker through `/admin/log`, which
-is the intended way to debug a live instance rather than restarting it with `-t`.
+is the intended way to debug a live instance rather than restarting it with `-t`; what it then logs, `GET
+/admin/log/lines` shows - with `--logTo stdout` (a container, the journal) as well as with a file.
 
 ## Memory budget
 

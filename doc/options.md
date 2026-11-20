@@ -26,7 +26,7 @@ options, and its options are also documented with the plugin.
 
 ## The broker
 
-- [The program](#the-program) - 11
+- [The program](#the-program) - 12
 - [Listening](#listening) - 15
 - [Limits and memory](#limits-and-memory) - 7
 - [Built-in HTTP server (corHttp)](#built-in-http-server-corhttp) - 1
@@ -205,6 +205,20 @@ unit of `Type=simple` (the package's) - a unit of `Type=forking` runs it.
 
     coraine --daemon --logTo file --logDir ~/coraine-log --database corDB --dbDir ~/coraine-db
     grep -- '--daemon: detached' ~/coraine-log/coraine.log      # the pid
+
+### `--logLines`
+
+`-logLines` · `CORAINE_LOGLINES` · Int · default: `256` (KiB)
+· values: 0-65536 · plugin: core · build: `COR_FEATURE_LOG_LINES`
+
+How much of the recent log the broker keeps in memory, in KiB, for `GET /admin/log/lines` (the `admin` API
+plugin, [Administration](installation.md#administration)) - whatever `--logTo` is, so the log can be read
+through the API from a container or under systemd, where it goes to stdout. Each line is kept with its UTC
+time first; when the space is full, the oldest lines go. 0: none kept, and `/admin/log/lines` answers 409.
+The lines kept are the ones logged - `/admin/log` turns info, verbose and trace levels on and off.
+
+    coraine -db corDB --apiPlugins admin --logLines 1024     # the last MiB of the log
+    curl 'localhost:1026/admin/log/lines?types=EW&lines=20'  # the last 20 errors and warnings
 
 ### `--logTo`
 

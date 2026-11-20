@@ -79,6 +79,13 @@
 #  define INDEXES(handler)  corNotInThisBuild
 #endif
 
+#if COR_FEATURE_LOG_LINES
+#  include "api/admin/adminLogLines.h"            // adminGetLogLines
+#  define LOG_LINES(handler)  handler
+#else
+#  define LOG_LINES(handler)  corNotInThisBuild
+#endif
+
 
 
 // -----------------------------------------------------------------------------
@@ -91,7 +98,7 @@
 // until corNgsild grew into them - containedBy is 48, firstN 50, offsetN 51 -
 // and a route that took containedBy then took ?verbose too, as the same bit.
 //
-// The three parameters of /admin/log share ONE bit: they are allowed on the same routes, always together,
+// The parameters of /admin/log and /admin/log/lines share ONE bit: they are allowed on the same routes, always together,
 // and read by name - a bit each was three bits of the 64 for nothing (59-61 now GET /entities' page
 // position, getEntities.h).
 //
@@ -108,6 +115,10 @@ static CorRestParam adminParams[] =
   { "verbose",     ADMIN_LOG_PARAMS },
   { "info",        ADMIN_LOG_PARAMS },
   { "traceLevels", ADMIN_LOG_PARAMS },
+  { "lines",       ADMIN_LOG_PARAMS },           // GET /admin/log/lines
+  { "types",       ADMIN_LOG_PARAMS },
+  { "match",       ADMIN_LOG_PARAMS },
+  { "since",       ADMIN_LOG_PARAMS },
   { "from",        ADMIN_INVENTORY_PARAMS },
   { "depth",       ADMIN_INVENTORY_PARAMS },
   { NULL, 0 }
@@ -125,6 +136,7 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbGet,    "/admin/version", adminGetVersion, 0,                0 },
   { CorVerbGet,    "/admin/health",  adminGetHealth,  0,                0 },
   { CorVerbGet,    "/admin/log",     adminGetLog,     0,                0 },
+  { CorVerbGet,    "/admin/log/lines", LOG_LINES(adminGetLogLines), ADMIN_LOG_PARAMS, 0 },
   { CorVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
   { CorVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
   { CorVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
