@@ -28,7 +28,8 @@ coraineStart --apiPlugins admin --reservedTenants cep
 # 03. GET /admin/tenants: 'home' - not 'cep'
 # 04. The databases: '<prefix>_r-cep' for the reserved tenant, '<prefix>-home' for the ordinary one
 # 05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed
-# 06. --reservedTenants home, with 'home' an ordinary tenant's database: exit 1, the database and the name named
+# 06. --reservedTenants home, with 'home' an ordinary tenant's database: the broker starts, 'home' stays ordinary - its Lamp served, listed, a warning
+# 07. Restarted with a reserved tenant's database of 'home' made beside the ordinary one: the ordinary one served, the other left alone
 #
 J='Content-Type: application/json'
 U=http://localhost:$CB_PORT/ngsi-ld/v1
@@ -75,13 +76,26 @@ echo
 echo
 
 
-echo "06. --reservedTenants home, with 'home' an ordinary tenant's database: exit 1, the database and the name named"
-echo "================================================================================================================="
+echo "06. --reservedTenants home, with 'home' an ordinary tenant's database: the broker starts, 'home' stays ordinary - its Lamp served, listed, a warning"
+echo "===================================================================================================================================================="
 coraineStop
-timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB) --reservedTenants home > /tmp/reservedTenant.$$ 2>&1
-echo "exit: $?"
-grep -o "mongoc: the database '[^']*' is an ordinary tenant's, and 'home' is reserved (--reservedTenants) - not started" /tmp/reservedTenant.$$ | sed "s/'[^']*-home'/'<prefix>-home'/"
-rm -f /tmp/reservedTenant.$$
+coraineStart --reservedTenants home --apiPlugins admin
+curl -s "$U/entities?q=name&options=keyValues" -H 'NGSILD-Tenant: home'
+curl -s http://localhost:$CB_PORT/admin/tenants
+grep -o "mongoc: 'home' is not reserved - the database '[^']*' holds an ordinary tenant's data under the name; move it, or reserve another name" /tmp/coraine.CB.log | sed "s/'[^']*-home'/'<prefix>-home'/"
+echo
+echo
+
+
+echo "07. Restarted with a reserved tenant's database of 'home' made beside the ordinary one: the ordinary one served, the other left alone"
+echo "====================================================================================================================================="
+coraineStop
+corRoleLookup CB
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval "db.getSiblingDB('${COR_ROLE_DB_PREFIX}_r-home').entities.insertOne({_id: 'x'})" > /dev/null
+coraineStart --apiPlugins admin
+curl -s "$U/entities?q=name&options=keyValues" -H 'NGSILD-Tenant: home'
+grep -o "mongoc: the database '[^']*' left alone - 'home' is an ordinary tenant's too (its database is served); nothing deleted" /tmp/coraine.CB.log | sed "s/'[^']*_r-home'/'<prefix>_r-home'/"
+mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval "db.getSiblingDB('${COR_ROLE_DB_PREFIX}_r-home').dropDatabase()" > /dev/null
 echo
 echo
 
@@ -140,10 +154,31 @@ echo
 ]
 
 
-06. --reservedTenants home, with 'home' an ordinary tenant's database: exit 1, the database and the name named
-=================================================================================================================
-exit: 1
-mongoc: the database '<prefix>-home' is an ordinary tenant's, and 'home' is reserved (--reservedTenants) - not started
+06. --reservedTenants home, with 'home' an ordinary tenant's database: the broker starts, 'home' stays ordinary - its Lamp served, listed, a warning
+====================================================================================================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Lamp:2",
+    "type": "Lamp",
+    "name": "lamp"
+  }
+]
+[
+  "home"
+]
+mongoc: 'home' is not reserved - the database '<prefix>-home' holds an ordinary tenant's data under the name; move it, or reserve another name
+
+
+07. Restarted with a reserved tenant's database of 'home' made beside the ordinary one: the ordinary one served, the other left alone
+=====================================================================================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Lamp:2",
+    "type": "Lamp",
+    "name": "lamp"
+  }
+]
+mongoc: the database '<prefix>_r-home' left alone - 'home' is an ordinary tenant's too (its database is served); nothing deleted
 
 
 --TEARDOWN--

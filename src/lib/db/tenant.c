@@ -9,6 +9,7 @@
 #include <ctype.h>                                       // tolower
 #include <stdlib.h>                                      // malloc
 #include <string.h>                                      // strcmp, strncpy, snprintf
+#include <strings.h>                             // strcasecmp
 #include <pthread.h>                                     // pthread_mutex_t
 
 #include "corLog/corLog.h"                               // COR_I
@@ -99,6 +100,30 @@ void tenantDataVisit(void (*fn)(const char* name, void* ctx), void* ctx)
     if (tenantIsData(tP) == true)
       fn(tP->name, ctx);
   }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantUnreserve -
+//
+void tenantUnreserve(const char* name)
+{
+  pthread_mutex_lock(&tenantMutex);
+
+  int kept = 0;
+  for (int ix = 0; ix < reservedN; ix++)
+  {
+    if (strcasecmp(reservedV[ix], name) == 0)
+      continue;
+    if (kept != ix)
+      memcpy(reservedV[kept], reservedV[ix], sizeof(reservedV[0]));
+    ++kept;
+  }
+  __atomic_store_n(&reservedN, kept, __ATOMIC_RELEASE);
+
+  pthread_mutex_unlock(&tenantMutex);
 }
 
 

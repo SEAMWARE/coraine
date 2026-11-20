@@ -9,6 +9,7 @@
 
 #include <stdio.h>                                   // snprintf
 #include <string.h>                                  // strdup, strlen, strncmp, strcmp
+#include <strings.h>                             // strcasecmp
 
 #include <mongoc/mongoc.h>                           // mongoc_init, mongoc_client_pool_new, ...
 
@@ -217,15 +218,37 @@ int mongocInit(void)
       if (dbNames[ix][prefixLen] == '-')
       {
         tenantName = &dbNames[ix][prefixLen + 1];
-        // An ordinary tenant's database, and the name reserved: made a reserved tenant, its data would never be seen
+        //
+        // An ordinary tenant's database, and the name reserved (--reservedTenants): made a reserved tenant, its data
+        // would never be seen. Ordinary data wins - the name stays an ordinary tenant's; the broker starts
+        //
         if (tenantIsReserved(tenantName) == true)
-          COR_X(1, "mongoc: the database '%s' is an ordinary tenant's, and '%s' is reserved (--reservedTenants) - not started", dbNames[ix], tenantName);
+        {
+          tenantUnreserve(tenantName);
+          COR_W("mongoc: '%s' is not reserved - the database '%s' holds an ordinary tenant's data under the name; move it, or reserve another name",
+                tenantName, dbNames[ix]);
+        }
       }
       else if (strncmp(&dbNames[ix][prefixLen], TENANT_RESERVED_DB_MARK, markLen) == 0)
       {
         tenantName = &dbNames[ix][prefixLen + markLen];
+
+        //
+        // An ordinary tenant's database of the name too: that one is served (ordinary data wins), this one left alone
+        //
+        bool ordinaryToo = false;
+        for (int ox = 0; (dbNames[ox] != NULL) && (ordinaryToo == false); ox++)
+          ordinaryToo = (strncmp(dbNames[ox], mongocDbName, prefixLen) == 0) && (dbNames[ox][prefixLen] == '-') &&
+                        (strcasecmp(&dbNames[ox][prefixLen + 1], tenantName) == 0);
+
+        if (ordinaryToo == true)
+        {
+          COR_E("mongoc: the database '%s' left alone - '%s' is an ordinary tenant's too (its database is served); nothing deleted", dbNames[ix], tenantName);
+          continue;
+        }
+
         if ((tenantName[0] != 0) && (tenantReserve(tenantName) == false))
-          continue;                                 // an ordinary tenant of the name exists - the log says so
+          continue;                                 // the log says why
       }
 
       if ((tenantName == NULL) || (tenantName[0] == 0))

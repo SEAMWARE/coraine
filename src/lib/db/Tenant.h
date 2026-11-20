@@ -238,9 +238,20 @@ extern bool tenantRegCacheItemRefresh(Tenant* tP, const char* regId);
 //
 // Before the tenant exists, or when it already is reserved. False when an ORDINARY tenant of that name exists
 // (its data is in an ordinary database - reserving the name would not move it), when the name is empty or too
-// long, or when TENANT_RESERVED_MAX names are reserved already.
+// long, or when TENANT_RESERVED_MAX names are reserved already. Never fatal: the caller goes on with the name an
+// ordinary tenant's (cep.so: its rules in the ordinary tenant).
 //
 extern bool tenantReserve(const char* name);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantUnreserve - the name an ordinary tenant's again: the DB plugin found ordinary data under a name reserved
+// (--reservedTenants, or a reserved database found first) - ordinary data wins, it is never hidden. At start only,
+// before any request (the reserved names are read lock-free).
+//
+extern void tenantUnreserve(const char* name);
 
 
 

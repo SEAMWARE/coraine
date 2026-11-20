@@ -29,7 +29,8 @@ coraineStart --dbDir $D --apiPlugins admin --reservedTenants cep
 # 03. GET /admin/tenants: 'home' - not 'cep'
 # 04. --dbDir: '_r-cep' for the reserved tenant, 'home' for the ordinary one
 # 05. Restarted WITHOUT --reservedTenants: the Rule is there, 'cep' still not listed
-# 06. --reservedTenants home, with 'home' an ordinary tenant's data: exit 1, the directory and the name named
+# 06. --reservedTenants home, with 'home' an ordinary tenant's directory: the broker starts, 'home' stays ordinary - its Lamp served, listed, a warning
+# 07. Restarted with a reserved tenant's directory of 'home' made beside the ordinary one: the ordinary one served, the other left alone
 #
 D=/tmp/corTest-reserved_tenant_cordb
 J='Content-Type: application/json'
@@ -76,13 +77,25 @@ echo
 echo
 
 
-echo "06. --reservedTenants home, with 'home' an ordinary tenant's data: exit 1, the directory and the name named"
-echo "=========================================================================================================="
+echo "06. --reservedTenants home, with 'home' an ordinary tenant's directory: the broker starts, 'home' stays ordinary - its Lamp served, listed, a warning"
+echo "====================================================================================================================================================="
 coraineStop
-timeout 10 $COR_BROKER --port $CB_PORT $(corStoreArgs CB --dbDir $D) --reservedTenants home > /tmp/reservedTenant.$$ 2>&1
-echo "exit: $?"
-grep -o "corDB: '[^']*' is an ordinary tenant's data, and 'home' is reserved (--reservedTenants) - not started" /tmp/reservedTenant.$$
-rm -f /tmp/reservedTenant.$$
+coraineStart --dbDir $D --reservedTenants home --apiPlugins admin
+curl -s "$U/entities?q=name&options=keyValues" -H 'NGSILD-Tenant: home'
+curl -s http://localhost:$CB_PORT/admin/tenants
+grep -o "corDB: 'home' is not reserved - '[^']*' holds an ordinary tenant's data under the name; move it, or reserve another name" /tmp/coraine.CB.log
+echo
+echo
+
+
+echo "07. Restarted with a reserved tenant's directory of 'home' made beside the ordinary one: the ordinary one served, the other left alone"
+echo "======================================================================================================================================"
+coraineStop
+mkdir -p $D/_r-home
+coraineStart --dbDir $D --apiPlugins admin
+curl -s "$U/entities?q=name&options=keyValues" -H 'NGSILD-Tenant: home'
+grep -o "corDB: '[^']*' left alone - 'home' is an ordinary tenant's too ('[^']*' is served); nothing deleted" /tmp/coraine.CB.log
+rm -rf $D/_r-home
 echo
 echo
 
@@ -142,10 +155,31 @@ home
 ]
 
 
-06. --reservedTenants home, with 'home' an ordinary tenant's data: exit 1, the directory and the name named
-==========================================================================================================
-exit: 1
-corDB: '/tmp/corTest-reserved_tenant_cordb/home' is an ordinary tenant's data, and 'home' is reserved (--reservedTenants) - not started
+06. --reservedTenants home, with 'home' an ordinary tenant's directory: the broker starts, 'home' stays ordinary - its Lamp served, listed, a warning
+=====================================================================================================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Lamp:2",
+    "type": "Lamp",
+    "name": "lamp"
+  }
+]
+[
+  "home"
+]
+corDB: 'home' is not reserved - '/tmp/corTest-reserved_tenant_cordb/home' holds an ordinary tenant's data under the name; move it, or reserve another name
+
+
+07. Restarted with a reserved tenant's directory of 'home' made beside the ordinary one: the ordinary one served, the other left alone
+======================================================================================================================================
+[
+  {
+    "id": "urn:ngsi-ld:Lamp:2",
+    "type": "Lamp",
+    "name": "lamp"
+  }
+]
+corDB: '/tmp/corTest-reserved_tenant_cordb/_r-home' left alone - 'home' is an ordinary tenant's too ('/tmp/corTest-reserved_tenant_cordb/home' is served); nothing deleted
 
 
 --TEARDOWN--

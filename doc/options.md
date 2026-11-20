@@ -1211,10 +1211,13 @@ ordinary tenant's queries, `/types` or `/attributes`.
 
 A tenant's database is chosen when the tenant is created, so the names are reserved before the store
 loads. A reserved tenant's database found at start reserves its name by itself: a restart without the
-option keeps it apart. A name with an ORDINARY tenant's data already in the store is refused - made a
-reserved tenant, that data would never be seen: the broker does not start,
-`corDB: '<dbDir>/home' is an ordinary tenant's data, and 'home' is reserved (--reservedTenants) - not started`
-(mongoc: `the database '<dbName>-home' is an ordinary tenant's ...`).
+option keeps it apart. Ordinary data always wins, and the broker always starts: a name with an ORDINARY
+tenant's data already in the store is not reserved - made a reserved tenant, that data would never be seen -
+and stays an ordinary tenant, with a warning:
+`corDB: 'home' is not reserved - '<dbDir>/home' holds an ordinary tenant's data under the name; move it, or reserve another name`
+(mongoc: `the database '<dbName>-home' holds ...`). A reserved tenant's database beside an ordinary one of
+the same name is left alone, logged as an error - nothing is deleted. A plugin that reserves a name
+(corCep's `cep.so`, its rules tenant) is told no, and goes on with the ordinary tenant.
 
     coraine --database corDB --dbDir /var/lib/coraine/db --reservedTenants cep
 

@@ -130,7 +130,11 @@ static Tenant* tenantOfDatabase(const char* db)
     return &tenant0;
 
   if ((strncmp(db, mongocDbName, dbNameLen) == 0) && (db[dbNameLen] == '-') && (db[dbNameLen + 1] != 0))
+  {
+    if (tenantIsReserved(&db[dbNameLen + 1]) == true)
+      return NULL;                               // an ordinary write under a name this instance reserved: not its tenant's
     return tenantGetOrCreate(&db[dbNameLen + 1]);
+  }
 
   // A reserved tenant's database: "<prefix>_r-<name>" - the other instance reserved it; so does this one
   int markLen = strlen(TENANT_RESERVED_DB_MARK);
