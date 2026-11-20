@@ -746,7 +746,7 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* 
       CorLdContext* respCtxP = (results[i].responseContextUrl != NULL)
                               ? corLdContextFromUrl(results[i].responseContextUrl, &corRest.kalloc) : NULL;
       if (respCtxP == NULL)
-        respCtxP = corLdCoreContext();
+        respCtxP = (results[i].requestContextP != NULL) ? results[i].requestContextP : corLdCoreContext();  // no context of its own: the one it was asked in
       corLdExpandTree(upP, respCtxP, &corRest.kalloc);
       ldStripAtContext(upP);
       apiAttrToStorageWrap(upP, corRest.kallocP);
