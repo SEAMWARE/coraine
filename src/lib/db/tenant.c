@@ -9,6 +9,7 @@
 #include <ctype.h>                                       // tolower
 #include <stdlib.h>                                      // malloc
 #include <string.h>                                      // strcmp, strncpy, snprintf
+#include <strings.h>                             // strcasecmp
 #include <pthread.h>                                     // pthread_mutex_t
 
 #include "corLog/corLog.h"                               // COR_I
@@ -46,6 +47,129 @@ Tenant*         tenantList = NULL;
 
 // Serialises tenant CREATION - see tenantGetOrCreate
 static pthread_mutex_t tenantMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// The reserved names (tenantReserve) - lowercased; appended to under tenantMutex, read lock-free
+static char reservedV[TENANT_RESERVED_MAX][64];
+static int  reservedN = 0;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantIsReserved -
+//
+bool tenantIsReserved(const char* name)
+{
+  if ((name == NULL) || (name[0] == 0))
+    return false;
+
+  int n = __atomic_load_n(&reservedN, __ATOMIC_ACQUIRE);
+
+  for (int ix = 0; ix < n; ix++)
+  {
+    if (strcasecmp(reservedV[ix], name) == 0)
+      return true;
+  }
+
+  return false;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantIsData -
+//
+bool tenantIsData(Tenant* tP)
+{
+  return (tP != NULL) && (tP->reserved == false) && (tP->liveTenantP == NULL);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantDataVisit -
+//
+void tenantDataVisit(void (*fn)(const char* name, void* ctx), void* ctx)
+{
+  fn("", ctx);
+
+  for (Tenant* tP = __atomic_load_n(&tenantList, __ATOMIC_ACQUIRE); tP != NULL; tP = tP->next)
+  {
+    if (tenantIsData(tP) == true)
+      fn(tP->name, ctx);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantUnreserve -
+//
+void tenantUnreserve(const char* name)
+{
+  pthread_mutex_lock(&tenantMutex);
+
+  int kept = 0;
+  for (int ix = 0; ix < reservedN; ix++)
+  {
+    if (strcasecmp(reservedV[ix], name) == 0)
+      continue;
+    if (kept != ix)
+      memcpy(reservedV[kept], reservedV[ix], sizeof(reservedV[0]));
+    ++kept;
+  }
+  __atomic_store_n(&reservedN, kept, __ATOMIC_RELEASE);
+
+  pthread_mutex_unlock(&tenantMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// tenantReserve -
+//
+bool tenantReserve(const char* name)
+{
+  if ((name == NULL) || (name[0] == 0) || (strlen(name) >= sizeof(reservedV[0])))
+    return false;
+
+  pthread_mutex_lock(&tenantMutex);
+
+  if (tenantIsReserved(name) == true)
+  {
+    pthread_mutex_unlock(&tenantMutex);
+    return true;
+  }
+
+  Tenant* tP = tenantLookup(name);
+
+  if ((tP != NULL) || (reservedN >= TENANT_RESERVED_MAX))
+  {
+    pthread_mutex_unlock(&tenantMutex);
+    if (tP != NULL)
+      COR_E("tenant: '%s' cannot be reserved - an ordinary tenant of that name exists (its data stays where it is)", name);
+    else
+      COR_E("tenant: '%s' cannot be reserved - %d tenants are reserved already", name, TENANT_RESERVED_MAX);
+    return false;
+  }
+
+  int ix = reservedN;
+  int len = strlen(name);
+
+  for (int i = 0; i < len; i++)
+    reservedV[ix][i] = tolower(name[i]);
+  reservedV[ix][len] = 0;
+
+  __atomic_store_n(&reservedN, ix + 1, __ATOMIC_RELEASE);
+  pthread_mutex_unlock(&tenantMutex);
+
+  COR_I("tenant: '%s' is a reserved tenant", reservedV[ix]);
+  return true;
+}
 
 
 
@@ -172,11 +296,13 @@ Tenant* tenantGetOrCreate(const char* name)
 
   memset(tP, 0, sizeof(Tenant));
 
-  // Validate name length: must fit in name[] and dbName[] ("prefix-name")
-  int nameLen   = strlen(name);
-  int prefixLen = strlen(dbPrefix);
+  // Validate name length: must fit in name[] and dbName[] ("prefix-name", a reserved tenant's "prefix_r-name")
+  bool reserved  = tenantIsReserved(name);
+  int  nameLen   = strlen(name);
+  int  prefixLen = strlen(dbPrefix);
+  int  markLen   = reserved ? (int) strlen(TENANT_RESERVED_DB_MARK) : 1;
 
-  if (nameLen >= (int) sizeof(tP->name) || prefixLen + 1 + nameLen >= (int) sizeof(tP->dbName))
+  if (nameLen >= (int) sizeof(tP->name) || prefixLen + markLen + nameLen >= (int) sizeof(tP->dbName))
   {
     free(tP);
     pthread_mutex_unlock(&tenantMutex);
@@ -188,10 +314,11 @@ Tenant* tenantGetOrCreate(const char* name)
     tP->name[i] = tolower(name[i]);
   tP->name[nameLen] = 0;
 
-  // Build DB name: "prefix-tenantname"  (length already validated above)
+  // Build DB name: "prefix-tenantname", a reserved tenant's "prefix_r-tenantname" (length already validated above)
   strcpy(tP->dbName, dbPrefix);
-  strcat(tP->dbName, "-");
+  strcat(tP->dbName, reserved ? TENANT_RESERVED_DB_MARK : "-");
   strcat(tP->dbName, tP->name);
+  tP->reserved = reserved;
 
   tP->initialized = false;
 
@@ -236,7 +363,7 @@ Tenant* tenantGetOrCreate(const char* name)
   tP->next = tenantList;
   __atomic_store_n(&tenantList, tP, __ATOMIC_RELEASE);
 
-  COR_I("tenant: created tenant '%s' (db: '%s')", tP->name, tP->dbName);
+  COR_I("tenant: created %stenant '%s' (db: '%s')", tP->reserved ? "reserved " : "", tP->name, tP->dbName);
 
   pthread_mutex_unlock(&tenantMutex);
 

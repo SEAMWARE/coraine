@@ -9,6 +9,7 @@
 
 #include <stdio.h>                                   // snprintf
 #include <string.h>                                  // strdup, strlen, strncmp, strcmp
+#include <strings.h>                             // strcasecmp
 
 #include <mongoc/mongoc.h>                           // mongoc_init, mongoc_client_pool_new, ...
 
@@ -207,14 +208,50 @@ int mongocInit(void)
   {
     for (int ix = 0; dbNames[ix] != NULL; ix++)
     {
-      // Match databases named "{prefix}-{tenantname}"
+      // Match databases named "{prefix}-{tenantname}" - and a reserved tenant's, "{prefix}_r-{tenantname}"
       if (strncmp(dbNames[ix], mongocDbName, prefixLen) != 0)
         continue;
-      if (dbNames[ix][prefixLen] != '-')
-        continue;
 
-      const char* tenantName = &dbNames[ix][prefixLen + 1];
-      if (tenantName[0] == 0)
+      const char* tenantName = NULL;
+      int         markLen    = strlen(TENANT_RESERVED_DB_MARK);
+
+      if (dbNames[ix][prefixLen] == '-')
+      {
+        tenantName = &dbNames[ix][prefixLen + 1];
+        //
+        // An ordinary tenant's database, and the name reserved (--reservedTenants): made a reserved tenant, its data
+        // would never be seen. Ordinary data wins - the name stays an ordinary tenant's; the broker starts
+        //
+        if (tenantIsReserved(tenantName) == true)
+        {
+          tenantUnreserve(tenantName);
+          COR_W("mongoc: '%s' is not reserved - the database '%s' holds an ordinary tenant's data under the name; move it, or reserve another name",
+                tenantName, dbNames[ix]);
+        }
+      }
+      else if (strncmp(&dbNames[ix][prefixLen], TENANT_RESERVED_DB_MARK, markLen) == 0)
+      {
+        tenantName = &dbNames[ix][prefixLen + markLen];
+
+        //
+        // An ordinary tenant's database of the name too: that one is served (ordinary data wins), this one left alone
+        //
+        bool ordinaryToo = false;
+        for (int ox = 0; (dbNames[ox] != NULL) && (ordinaryToo == false); ox++)
+          ordinaryToo = (strncmp(dbNames[ox], mongocDbName, prefixLen) == 0) && (dbNames[ox][prefixLen] == '-') &&
+                        (strcasecmp(&dbNames[ox][prefixLen + 1], tenantName) == 0);
+
+        if (ordinaryToo == true)
+        {
+          COR_E("mongoc: the database '%s' left alone - '%s' is an ordinary tenant's too (its database is served); nothing deleted", dbNames[ix], tenantName);
+          continue;
+        }
+
+        if ((tenantName[0] != 0) && (tenantReserve(tenantName) == false))
+          continue;                                 // the log says why
+      }
+
+      if ((tenantName == NULL) || (tenantName[0] == 0))
         continue;
 
       Tenant* tP = tenantGetOrCreate(tenantName);

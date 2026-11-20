@@ -90,6 +90,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troe/-troe <corDB|none|ramDB|timescale>]
                 [--troeSync/-troeSync (hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it)]
                 [--apiPlugins/-api <admin>]
+                [--reservedTenants/-reservedTenants <reserved tenants (comma-separated, at most 8): each reached with NGSILD-Tenant as any other, its data in a database of its own, left out of /admin/tenants - corCep's rules tenant (cep.so reserves its own)>]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--auth/-auth <fdsc|oidc>]
                 [--sseStreams/-sseStreams <event streams open at a time, at most - a subscription made on its stream (Server-Sent Events) over it is 503>]
@@ -160,6 +161,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troe/-troe <corDB|none|ramDB|timescale>]
                 [--troeSync/-troeSync (hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it)]
                 [--apiPlugins/-api <admin>]
+                [--reservedTenants/-reservedTenants <reserved tenants (comma-separated, at most 8): each reached with NGSILD-Tenant as any other, its data in a database of its own, left out of /admin/tenants - corCep's rules tenant (cep.so reserves its own)>]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--auth/-auth <fdsc|oidc>]
                 [--sseStreams/-sseStreams <event streams open at a time, at most - a subscription made on its stream (Server-Sent Events) over it is 503>]
@@ -233,6 +235,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--troe/-troe <corDB|none|ramDB|timescale>]
                 [--troeSync/-troeSync (hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it)]
                 [--apiPlugins/-api <admin>]
+                [--reservedTenants/-reservedTenants <reserved tenants (comma-separated, at most 8): each reached with NGSILD-Tenant as any other, its data in a database of its own, left out of /admin/tenants - corCep's rules tenant (cep.so reserves its own)>]
                 [--bridges/-br <REGEX([a-zA-Z0-9_|]+)>]
                 [--auth/-auth <fdsc|oidc>]
                 [--sseStreams/-sseStreams <event streams open at a time, at most - a subscription made on its stream (Server-Sent Events) over it is 503>]
@@ -294,6 +297,7 @@ Usage: coraine  [--usage/-u (usage)]
   --troe                  (-troe)               CORAINE_TROE                  Optional   String   none
   --troeSync              (-troeSync)           CORAINE_TROESYNC              Optional   Bool     false
   --apiPlugins            (-api)                CORAINE_APIPLUGINS            Optional   String   -
+  --reservedTenants       (-reservedTenants)    CORAINE_RESERVEDTENANTS       Optional   String   -
   --bridges               (-br)                 CORAINE_BRIDGES               Optional   String   -
   --auth                  (-auth)               CORAINE_AUTH                  Optional   String   -
   --sseStreams            (-sseStreams)         CORAINE_SSESTREAMS            Optional   Int      1000

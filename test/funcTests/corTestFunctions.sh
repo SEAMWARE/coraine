@@ -443,14 +443,37 @@ corDbDrop() {
   local role="CB"
   local tenant=""
   local explicitDb=""
+  local reserved=0
 
   while [ $# -gt 0 ]; do
-    if   [ "$1" == "-role" ];   then role="$2"; shift
-    elif [ "$1" == "-tenant" ]; then tenant="$2"; shift
-    elif [ "$1" == "-db" ];     then explicitDb="$2"; shift
+    if   [ "$1" == "-role" ];     then role="$2"; shift
+    elif [ "$1" == "-tenant" ];   then tenant="$2"; shift
+    elif [ "$1" == "-db" ];       then explicitDb="$2"; shift
+    elif [ "$1" == "-reserved" ]; then reserved=1           # -tenant names a reserved tenant (--reservedTenants): its own database
     fi
     shift
   done
+
+  #
+  # A reserved tenant's database: mongoc's "<prefix>_r-<tenant>", corDB's directory "_r-<escaped tenant>" -
+  # dropped whole (no other drop below matches that name)
+  #
+  if [ "$reserved" == 1 ] && [ -n "$tenant" ]; then
+    case "$COR_DB_TYPE" in
+      mongoc)
+        corRoleLookup "$role" || return 1
+        if [ -x "$COR_MONGO_DROP" ]; then
+          "$COR_MONGO_DROP" --host $COR_MONGO_HOST --port $COR_MONGO_PORT --db "${COR_ROLE_DB_PREFIX}_r-${tenant}" > /dev/null 2>&1
+        else
+          mongosh --host $COR_MONGO_HOST --port $COR_MONGO_PORT --quiet --eval 'db.dropDatabase()' "${COR_ROLE_DB_PREFIX}_r-${tenant}" > /dev/null 2>&1
+        fi
+        ;;
+      corDB)
+        rm -rf "$(corDbDir "$role")/_r-$(corDbTenantDirName "$tenant")"
+        ;;
+    esac
+    return 0
+  fi
 
   case "$COR_DB_TYPE" in
     mongoc)

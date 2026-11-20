@@ -212,6 +212,7 @@ char*          dbName       = "mongoc";
 char*          troeName     = "none";
 char*          apiNames     = NULL;
 char*          bridgeNames  = NULL;
+char*          reservedTenants = NULL;
 #if COR_FEATURE_TRANSPORTS
 char*          transportNames = NULL;
 #endif
@@ -281,6 +282,7 @@ static CorArg kargV[] =
   { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin: none (the default), timescale, ramDB (a ring of the latest events, for tests), corDB (the corDB store's own history - needs --database corDB), or the path of a .so" },
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it" },
   { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },
+  { "--reservedTenants",    "-reservedTenants", CorArgString, _vp &reservedTenants, CorArgOpt, _vp NULL, NULL, NULL,  "reserved tenants (comma-separated, at most 8): each reached with NGSILD-Tenant as any other, its data in a database of its own, left out of /admin/tenants - corCep's rules tenant (cep.so reserves its own)" },
   { "--bridges",            "-br",          CorArgString, _vp &bridgeNames,  CorArgOpt, _vp NULL,  NULL,  NULL,      "bridge plugins - transports to non-NGSI-LD peers (comma-separated, at most 8)" },
 #if COR_FEATURE_AUTH
   { "--auth",               "-auth",        CorArgString, _vp &authName,     CorArgOpt, _vp NULL,  NULL,  NULL,      "auth plugin - who sent a request and whether it may: oidc (an OpenID provider's tokens), fdsc (the FIWARE Data Space Connector's tokens and policies); left out, every request is let in" },
@@ -2247,6 +2249,24 @@ int main(int argC, char* argV[])
   if ((healthPort != 0) && (healthStart(healthPort, healthStallTimeout) == false))
     COR_X(1, "cannot listen for the health probes on port %u: %s", healthPort, strerror(errno));
 #endif
+
+  //
+  // The reserved tenants BEFORE the store loads: a tenant's database is chosen when it is created, and the
+  // store creates the tenants it finds
+  //
+  if (reservedTenants != NULL)
+  {
+    char* list = strdup(reservedTenants);
+    char* save = NULL;
+
+    for (char* name = strtok_r(list, ",", &save); name != NULL; name = strtok_r(NULL, ",", &save))
+    {
+      if ((name[0] != 0) && (tenantReserve(name) == false))
+        COR_X(1, "--reservedTenants: '%s' cannot be reserved (the log says why)", name);
+    }
+
+    free(list);
+  }
 
   if (dbStart() != 0)
     COR_X(1, "dbStart failed");
