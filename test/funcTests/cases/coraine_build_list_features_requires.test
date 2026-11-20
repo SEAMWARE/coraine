@@ -100,6 +100,7 @@ AUTH_OIDC                requires ["AUTH"]                         requiresAny [
 BRIDGE_INVENTORY         requires ["ADMIN_API"]                    requiresAny []
 CHANNEL_WRITE_BACK       requires []                               requiresAny ["DATA_CHANNELS", "ASSET_CHANNELS"]
 HA_RUNS                  requires ["TRANSPORTS"]                   requiresAny []
+LOG_LINES                requires ["ADMIN_API"]                    requiresAny []
 METRICS                  requires ["ADMIN_API"]                    requiresAny []
 POLICY_API               requires ["HTTP_SERVER=mhd"]              requiresAny []
 PROBES                   requires ["ADMIN_API"]                    requiresAny []
