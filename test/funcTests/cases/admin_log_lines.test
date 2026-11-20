@@ -1,0 +1,131 @@
+#
+# FILE            admin_log_lines.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# GET /admin/log/lines - the broker's recent log, kept in memory (--logLines, 256 KiB by default) whatever --logTo
+# is; each line with its UTC time first. The lines are the broker's, so the checks are what can be told of them:
+# how many matched, the time first, the type letter, the text matched.
+#
+#   - two entities not found: two E lines with their ids - types=E, match=urn:LL:
+#   - lines=1: the newest of them only
+#   - since a time to come: none
+#   - lines=0, since=yesterday: 400
+#   - --logLines 0: 409
+#
+# REQUIRE_FEATURE: LOG_LINES
+#
+--NAME--
+Admin: GET /admin/log/lines - the recent log kept in memory, by type, text, time and number
+
+--TAGS--
+admin
+
+--INIT--
+corDbDrop
+coraineStart --apiPlugins admin
+
+--RUN--
+#
+# lines <query> - GET /admin/log/lines?<query>: its status, matched, and each line as "<time ok> <type> <the ids in it>"
+#
+lines() {
+  curl -s -w '\n%{http_code}' "localhost:$CB_PORT/admin/log/lines?$1" | python3 -c '
+import json, re, sys
+body, status = sys.stdin.read().rsplit("\n", 1)
+print("status", status)
+d = json.loads(body)
+if "lines" not in d:
+  print(d.get("title"), "-", d.get("detail")); sys.exit()
+print("matched", d["matched"], "returned", len(d["lines"]), "kept >= matched", d["kept"] >= d["matched"])
+for l in d["lines"]:
+  t = bool(re.match(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z [A-Z]: ", l))
+  print(" ", "time" if t else "NO TIME", l[25], " ".join(re.findall(r"urn:LL:\d", l)))
+'
+}
+
+
+echo "01. Two entities not found - two E lines, with their ids"
+echo "========================================================"
+curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:LL:1"
+curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:LL:2"
+lines 'types=E&match=urn:LL:'
+echo
+echo
+
+
+echo "02. lines=1 - the newest only"
+echo "============================="
+lines 'types=E&match=urn:LL:&lines=1'
+echo
+echo
+
+
+echo "03. since a time to come - none"
+echo "==============================="
+lines 'since=2099-01-01T00:00:00Z'
+lines 'since=2099-01-01T00:00:00.000Z&types=E'
+echo
+echo
+
+
+echo "04. lines=0, since=yesterday - 400"
+echo "=================================="
+lines 'lines=0'
+lines 'since=yesterday'
+echo
+echo
+
+
+echo "05. --logLines 0 - no log kept: 409"
+echo "==================================="
+coraineStop
+coraineStart --apiPlugins admin --logLines 0
+lines ''
+echo
+echo
+
+
+--EXPECT--
+01. Two entities not found - two E lines, with their ids
+========================================================
+status 200
+matched 2 returned 2 kept >= matched True
+  time E urn:LL:1
+  time E urn:LL:2
+
+
+02. lines=1 - the newest only
+=============================
+status 200
+matched 2 returned 1 kept >= matched True
+  time E urn:LL:2
+
+
+03. since a time to come - none
+===============================
+status 200
+matched 0 returned 0 kept >= matched True
+status 200
+matched 0 returned 0 kept >= matched True
+
+
+04. lines=0, since=yesterday - 400
+==================================
+status 400
+Invalid URL parameter - lines: 1 to 2000
+status 400
+Invalid URL parameter - since: a UTC time, 2026-11-20T12:00:00Z or 2026-11-20T12:00:00.000Z
+
+
+05. --logLines 0 - no log kept: 409
+===================================
+status 409
+No log kept in memory - the broker runs with --logLines 0
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
