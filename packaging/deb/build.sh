@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# build.sh <coraine-src.tar.xz> <out-dir> - the packages coraine and coraine-dev, for THIS distribution
+# build.sh <coraine-src.tar.xz> <out-dir> - the packages coraine, coraine-cep and coraine-dev, for THIS distribution
 # and architecture
 #
 # Runs as root INSIDE a throw-away container of the target distribution (it installs the build
@@ -11,7 +11,8 @@
 # The tarball is source.sh's. The broker is built with coraine-build - the command coraine-dev ships -
 # from that tarball, so every package build also proves that coraine-build works.
 #
-# Out: coraine_<version>_<arch>.deb, coraine-dev_<version>_<arch>.deb, coraine-dbg_<version>_<arch>.tar.xz
+# Out: coraine_<version>_<arch>.deb, coraine-dev_<version>_<arch>.deb, coraine-cep_<version>_<arch>.deb,
+# coraine-dbg_<version>_<arch>.tar.xz
 # (the stripped debug info, usr/lib/debug/.build-id/..: unpacked in / gdb finds it) and
 # lintian-<dist>-<arch>.txt. <version> = <upstream>+<dist>: one pool can hold all three distributions.
 #
@@ -160,6 +161,21 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------------------------- #
+# coraine-cep - corCep's rules engine as the bridge plugin cep.so (coraine --bridges cep), out of the
+# coraine package into its own. Built in this tree, against this broker: one version, and coraine
+# Depends on exactly it - a cep.so of another build never meets this broker.
+# ------------------------------------------------------------------------------------------------- #
+CP=$WORK/stage/coraine-cep
+[ -f "$S/opt/seamware/plugins/bridge/cep.so" ] || die "no cep.so - coraine-build without the cep bridge?"
+install -d "$CP/DEBIAN" "$CP/opt/seamware/plugins/bridge" "$CP/usr/share/doc/coraine-cep" "$CP/usr/share/lintian/overrides"
+mv "$S/opt/seamware/plugins/bridge/cep.so" "$CP/opt/seamware/plugins/bridge/cep.so"
+install -m 0644 "$WORK"/coraine-*/MANIFEST.txt "$CP/usr/share/doc/coraine-cep/MANIFEST.txt"
+cat > "$CP/usr/share/lintian/overrides/coraine-cep" <<EOF
+# beside the broker's other plugins, in its compiled-in layout (SEAMWARE_PLUGIN_DIR)
+coraine-cep: dir-or-file-in-opt
+EOF
+
+# ------------------------------------------------------------------------------------------------- #
 # coraine-dev
 # ------------------------------------------------------------------------------------------------- #
 D=$WORK/stage/coraine-dev
@@ -193,13 +209,13 @@ EOF
 fi
 
 # ------------------------------------------------------------------------------------------------- #
-# both: copyright, changelog, permissions
+# all three: copyright, changelog, permissions
 # ------------------------------------------------------------------------------------------------- #
 LICENSE_TEXT=" On Debian systems, the full text of the Apache License, Version 2.0 can be found
  in /usr/share/common-licenses/Apache-2.0."
 COMMIT_DATE_R=$(date -R -d "$commitDate")
 
-for p in coraine coraine-dev; do
+for p in coraine coraine-dev coraine-cep; do
   P=$WORK/stage/$p
   {
     echo "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/"
@@ -242,7 +258,7 @@ done
 # report names a build id, and the debug tarball of the same build turns its addresses into lines.
 #
 DBG=$WORK/stage/dbg
-for f in $(find "$S" "$D" -type f); do
+for f in $(find "$S" "$D" "$CP" -type f); do
   file -b "$f" | grep -q '^ELF' || continue
   id=$(readelf -n "$f" | sed -n 's/.*Build ID: \([0-9a-f]*\).*/\1/p' | head -1)
   if [ -n "$id" ]; then
@@ -253,8 +269,8 @@ for f in $(find "$S" "$D" -type f); do
 done
 tar --sort=name --owner=0 --group=0 --numeric-owner -C "$DBG" -cJf "$OUT/coraine-dbg_${DEBVER}_${ARCH}.tar.xz" .
 
-find "$S" "$D" -type d -exec chmod 0755 {} +
-find "$S/opt" -type f -exec chmod 0644 {} +
+find "$S" "$D" "$CP" -type d -exec chmod 0755 {} +
+find "$S/opt" "$CP/opt" -type f -exec chmod 0644 {} +
 find "$S/usr/share/c3" -type f -exec chmod 0644 {} +
 [ ! -d "$D/opt" ] || find "$D/opt" -type f -exec chmod 0644 {} +
 
@@ -276,7 +292,7 @@ Version: $DEBVER
 Architecture: $ARCH
 Maintainer: $MAINTAINER
 Installed-Size: $(du -sk --exclude=DEBIAN "$S" | cut -f1)
-Depends: $SHLIBS, adduser$(echo "$SHLIBS" | grep -q 'libzstd1' || printf ', libzstd1')
+Depends: $SHLIBS, adduser$(echo "$SHLIBS" | grep -q 'libzstd1' || printf ', libzstd1'), coraine-cep (= $DEBVER)
 Recommends: ca-certificates
 Section: net
 Priority: optional
@@ -289,7 +305,8 @@ Description: NGSI-LD context broker (ETSI GS CIM 009)
  This package holds the broker, coraine-import (moves another broker's
  database into coraine's stores), the plugins - corDB, ramDB, mongoc,
  timescale, the admin API, the auth plugins (fdsc, oidc), the WebSocket
- transport, the MQTT and Modbus bridges - the systemd unit coraine.service,
+ transport, the MQTT and Modbus bridges (the CEP bridge: coraine-cep) - the
+ systemd unit coraine.service,
  installed but not enabled (see /etc/default/coraine), and c3, the control
  center: explore, operate and configure brokers in a browser; with
  coraine-dev also build them.$( [ "$BUNDLE" = 0 ] || printf '\n .\n The MongoDB C driver v2 is bundled, privately, in /opt/seamware/lib.' )
@@ -315,10 +332,35 @@ Description: NGSI-LD context broker (ETSI GS CIM 009) - build your own
 EOF
 
 #
+# coraine-cep's Depends: what cep.so links (the C library - the cor-libs are the broker's, exported)
+#
+CEP_SHLIBS=$(cd "$WORK/shl" && dpkg-shlibdeps -O --warnings=0 -e"$CP/opt/seamware/plugins/bridge/cep.so" | sed -n 's/^shlibs:Depends=//p')
+[ -n "$CEP_SHLIBS" ] || die "dpkg-shlibdeps found no dependencies for cep.so"
+
+cat > "$CP/DEBIAN/control" <<EOF
+Package: coraine-cep
+Version: $DEBVER
+Architecture: $ARCH
+Maintainer: $MAINTAINER
+Installed-Size: $(du -sk --exclude=DEBIAN "$CP" | cut -f1)
+Depends: $CEP_SHLIBS
+Enhances: coraine
+Section: net
+Priority: optional
+Homepage: https://github.com/SEAMWARE/corCep
+Description: NGSI-LD context broker (ETSI GS CIM 009) - complex event processing
+ corCep's rules engine inside coraine, as the bridge plugin cep.so
+ (coraine --bridges cep): rules kept as NGSI-LD entities, patterns over the
+ notified changes (sequences, absences, windows, schedules) and actions back
+ on the broker (set, toggle, step, create, delete). Built with the coraine
+ package of the same version, and only for it.
+EOF
+
+#
 # Build, check
 #
 DEBS=
-for p in coraine coraine-dev; do
+for p in coraine coraine-dev coraine-cep; do
   deb=$OUT/${p}_${DEBVER}_${ARCH}.deb
   (cd "$WORK/stage/$p" && find . -type f ! -path './DEBIAN/*' -printf '%P\0' | sort -z | xargs -0 md5sum > DEBIAN/md5sums)
   dpkg-deb --root-owner-group -Zxz --build "$WORK/stage/$p" "$deb" > /dev/null

@@ -24,7 +24,7 @@ export DEBIAN_FRONTEND=noninteractive
 echo "test-dev: $PRETTY_NAME, $(dpkg --print-architecture)"
 
 apt-get update -qq
-apt-get install -y --no-install-recommends "$(ls "$DIR"/coraine_*.deb)" "$(ls "$DIR"/coraine-dev_*.deb)" > /tmp/apt.log \
+apt-get install -y --no-install-recommends "$(ls "$DIR"/coraine_*.deb)" "$(ls "$DIR"/coraine-cep_*.deb)" "$(ls "$DIR"/coraine-dev_*.deb)" > /tmp/apt.log \
   || { cat /tmp/apt.log; fail "apt-get install"; }
 dpkg -s coraine-dev | sed -n '/^Version/p;/^Depends/p'
 

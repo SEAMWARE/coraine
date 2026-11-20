@@ -22,8 +22,8 @@
 #                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
 #   --optimize <o>     speed (the default) or size: what the broker's defaults spend RAM on - size runs one
 #                      malloc arena for the process, for small hardware (doc/building-details.md#cor_optimize)
-#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua - or none
-#                      (default mqtt,modbus). A bridge the source does not carry, or whose libraries are
+#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua, cep - or none
+#                      (default mqtt,modbus,cep). A bridge the source does not carry, or whose libraries are
 #                      not installed here, stops the build and says which (--list-bridges)
 #   --list-bridges     print every bridge, whether it can be built here and why not, and exit; with
 #                      --json a JSON array of {name, default, description, available, why}
@@ -72,7 +72,7 @@ DIR=
 LIST=0
 LISTB=0
 JSON=0
-BRIDGES=mqtt,modbus
+BRIDGES=mqtt,modbus,cep
 NAME=coraine
 
 die()   { echo "coraine-build: $*" >&2; exit 1; }
@@ -224,7 +224,8 @@ BRIDGE_TABLE="mqtt	corMqttBridge	1	MQTT - NGSI-LD over MQTT topics (mqtt.so, lib
 modbus	corModbusBridge	1	Modbus TCP - values between Modbus registers and entities (modbus.so, no library)
 dds	corDdsBridge	0	DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
 ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)
-opcua	corOpcuaBridge	0	OPC UA - a server's Variables as Channels, its Objects as AssetChannels (opcua.so, open62541)"
+opcua	corOpcuaBridge	0	OPC UA - a server's Variables as Channels, its Objects as AssetChannels (opcua.so, open62541)
+cep	corCep	1	CEP - corCep's rules engine in the broker: patterns over the changes, actions back on the entities (cep.so, no library)"
 
 #
 # bridgeWhy <name> <repository> - why it cannot be built here; nothing when it can
@@ -434,11 +435,12 @@ find "$B/src/plugins" -name '*.so' | while read -r so; do
 done
 
 phase bridges
-# the bridges that are not the broker's, as --bridges named them (default MQTT and Modbus)
+# the bridges that are not the broker's, as --bridges named them (default MQTT, Modbus and CEP)
 for br in "${BRIDGE_REPOS[@]}"; do
   flavour=release; [ "$MODE" = debug ] && flavour=debug
   extra=(); [ "$br" = corDdsBridge ] && extra=(COR_BRIDGE_DDS=ON)
-  make -C "$DIR/$br" BUILD=$flavour PLUGIN_DIR="$INST/plugins/bridge" "${extra[@]}" install > /dev/null
+  target=install; [ "$br" = corCep ] && target=plugin-install    # corCep's install is its standalone binary
+  make -C "$DIR/$br" BUILD=$flavour PLUGIN_DIR="$INST/plugins/bridge" "${extra[@]}" $target > /dev/null
 done
 
 installFile "$C/etc/contextSourceExtras.json" "$INST/etc"

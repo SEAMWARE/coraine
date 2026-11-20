@@ -61,12 +61,13 @@ compile features out. This page covers the common case only.
 
 ## Install with apt
 
-Two Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 (trixie)**, on
+Three Debian packages, for **Ubuntu 26.04**, **Ubuntu 24.04 LTS** and **Debian 13 (trixie)**, on
 **amd64** and **arm64**:
 
 | Package | What it holds |
 |---------|---------------|
-| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine`, and [c³](https://github.com/SEAMWARE/c3), the control center (`/usr/bin/c3`, its pages in `/usr/share/c3/www`): Operate, Explore and Documentation; Compile with `coraine-dev` |
+| `coraine` | the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge and the CEP bridge (`/opt/seamware/plugins`), `/opt/seamware/etc/contextSourceExtras.json`, the systemd unit `coraine.service` and its options file `/etc/default/coraine`, and [c³](https://github.com/SEAMWARE/c3), the control center (`/usr/bin/c3`, its pages in `/usr/share/c3/www`): Operate, Explore and Documentation; Compile with `coraine-dev` |
+| `coraine-cep` | [corCep](https://github.com/SEAMWARE/corCep)'s rules engine as the bridge plugin `cep.so` (`coraine --bridges cep`), in `/opt/seamware/plugins/bridge`. Built with the `coraine` of the same version and only for it: `coraine` depends on exactly that version, so `apt install coraine` brings it |
 | `coraine-dev` | `coraine-build` (`/usr/bin`), the exact source of the same version - coraine and every Cor-Lib at the commits built - in `/usr/share/coraine/src/coraine-src.tar.xz` and its `MANIFEST.txt` (`/usr/share/doc/coraine-dev`), and the toolchain and libraries to build it (as dependencies). No installed headers and no libraries of coraine's ([coraine-dev](#coraine-dev-build-your-own)) |
 
 From the signed apt repository, **https://seamware.github.io/apt**:

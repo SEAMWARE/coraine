@@ -128,10 +128,12 @@ echo "deb [signed-by=/usr/share/keyrings/coraine.gpg] https://seamware.github.io
 sudo apt update && sudo apt install coraine        # or coraine-dev
 ```
 
-- **`coraine`** - the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS bridge, and
+- **`coraine`** - the broker (`/usr/bin/coraine`), `coraine-import`, every plugin but the DDS and CEP bridges, and
   the systemd unit `coraine.service` with its options in `/etc/default/coraine`. The service is installed
   but **not enabled and not started**: the broker listens on every interface and has no authentication of
   its own until it is configured.
+- **`coraine-cep`** - corCep's rules engine as the bridge plugin `cep.so` (`coraine --bridges cep`); built
+  with the broker of the same version, and `coraine` depends on exactly it - `apt install coraine` brings it.
 - **`coraine-dev`** - `coraine-build`, the exact source of the same version and the toolchain to build it:
   a broker of your own, with the features you choose (c³'s Compile drives it).
 
