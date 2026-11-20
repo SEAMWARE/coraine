@@ -1,0 +1,277 @@
+#
+# FILE            linked_entities_attr_inline.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104 176 § 7.5.3.1 - Retrieve Attribute takes join and joinLevel, "inline" or "@none": the Relationship
+# comes back with its linked entity nested as the `entity` sub-attribute (core § 7.7.2), down to joinLevel
+# (default 1, § 7.7.4). An attribute has no flat form: join=flat is BadRequestData.
+#
+--NAME--
+Linked entities - Retrieve Attribute with join=inline
+
+--TAGS--
+retrieve linked-entities
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# 01-03. Seed V1 -> P1 -> P2, and V1 -> MISSING (dangling)
+# 04.    GET V1's owner, join=inline - owner.entity = P1, P1.manager not expanded (joinLevel 1 by default)
+# 05.    GET V1's owner, join=inline&joinLevel=2 - P1.manager.entity = P2 as well
+# 06.    GET V1's owner, join=@none - the plain Relationship
+# 07.    GET V1's reportsTo, join=inline - the target does not exist: no `entity`
+# 08.    GET V1's speed, join=inline - a Property: unchanged
+# 09.    GET V1's owner, join=flat - 400 BadRequestData
+# 10.    GET V1's owner, join=inline&joinLevel=0 - 400 BadRequestData
+#
+
+echo "01. Seed P2 (leaf)"
+echo "=================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P2","type":"Person","name":{"type":"Property","value":"Bob"}}'
+echo
+echo
+
+
+echo "02. Seed P1 -> P2"
+echo "================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:P1","type":"Person","name":{"type":"Property","value":"Alice"},"manager":{"type":"Relationship","object":"urn:P2"}}'
+echo
+echo
+
+
+echo "03. Seed V1 -> P1 and V1 -> MISSING"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":42},"owner":{"type":"Relationship","object":"urn:P1"},"reportsTo":{"type":"Relationship","object":"urn:MISSING"}}'
+echo
+echo
+
+
+echo "04. GET V1's owner, join=inline - owner.entity = P1, P1.manager not expanded"
+echo "============================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/owner?join=inline'
+echo
+echo
+
+
+echo "05. GET V1's owner, join=inline&joinLevel=2 - P1.manager.entity = P2 as well"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/owner?join=inline&joinLevel=2'
+echo
+echo
+
+
+echo "06. GET V1's owner, join=@none - the plain Relationship"
+echo "======================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/owner?join=@none'
+echo
+echo
+
+
+echo "07. GET V1's reportsTo, join=inline - the target does not exist: no entity"
+echo "=========================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/reportsTo?join=inline'
+echo
+echo
+
+
+echo "08. GET V1's speed, join=inline - a Property: unchanged"
+echo "======================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?join=inline'
+echo
+echo
+
+
+echo "09. GET V1's owner, join=flat - 400 BadRequestData"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/owner?join=flat'
+echo
+echo
+
+
+echo "10. GET V1's owner, join=inline&joinLevel=0 - 400 BadRequestData"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/owner?join=inline&joinLevel=0'
+echo
+echo
+
+
+--EXPECT--
+01. Seed P2 (leaf)
+==================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:P2
+Content-Length: 0
+
+
+
+
+02. Seed P1 -> P2
+=================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:P1
+Content-Length: 0
+
+
+
+
+03. Seed V1 -> P1 and V1 -> MISSING
+===================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+
+04. GET V1's owner, join=inline - owner.entity = P1, P1.manager not expanded
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 260
+
+{
+  "entity": {
+    "id": "urn:P1",
+    "manager": {
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "name": {
+      "type": "Property",
+      "value": "Alice"
+    },
+    "type": "Person"
+  },
+  "object": "urn:P1",
+  "type": "Relationship"
+}
+
+
+
+05. GET V1's owner, join=inline&joinLevel=2 - P1.manager.entity = P2 as well
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 420
+
+{
+  "entity": {
+    "id": "urn:P1",
+    "manager": {
+      "entity": {
+        "id": "urn:P2",
+        "name": {
+          "type": "Property",
+          "value": "Bob"
+        },
+        "type": "Person"
+      },
+      "object": "urn:P2",
+      "type": "Relationship"
+    },
+    "name": {
+      "type": "Property",
+      "value": "Alice"
+    },
+    "type": "Person"
+  },
+  "object": "urn:P1",
+  "type": "Relationship"
+}
+
+
+
+06. GET V1's owner, join=@none - the plain Relationship
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 51
+
+{
+  "object": "urn:P1",
+  "type": "Relationship"
+}
+
+
+
+07. GET V1's reportsTo, join=inline - the target does not exist: no entity
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 56
+
+{
+  "object": "urn:MISSING",
+  "type": "Relationship"
+}
+
+
+
+08. GET V1's speed, join=inline - a Property: unchanged
+=======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 40
+
+{
+  "type": "Property",
+  "value": 42
+}
+
+
+
+09. GET V1's owner, join=flat - 400 BadRequestData
+==================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 180
+
+{
+  "detail": "'join' on an attribute must be 'inline' or '@none'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+10. GET V1's owner, join=inline&joinLevel=0 - 400 BadRequestData
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 178
+
+{
+  "detail": "'joinLevel' must be a positive integer (got '0')",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
