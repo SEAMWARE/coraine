@@ -1,0 +1,236 @@
+#
+# FILE            distop_read_plain_source.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A source that answers in plain JSON - no Link header, no @context in the body - answers in the
+# terms it was asked in: the broker reads its answer with the @context the forward was sent with
+# (its Link), not with the core context. A jsonldContext source (TS 104-175 § 9.5.2) is such a
+# source: a JSON service, its terms given by the registration. Before the fix the answer was
+# expanded with core, so "speed" came back as "ngsi-ld:default-context/speed" and the type as
+# "ngsi-ld:default-context/V" (ETSI D010_01_exc).
+# Covers the retrieve and the query paths. distop_read_foreign_context covers a source that DOES
+# send its own Link.
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+--NAME--
+Distributed read - a plain JSON source answers in the @context it was asked in
+
+--TAGS--
+context distops csr-reg forwarding
+
+--INIT--
+corDbDrop
+contextServerStart
+coraineStart -dist
+ftClientStart --port 7754
+
+contextServerPush /jsonldContexts/ctxClient '{
+  "@context": {
+    "V": "https://example.org/types/V",
+    "speed": "https://example.org/veh/speed"
+  }
+}'
+
+contextServerPush /jsonldContexts/ctxSource '{
+  "@context": {
+    "V": "https://example.org/types/V",
+    "velocity": "https://example.org/veh/speed"
+  }
+}'
+
+--RUN--
+
+#
+# 01. Register ftClient (inclusive, retrieveOps) for V / veh/speed - no jsonldContext, so the
+#     forwards go out in the client's @context
+# 02. Program ftClient: plain JSON answers, "speed", no Link
+# 03. Retrieve urn:E1 via ctxClient - speed=42, type V
+# 04. The forward went out with ctxClient in its Link
+# 05. Query type=V via ctxClient - speed=42, type V
+# 06. A jsonldContext source: re-register with contextSourceInfo jsonldContext=ctxSource; the
+#     source answers "velocity", plain JSON
+# 07. Retrieve urn:E1 via ctxClient - speed=42 (velocity read via ctxSource)
+#
+
+echo "01. Register ftClient (inclusive, retrieveOps) for V / veh/speed"
+echo "================================================================"
+payload='{
+  "id": "urn:CSR:R1",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7754",
+  "mode": "inclusive",
+  "operations": ["retrieveOps"],
+  "information": [
+    {
+      "entities": [ { "type": "https://example.org/types/V" } ],
+      "propertyNames": [ "https://example.org/veh/speed" ]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Program ftClient: plain JSON answers, no Link"
+echo "================================================="
+corCurl --port 7754 --url /mock/reply --payload '{"verb":"GET","path":"/entities","status":200,"body":[{"id":"urn:E1","type":"V","speed":{"type":"Property","value":42}}]}' | head -1
+corCurl --port 7754 --url /mock/reply --payload '{"verb":"GET","path":"/entities/urn:E1","status":200,"body":{"id":"urn:E1","type":"V","speed":{"type":"Property","value":42}}}' | head -1
+echo
+echo
+
+
+echo "03. Retrieve urn:E1 via ctxClient - speed=42, type V"
+echo "===================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "04. The forward went out with ctxClient in its Link"
+echo "==================================================="
+ftClientDump --port 7754 | python3 -c '
+import json, sys
+for r in json.load(sys.stdin):
+    if "/entities/urn:E1" in r.get("url", r.get("path", "")):
+        h = {k.lower(): v for k, v in r.get("headers", {}).items()}
+        print(h.get("link", "no Link"))
+        break'
+echo
+echo
+
+
+echo "05. Query type=V via ctxClient - speed=42, type V"
+echo "================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=V' \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+
+echo "06. A jsonldContext source: re-register with jsonldContext=ctxSource; it answers velocity"
+echo "========================================================================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1 -X DELETE | head -1
+payload='{
+  "id": "urn:CSR:R2",
+  "type": "ContextSourceRegistration",
+  "endpoint": "http://localhost:7754",
+  "mode": "inclusive",
+  "operations": ["retrieveOps"],
+  "contextSourceInfo": [
+    { "key": "jsonldContext", "value": "http://localhost:7080/jsonldContexts/ctxSource" }
+  ],
+  "information": [
+    {
+      "entities": [ { "type": "https://example.org/types/V" } ],
+      "propertyNames": [ "https://example.org/veh/speed" ]
+    }
+  ]
+}'
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload "$payload" | head -1
+corCurl --port 7754 --url /mock/reply -X DELETE | head -1
+corCurl --port 7754 --url /mock/reply --payload '{"verb":"GET","path":"/entities/urn:E1","status":200,"body":{"id":"urn:E1","type":"V","velocity":{"type":"Property","value":42}}}' | head -1
+echo
+echo
+
+
+echo "07. Retrieve urn:E1 via ctxClient - speed=42 (velocity read via ctxSource)"
+echo "=========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1 \
+  -H 'Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+echo
+echo
+
+--EXPECT--
+01. Register ftClient (inclusive, retrieveOps) for V / veh/speed
+================================================================
+HTTP/1.1 201 Created
+
+
+02. Program ftClient: plain JSON answers, no Link
+=================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+03. Retrieve urn:E1 via ctxClient - speed=42, type V
+====================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 94
+
+{
+  "id": "urn:E1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "V"
+}
+
+
+
+04. The forward went out with ctxClient in its Link
+===================================================
+<http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+
+
+05. Query type=V via ctxClient - speed=42, type V
+=================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 114
+
+[
+  {
+    "id": "urn:E1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "V"
+  }
+]
+
+
+
+06. A jsonldContext source: re-register with jsonldContext=ctxSource; it answers velocity
+=========================================================================================
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+HTTP/1.1 204 No Content
+HTTP/1.1 201 Created
+
+
+07. Retrieve urn:E1 via ctxClient - speed=42 (velocity read via ctxSource)
+==========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <http://localhost:7080/jsonldContexts/ctxClient>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 94
+
+{
+  "id": "urn:E1",
+  "speed": {
+    "type": "Property",
+    "value": 42
+  },
+  "type": "V"
+}
+
+
+
+--TEARDOWN--
+ftClientStop --port 7754
+coraineStop
+contextServerStop

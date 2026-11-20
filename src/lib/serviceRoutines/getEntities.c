@@ -1859,11 +1859,11 @@ static MapSource* mapSourcesFetch(LdEntityMapEntry** sliceV, int sliceN, const c
       if ((resultV[it].statusCode < 200) || (resultV[it].statusCode >= 300) || (treeP == NULL) || (treeP->type != CorArray))
         continue;
 
-      // The context that travels with the answer (its json-ld#context Link), else core - as the query's forwards
+      // The context that travels with the answer (its json-ld#context Link), else the one it was asked in, else core
       CorLdContext* respCtxP = (resultV[it].responseContextUrl != NULL) ? corLdContextFromUrl(resultV[it].responseContextUrl, &corRest.kalloc) : NULL;
 
       if (respCtxP == NULL)
-        respCtxP = corLdCoreContext();
+        respCtxP = (resultV[it].requestContextP != NULL) ? resultV[it].requestContextP : corLdCoreContext();  // no context of its own: the one it was asked in
 
       MapSource* msP = &srcV[ownerV[it]];
 
@@ -3850,14 +3850,16 @@ static bool queryEntities(PagePosition* posP)
 #endif
 
           // Expand each forwarded entity via the context that travels WITH the
-          // response — the URL in its json-ld#context Link header, else core.
+          // response — the URL in its json-ld#context Link header, else the context
+          // the forward was sent in (a source with no context of its own answers in
+          // the terms it was asked in), else core.
           // corLdExpandTree additionally applies any embedded @context (ld+json)
           // on top. NOT corNgsild.contextP: the CP speaks its own vocabulary.
           CorLdContext* respCtxP = (results[i].responseContextUrl != NULL)
                                     ? corLdContextFromUrl(results[i].responseContextUrl, &corRest.kalloc)
                                     : NULL;
           if (respCtxP == NULL)
-            respCtxP = corLdCoreContext();
+            respCtxP = (results[i].requestContextP != NULL) ? results[i].requestContextP : corLdCoreContext();  // no context of its own: the one it was asked in
 
           for (CorNode* remoteEntity = remoteArray->value.head; remoteEntity != NULL; )
           {
