@@ -2,6 +2,7 @@
 SET(SOURCES
   attrsNotWritten.c
   attrPathEntityMember.c
+  entityTypeSelected.c
   distSubPersist.c
   corNotInThisBuild.c
   subscriptionQExpand.c

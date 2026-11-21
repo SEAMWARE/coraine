@@ -1,0 +1,502 @@
+#
+# FILE            entity_write_type_selection.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The ?type URL parameter (a selector of Entity types, TS 104-175 clause 7.2.2) on the write operations on ONE
+# Entity - § 10.2.3 - § 10.2.11: the Entity is found only where "id (URI), and where specified type, is
+# equivalent". A ?type naming none of its types is a 404 ResourceNotFound, like an unknown id, and nothing
+# is written. TS 104-176 gives the parameter to every route below:
+#   - PUT    /entities/{id}/attrs/{attr}/value   § 7.6.3.2  Set Attribute Value
+#   - PATCH  /entities/{id}/attrs/{attr}         § 7.5.3.2  Partial Attribute Update
+#   - PUT    /entities/{id}/attrs/{attr}         § 7.5.3.3  Replace Attribute
+#   - DELETE /entities/{id}/attrs/{attr}         § 7.5.3.4  Delete Attribute
+#   - PATCH  /entities/{id}/attrs                § 7.4.3.2  Update Attributes
+#   - POST   /entities/{id}/attrs                § 7.4.3.1  Append Attributes
+#   - PATCH  /entities/{id}                      § 7.3.3.2  Merge Entity
+#   - PUT    /entities/{id}                      § 7.3.3.3  Replace Entity
+#   - DELETE /entities/{id}                      § 7.3.3.4  Delete Entity
+#
+# First every route with ?type=Car (urn:V1 is a Vehicle): 404 each, and urn:V1 is as created.
+# Then every route with a ?type that selects it (Vehicle, and the list Car,Vehicle): 204 each.
+#
+--NAME--
+?type on the write operations of one Entity - a type that does not select it is a 404, nothing written
+
+--TAGS--
+type attrValue attrs patch put delete merge replace
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create urn:V1, a Vehicle: speed=50, name=a, extra=1"
+echo "======================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":50},"name":{"type":"Property","value":"a"},"extra":{"type":"Property","value":1}}' | head -1
+echo
+echo
+
+
+echo "02. PUT speed/value ?type=Car - 404"
+echo "==================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed/value?type=Car' -X PUT --payload '60'
+echo
+echo
+
+
+echo "03. PATCH attrs/speed ?type=Car - 404"
+echo "====================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?type=Car' -X PATCH --payload '{"type":"Property","value":70}'
+echo
+echo
+
+
+echo "04. PUT attrs/speed ?type=Car - 404"
+echo "==================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?type=Car' -X PUT --payload '{"type":"Property","value":80}'
+echo
+echo
+
+
+echo "05. DELETE attrs/extra ?type=Car - 404"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/extra?type=Car' -X DELETE
+echo
+echo
+
+
+echo "06. PATCH attrs ?type=Car - 404"
+echo "==============================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?type=Car' -X PATCH --payload '{"name":{"type":"Property","value":"b"}}'
+echo
+echo
+
+
+echo "07. POST attrs ?type=Car - 404"
+echo "=============================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?type=Car' -X POST --payload '{"color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "08. PATCH (merge) the Entity ?type=Car - 404"
+echo "============================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?type=Car' -X PATCH --payload '{"name":{"type":"Property","value":"c"}}'
+echo
+echo
+
+
+echo "09. PUT (replace) the Entity ?type=Car - 404"
+echo "============================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?type=Car' -X PUT --payload '{"id":"urn:V1","type":"Vehicle","only":{"type":"Property","value":true}}'
+echo
+echo
+
+
+echo "10. DELETE the Entity ?type=Car - 404"
+echo "====================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?type=Car' -X DELETE
+echo
+echo
+
+
+echo "11. GET urn:V1 - as created: nothing was written by 02-10"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1'
+echo
+echo
+
+
+echo "12. PUT speed/value ?type=Vehicle - 204"
+echo "======================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed/value?type=Vehicle' -X PUT --payload '60'
+echo
+echo
+
+
+echo "13. PATCH attrs/speed ?type=Car,Vehicle - 204"
+echo "============================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/speed?type=Car,Vehicle' -X PATCH --payload '{"type":"Property","value":70}'
+echo
+echo
+
+
+echo "14. PUT attrs/name ?type=Vehicle - 204"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/name?type=Vehicle' -X PUT --payload '{"type":"Property","value":"b"}'
+echo
+echo
+
+
+echo "15. DELETE attrs/extra ?type=Vehicle - 204"
+echo "=========================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs/extra?type=Vehicle' -X DELETE
+echo
+echo
+
+
+echo "16. PATCH attrs ?type=Vehicle - 204"
+echo "==================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?type=Vehicle' -X PATCH --payload '{"name":{"type":"Property","value":"c"}}'
+echo
+echo
+
+
+echo "17. POST attrs ?type=Vehicle - 204"
+echo "=================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1/attrs?type=Vehicle' -X POST --payload '{"color":{"type":"Property","value":"red"}}'
+echo
+echo
+
+
+echo "18. PATCH (merge) the Entity ?type=Vehicle - 204"
+echo "================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?type=Vehicle' -X PATCH --payload '{"name":{"type":"Property","value":"d"}}'
+echo
+echo
+
+
+echo "19. GET urn:V1 - speed=70, name=d, color=red, no extra"
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1'
+echo
+echo
+
+
+echo "20. PUT (replace) the Entity ?type=Vehicle - 204"
+echo "================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?type=Vehicle' -X PUT --payload '{"id":"urn:V1","type":"Vehicle","only":{"type":"Property","value":true}}'
+echo
+echo
+
+
+echo "21. GET urn:V1 - only 'only'"
+echo "============================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1'
+echo
+echo
+
+
+echo "22. DELETE the Entity ?type=Vehicle - 204"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V1?type=Vehicle' -X DELETE
+echo
+echo
+
+
+echo "23. GET urn:V1 - 404, it is gone"
+echo "================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V1' | head -1
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+
+
+--EXPECT--
+01. Create urn:V1, a Vehicle: speed=50, name=a, extra=1
+=======================================================
+HTTP/1.1 201 Created
+
+
+02. PUT speed/value ?type=Car - 404
+===================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+03. PATCH attrs/speed ?type=Car - 404
+=====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. PUT attrs/speed ?type=Car - 404
+===================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+05. DELETE attrs/extra ?type=Car - 404
+======================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+06. PATCH attrs ?type=Car - 404
+===============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+07. POST attrs ?type=Car - 404
+==============================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+08. PATCH (merge) the Entity ?type=Car - 404
+============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. PUT (replace) the Entity ?type=Car - 404
+============================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+10. DELETE the Entity ?type=Car - 404
+=====================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 151
+
+{
+  "detail": "entity 'urn:V1' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. GET urn:V1 - as created: nothing was written by 02-10
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 215
+
+{
+  "extra": {
+    "type": "Property",
+    "value": 1
+  },
+  "id": "urn:V1",
+  "name": {
+    "type": "Property",
+    "value": "a"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 50
+  },
+  "type": "Vehicle"
+}
+
+
+
+12. PUT speed/value ?type=Vehicle - 204
+=======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+13. PATCH attrs/speed ?type=Car,Vehicle - 204
+=============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+14. PUT attrs/name ?type=Vehicle - 204
+======================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+15. DELETE attrs/extra ?type=Vehicle - 204
+==========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+16. PATCH attrs ?type=Vehicle - 204
+===================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+17. POST attrs ?type=Vehicle - 204
+==================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+18. PATCH (merge) the Entity ?type=Vehicle - 204
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+19. GET urn:V1 - speed=70, name=d, color=red, no extra
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 219
+
+{
+  "color": {
+    "type": "Property",
+    "value": "red"
+  },
+  "id": "urn:V1",
+  "name": {
+    "type": "Property",
+    "value": "d"
+  },
+  "speed": {
+    "type": "Property",
+    "value": 70
+  },
+  "type": "Vehicle"
+}
+
+
+
+20. PUT (replace) the Entity ?type=Vehicle - 204
+================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+21. GET urn:V1 - only 'only'
+============================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 101
+
+{
+  "id": "urn:V1",
+  "only": {
+    "type": "Property",
+    "value": true
+  },
+  "type": "Vehicle"
+}
+
+
+
+22. DELETE the Entity ?type=Vehicle - 204
+=========================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+23. GET urn:V1 - 404, it is gone
+================================
+HTTP/1.1 404 Not Found
+
+

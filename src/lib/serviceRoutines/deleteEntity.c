@@ -41,6 +41,7 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 #include "serviceRoutines/deleteEntity.h"            // Own interface
 
 
@@ -178,13 +179,15 @@ bool deleteEntity(void)
   //
   // Local delete — always attempted (§ 5.6.6.4 "used to remove the
   // entity locally if it exists"). Retrieve pre-image first if subs are
-  // active so notifications have an entity body.
+  // active so notifications have an entity body - and with ?type, to see that
+  // it selects the entity: a ?type naming none of its types leaves it alone
+  // (not held locally, § 10.2.8.4).
   //
   CorNode* entityP = NULL;
-  if (tenantP->subCacheP != NULL)
+  if ((tenantP->subCacheP != NULL) || (corNgsild.typeExpr != NULL))
     db.entityRetrieve(tenantP, entityId, &entityP);
 
-  int r = db.entityDelete(tenantP, entityId);
+  int r = (entityTypeSelected(entityP) == true) ? db.entityDelete(tenantP, entityId) : DB_NOT_FOUND;
 
   if (r == DB_OK)
   {

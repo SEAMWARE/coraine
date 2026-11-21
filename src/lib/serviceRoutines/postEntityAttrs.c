@@ -67,6 +67,7 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 #include "serviceRoutines/postEntityAttrs.h"          // Own interface
 
 
@@ -471,6 +472,9 @@ bool postEntityAttrs(void)
   int     rr       = DB_NOT_FOUND;
   if (localHasAttrs || !anyCsrSucceeded)
     rr = db.entityRetrieve(tenantP, entityId, &existing);
+
+  if ((rr == DB_OK) && (entityTypeSelected(existing) == false))
+    rr = DB_NOT_FOUND;
 
   if (rr != DB_OK && !anyCsrSucceeded)
   {

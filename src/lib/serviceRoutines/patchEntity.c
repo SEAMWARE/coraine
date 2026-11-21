@@ -61,6 +61,7 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 #include "serviceRoutines/patchEntity.h"             // Own interface
 
 
@@ -408,6 +409,18 @@ bool patchEntity(void)
   //
   bool localOp = inputHadAttrs ? hasNonKeywordAttr(fragment) : true;
   int  localR  = DB_NOT_FOUND;
+
+  //
+  // A ?type naming none of the local Entity's types: the Entity is not held locally (§ 10.2.9.4). Decided
+  // here, before the DDS step below sends anything on behalf of this request.
+  //
+  if ((localOp == true) && (corNgsild.typeExpr != NULL))
+  {
+    CorNode* typedP = NULL;
+
+    if ((db.entityRetrieve(tenantP, entityId, &typedP) == DB_OK) && (entityTypeSelected(typedP) == false))
+      localOp = false;
+  }
 
   BridgeSyncDone syncDone = { { NULL }, 0 };
   AttrsNotWritten notWritten = { 0 };

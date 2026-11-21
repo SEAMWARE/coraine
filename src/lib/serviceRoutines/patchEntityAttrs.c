@@ -72,6 +72,7 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 #include "serviceRoutines/patchEntityAttrs.h"         // Own interface
 
 
@@ -431,6 +432,9 @@ bool patchEntityAttrsOn(const char* entityId, CorNode* fragment, char** goalIdP)
   int     rr       = DB_NOT_FOUND;
   if (needLocalMerge || !anyCsrSucceeded)
     rr = db.entityRetrieve(tenantP, entityId, &existing);
+
+  if ((rr == DB_OK) && (entityTypeSelected(existing) == false))
+    rr = DB_NOT_FOUND;
 
   if (rr != DB_OK && !anyCsrSucceeded)
   {

@@ -61,6 +61,7 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 #include "serviceRoutines/replaceEntity.h"            // Own interface
 
 
@@ -225,6 +226,10 @@ bool replaceEntity(void)
   //
   CorNode* oldStored  = NULL;
   int     rr          = db.entityRetrieve(tenantP, entityId, &oldStored);
+
+  if ((rr == DB_OK) && (entityTypeSelected(oldStored) == false))  // ?type names none of its types (§ 10.2.10.4)
+    rr = DB_NOT_FOUND;
+
   bool    localExists = (rr == DB_OK && oldStored != NULL);
 
   if (rr != DB_OK && rr != DB_NOT_FOUND)
