@@ -226,6 +226,11 @@ product is heading and may wish to get involved.
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))
 -   **c³ Explore inside the broker** - Explore, the Control Center's live view of a broker's entities, as
     an API plugin of the broker itself: no c³ to install. ([more](ideas.md#c-the-coraine-control-center))
+-   **Maybe: c³ in a window of its own** - c³'s pages in a native window (GTK with WebKitGTK) instead of
+    a Chrome application window: a window whose size can be fixed, or kept from becoming narrower than
+    the header - a window's minimum size is what its program tells the desktop, and Chrome tells its own,
+    with no way for c³ to change it - and minimise, close and full-screen without Chrome's DevTools pipe.
+    Explore's map and the Dashboard (WireCloud) have to run on WebKit first.
 -   **A smaller DDS stack for the DDS bridge** - for where the bridge has to run: the DDS libraries are today the largest part of a coraine installation (about five times the broker), which is why the arm64 image and the Debian packages come without the DDS bridge, and a device agent on a small board needs far less. A DDS implementation in C, or the subset of the DDS wire protocol (RTPS) the bridge uses - discovery, reliable and best-effort readers and writers, CDR - on the same Bridge/Channel seam; interoperability with every DDS and ROS 2 node is unchanged, it is the wire protocol. ([more](ideas.md#a-smaller-dds-stack-for-the-dds-bridge))
 -   **Cold storage for history in Parquet** - older history moved out of the TRoE store into Parquet
     files (on disk or object storage), compressed and columnar, queried through embedded DuckDB:
