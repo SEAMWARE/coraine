@@ -46,6 +46,7 @@
 #endif
 #include "serviceRoutines/putEntityAttrValue.h"      // Own interface
 #include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 
 
 
@@ -114,6 +115,9 @@ bool putEntityAttrValue(void)
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   CorNode* entityP = NULL;
   int     r       = db.entityRetrieve(tenantP, entityId, &entityP);
+
+  if ((r == DB_OK) && (entityTypeSelected(entityP) == false))
+    r = DB_NOT_FOUND;
 
   if (r == DB_NOT_FOUND || entityP == NULL)
   {

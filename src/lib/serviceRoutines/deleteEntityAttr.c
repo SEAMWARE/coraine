@@ -63,6 +63,7 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck
 #endif
+#include "serviceRoutines/entityTypeSelected.h"      // entityTypeSelected
 #include "serviceRoutines/deleteEntityAttr.h"        // Own interface
 #include "serviceRoutines/attrPathEntityMember.h"    // attrPathEntityMember
 
@@ -317,6 +318,9 @@ bool deleteEntityAttr(void)
   {
     CorNode* targetEntity = NULL;
     int     rr           = db.entityRetrieve(tenantP, entityId, &targetEntity);
+
+    if ((rr == DB_OK) && (entityTypeSelected(targetEntity) == false))
+      rr = DB_NOT_FOUND;
 
     if (rr == DB_NOT_FOUND)
     {
