@@ -19,7 +19,8 @@
 //   an entity child                   a Relationship to it, named by the child
 //   a reference to an entity node     a Relationship, named by the reference's type (several: a
 //                                     ListRelationship); to anything else a Property, the target's id
-//   a method / operation              nothing yet - a service of the entity, later (doc/asset-channels.md § 4)
+//   a method / operation              no attribute - a Service Registration of the entity, the operation's
+//                                     endpoint (assetChannelServices.c, COR_FEATURE_ASSET_CHANNEL_SERVICES)
 //
 #include <ctype.h>                                    // isalnum, tolower, toupper
 #include <stdbool.h>                                  // bool
@@ -50,6 +51,9 @@
 #include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
 #include "bridge/bridgeEntitiesUpsert.h"              // bridgeEntitiesUpsert
 #include "bridge/assetChannelCache.h"                 // assetChannelMappedFree
+#if COR_FEATURE_ASSET_CHANNEL_SERVICES
+#include "bridge/assetChannelServices.h"              // AssetOperation, assetChannelServicesSync
+#endif
 #include "bridge/assetChannelSampleIn.h"              // Own interface
 #include "coraineTraceLevels.h"                       // CtBridge
 
@@ -977,6 +981,62 @@ static bool modelFind(AssetModel* modelP, AssetMap* mapP, CorNode* treeP)
 
 
 
+#if COR_FEATURE_ASSET_CHANNEL_SERVICES
+// -----------------------------------------------------------------------------
+//
+// operationsFind - the operations of an entity node: its children's, and those in its containers - not those of
+// an entity child (they are that entity's)
+//
+static void operationsFind(AssetModel* modelP, AssetEntity* entP, CorNode* nodeP, AssetOperation* opV, int* opsP, int opsMax)
+{
+  CorNode* childrenP = corTreeLookup(nodeP, "children");
+
+  for (CorNode* childP = ((childrenP != NULL) && (childrenP->type == CorArray)) ? childrenP->value.head : NULL; childP != NULL; childP = childP->next)
+  {
+    if (childP->type != CorObject)
+      continue;
+
+    if (isMethod(childP) == true)
+    {
+      if (*opsP < opsMax)
+      {
+        opV[*opsP].entityId   = entP->id;
+        opV[*opsP].entityType = entP->type;
+        opV[*opsP].opP        = childP;
+        *opsP += 1;
+      }
+    }
+    else if ((isLeaf(childP) == false) && (entityOfNode(modelP, childP) == NULL))
+      operationsFind(modelP, entP, childP, opV, opsP, opsMax);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// servicesSync - the model's operations as the AssetChannel's Service Registrations
+//
+static void servicesSync(AssetChannel* acP, AssetModel* modelP)
+{
+  AssetOperation* opV = (AssetOperation*) corAlloc(&corRest.kalloc, (modelP->entitiesMax + 1) * sizeof(AssetOperation));   // entitiesMax: the model's nodes
+  int             ops = 0;
+
+  if (opV == NULL)
+    return;
+
+  for (int ix = 0; ix < modelP->entities; ix++)
+  {
+    if (modelP->entityV[ix].id != NULL)
+      operationsFind(modelP, &modelP->entityV[ix], modelP->entityV[ix].nodeP, opV, &ops, modelP->entitiesMax);
+  }
+
+  assetChannelServicesSync(acP, opV, ops);
+}
+#endif
+
+
+
 // -----------------------------------------------------------------------------
 //
 // modelIn - { "model": <node> }
@@ -1004,6 +1064,10 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
 
 #if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   mappedKeep(acP, &model);                            // what a client's write is checked against and written back to - the model's names; values do not change them
+#endif
+
+#if COR_FEATURE_ASSET_CHANNEL_SERVICES
+  servicesSync(acP, &model);                          // a new model, its operations: values do not change them
 #endif
 
   __atomic_add_fetch(&acP->modelsIn, 1, __ATOMIC_RELAXED);

@@ -52,6 +52,7 @@ option(COR_FEATURE_POLICY_API    "Enable the ODRL-PAP's /policy API on a port of
 option(COR_FEATURE_SERVICE_EXECUTION "Enable Service Execution - service registrations, executions, executors (ETSI GR CIM-055)" ON)
 option(COR_FEATURE_DATA_CHANNELS "Enable DataChannels - a bridge endpoint whose samples are records (a CKAN row), each made into entities by its mapping (\"dataChannels\" in --bridgeConfig, GET /ngsi-ld/v1/dataChannels, doc/bridge-channels.md)" ON)
 option(COR_FEATURE_ASSET_CHANNELS "Enable AssetChannels - a bridge endpoint whose data is a model (OPC UA objects, an AAS shell and its submodels), made into a graph of entities by its mapping (\"assetChannels\" in --bridgeConfig, GET /ngsi-ld/v1/assetChannels, doc/asset-channels.md)" ON)
+option(COR_FEATURE_ASSET_CHANNEL_SERVICES "Enable an AssetChannel's operations as services - each operation of its model (an AAS Operation) a Service Registration of the entity it is in, executed by the bridge; kept as the model changes (doc/asset-channels.md)" ON)
 option(COR_FEATURE_CHANNEL_STATUS_IN "Enable BridgeBroker.channelStatusIn (bridge ABI 12) - a bridge plugin reports whether a Channel carries, and why not, as the Channel's status and statusReason" ON)
 option(COR_FEATURE_CHANNEL_CHECKS "Enable BridgeDriver.payloadCheck (bridge ABI 13) - a bridge plugin may refuse a client's write to an attribute one of its Channels or DataChannels maps (doc/bridge-channels.md)" ON)
 option(COR_FEATURE_ADMIN_CONFIG "Enable GET /admin/config - every option the broker runs with: its value, default and where it came from, a secret masked (the admin API plugin)" ON)
@@ -93,7 +94,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -135,6 +136,13 @@ endif()
 #
 if ((NOT COR_FEATURE_DATA_CHANNELS) AND (NOT COR_FEATURE_ASSET_CHANNELS))
   set(COR_FEATURE_CHANNEL_WRITE_BACK OFF)
+endif()
+
+#
+# An AssetChannel's operations as services: an AssetChannel's (ASSET_CHANNELS), as Service Registrations (SERVICE_EXECUTION).
+#
+if (NOT COR_FEATURE_ASSET_CHANNELS OR NOT COR_FEATURE_SERVICE_EXECUTION)
+  set(COR_FEATURE_ASSET_CHANNEL_SERVICES OFF)
 endif()
 
 #

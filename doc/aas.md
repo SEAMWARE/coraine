@@ -223,8 +223,10 @@ Operation's input arguments by idShort, `POST .../invoke` is called, and the out
 are the execution's output. A failed invocation fails the execution (502). Only Property variables are
 taken.
 
-The registrations are made by hand. Registering each Operation of a model as a service of its entity,
-when the model is read ([asset-channels.md § 4](asset-channels.md#4-operations-and-methods-service-execution)), is not built.
+The broker registers each Operation of a model as a service of the entity it is in when the model is read -
+its input and output variables the service's JSON Schemas, the registration replaced when the Operation
+changes and deleted when it is gone ([asset-channels.md § 4](asset-channels.md#4-operations-and-methods-service-execution)).
+A Service Registration can also be made by hand, with the endpoint above.
 
 ## 9. The mapping tool in c³
 
