@@ -55,7 +55,7 @@ done
 # c³, the control center: built with the broker, from the same libs, into the coraine package (build.sh).
 # Its committed tree at REF, as a lib's
 #
-[ -d "$BASE/c3/.git" ] || { echo "source.sh: no c3 clone at $BASE/c3" >&2; exit 1; }
+[ -e "$BASE/c3/.git" ] || { echo "source.sh: no c3 clone at $BASE/c3" >&2; exit 1; }
 C3_SHA=$(git -C "$BASE/c3" rev-parse "$REF^{commit}")
 C3_BRANCH=$( [ "$REF" = HEAD ] && git -C "$BASE/c3" rev-parse --abbrev-ref HEAD || echo "$REF")
 git -C "$BASE/c3" archive --format=tar --prefix=c3/ "$C3_SHA" | tar -xf - -C "$ROOT"

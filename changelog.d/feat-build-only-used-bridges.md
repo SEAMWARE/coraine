@@ -7,3 +7,8 @@
 - `docker/vendor-libs.sh --list` prints the repositories it would export (with `VENDOR_BRIDGES`), and
   `coraine-build --list-bridges --json` names each bridge's `repository` - what c³'s Compile checks a directory
   of clones against before a build.
+
+### Fixed
+
+- `coraine-build --source <clones>` takes a git worktree as a clone (its `.git` is a file): `source.sh` and
+  `docker/vendor-libs.sh` refused it as "no clone".

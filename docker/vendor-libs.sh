@@ -76,7 +76,7 @@ MANIFEST="$OUT/MANIFEST.txt"
 
 for lib in "${LIBS[@]}"; do
     repo="$BASE/$lib"
-    if [ ! -d "$repo/.git" ]; then
+    if [ ! -e "$repo/.git" ]; then                 # -e: a worktree's .git is a file
         echo "vendor-libs.sh: no git clone at $repo" >&2
         exit 1
     fi
