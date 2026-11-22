@@ -36,6 +36,7 @@
 #include "corNgsild/corNgsild.h"                       // ldError, LD_ERROR_*, corNgsild, ldContextResolve
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_OBSERVED_AT, LD_VOCAB_NGSILD_NULL
 #include "corNgsild/ldTermId.h"                          // ldNodeRename
+#include "corNgsild/ldObjectList.h"                      // ldListInputReduce
 
 #include "db/DbDriver.h"                             // db, DB_OK, DB_NOT_FOUND
 #include "db/Tenant.h"                               // Tenant
@@ -202,6 +203,10 @@ bool putEntityAttrValue(void)
   // fragment (ldEntityMerge), so nothing extra is needed for the update case.
   if (hadObservedAt && corNgsild.observedAt == NULL)
     corTreeChildAdd(fragP, corTreeString(corRest.kallocP, LD_VOCAB_OBSERVED_AT, (char*) LD_VOCAB_NGSILD_NULL));
+
+  // § 5.2.6.4.9 - the body became an objectList / valueList only here, so the request hook's list
+  // reduction never saw it: {"object": <URI>} items become their URI, ["urn:ngsi-ld:null"] the Null
+  ldListInputReduce(fragP);
 
   // Expand the synthesized fragment the way ldParseHook would for a normal
   // PATCH /attrs body (the raw value-only body itself was deliberately not
