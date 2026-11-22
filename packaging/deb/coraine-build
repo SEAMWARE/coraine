@@ -111,6 +111,27 @@ done
 [ -n "$DIR" ] || { { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; } || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
 
 #
+# The bridges - plugins built from repositories of their own, beside the broker's. name, repository,
+# default, what it is
+#
+BRIDGE_TABLE="mqtt	corMqttBridge	1	MQTT - NGSI-LD over MQTT topics (mqtt.so, libmosquitto)
+modbus	corModbusBridge	1	Modbus TCP - values between Modbus registers and entities (modbus.so, no library)
+dds	corDdsBridge	0	DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
+ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)
+opcua	corOpcuaBridge	0	OPC UA - a server's Variables as Channels, its Objects as AssetChannels (opcua.so, open62541)
+aas	corAasBridge	0	AAS - an Asset Administration Shell server's shells and submodels as AssetChannels, its Operations as services (aas.so, OpenSSL; a prototype)
+cep	corCep	1	CEP - corCep's rules engine in the broker: patterns over the changes, actions back on the entities (cep.so, no library)"
+#
+# The repositories of the bridges --bridges names: the only bridge clones a build from clones needs
+#
+BRIDGE_REPO_LIST=
+if [ "$BRIDGES" != none ]; then
+  for b in ${BRIDGES//,/ }; do
+    BRIDGE_REPO_LIST="$BRIDGE_REPO_LIST $(awk -F'\t' -v n="$b" '$1 == n { print $2 }' <<< "$BRIDGE_TABLE")"
+  done
+fi
+
+#
 # The source: unpacked once
 #
 mkdir -p "$DIR"
@@ -134,7 +155,8 @@ else
     #
     [ -x "$SOURCE/coraine/packaging/deb/source.sh" ] || die "--source $SOURCE: no coraine clone in it (coraine/packaging/deb/source.sh)"
     TARDIR=$(mktemp -d)
-    BASE=$(cd "$SOURCE" && pwd) REF=${LIBS_REF:-origin/main} "$SOURCE/coraine/packaging/deb/source.sh" "$TARDIR" \
+    VENDOR_BRIDGES="$BRIDGE_REPO_LIST" BASE=$(cd "$SOURCE" && pwd) REF=${LIBS_REF:-origin/main} \
+      "$SOURCE/coraine/packaging/deb/source.sh" "$TARDIR" \
       || { rm -rf "$TARDIR"; die "--source $SOURCE: the source could not be exported from the clones (above)"; }
     tar -xJf "$TARDIR/coraine-src.tar.xz" -C "$DIR" --strip-components=1
     rm -rf "$TARDIR"
@@ -217,18 +239,6 @@ if [ "$LIST" = 1 ]; then
 fi
 
 #
-# The bridges - plugins built from repositories of their own, beside the broker's. name, repository,
-# default, what it is
-#
-BRIDGE_TABLE="mqtt	corMqttBridge	1	MQTT - NGSI-LD over MQTT topics (mqtt.so, libmosquitto)
-modbus	corModbusBridge	1	Modbus TCP - values between Modbus registers and entities (modbus.so, no library)
-dds	corDdsBridge	0	DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
-ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)
-opcua	corOpcuaBridge	0	OPC UA - a server's Variables as Channels, its Objects as AssetChannels (opcua.so, open62541)
-aas	corAasBridge	0	AAS - an Asset Administration Shell server's shells and submodels as AssetChannels, its Operations as services (aas.so, OpenSSL; a prototype)
-cep	corCep	1	CEP - corCep's rules engine in the broker: patterns over the changes, actions back on the entities (cep.so, no library)"
-
-#
 # bridgeWhy <name> <repository> - why it cannot be built here; nothing when it can
 #
 bridgeWhy() {
@@ -256,7 +266,7 @@ if [ "$LISTB" = 1 ]; then
     if [ "$JSON" = 1 ]; then
       [ "$first" = 1 ] || printf ',\n'
       first=0
-      printf '  {"name": "%s", "default": %s, "description": "%s", "available": %s, "why": %s}' "$name" \
+      printf '  {"name": "%s", "repository": "%s", "default": %s, "description": "%s", "available": %s, "why": %s}' "$name" "$repo" \
         "$([ "$def" = 1 ] && echo true || echo false)" "$(esc "$desc")" "$([ -z "$why" ] && echo true || echo false)" \
         "$([ -z "$why" ] && echo null || echo "\"$(esc "$why")\"")"
     else
