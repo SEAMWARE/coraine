@@ -135,7 +135,8 @@ sudo apt update && sudo apt install coraine        # or coraine-dev
 - **`coraine-cep`** - corCep's rules engine as the bridge plugin `cep.so` (`coraine --bridges cep`); built
   with the broker of the same version, and `coraine` depends on exactly it - `apt install coraine` brings it.
 - **`coraine-dev`** - `coraine-build`, the exact source of the same version and the toolchain to build it:
-  a broker of your own, with the features you choose (c³'s Compile drives it).
+  a broker of your own, with the features you choose, as a binary or a container image (`--image`) - c³'s
+  Compile drives it.
 
 The component `main` holds the releases, `testing` the builds between them. The service, the options
 file and installing a `.deb` without the repository are in
