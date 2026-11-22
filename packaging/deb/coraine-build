@@ -43,9 +43,17 @@
 #                      (<dir>/coraine/packaging/deb/source.sh): coraine at the commit checked out, each lib
 #                      at origin/main (LIBS_REF=HEAD: the branch each clone has checked out). Committed
 #                      trees only - uncommitted changes are not built. coraine-dev is not needed
+#   --image <name>     a container image of the build too, <name> as repository[:tag] (e.g. localhost/coraine:mine):
+#                      this distribution's base image (ID:VERSION_ID of /etc/os-release - IMAGE_BASE names
+#                      another), the libraries the build links - from their packages, the ones under /usr/local or
+#                      /opt copied to the same path -, install/ laid out as the published image's (bin in
+#                      /usr/local/bin, plugins and etc in /opt/seamware), its entrypoint (coraine-start) and
+#                      healthcheck (coraine-health). With docker, else podman (CONTAINER_ENGINE names one);
+#                      Debian and Ubuntu only (dpkg names the packages). The image's context: <dir>/image
 #   -h, --help
 #
-# The result, in <dir>/install - nothing is written outside <dir>, and root is not needed:
+# The result, in <dir>/install - nothing is written outside <dir> (but --image's image, in the engine's store),
+# and root is not needed:
 #
 #   bin/coraine (or --name's)  bin/coraine-import  plugins/...  etc/contextSourceExtras.json  [etc/tune.env]
 #   [etc/bridges.json  etc/dds-types/ - with dds: its default configuration]  env
@@ -74,6 +82,7 @@ LISTB=0
 JSON=0
 BRIDGES=mqtt,modbus,cep
 NAME=coraine
+IMAGE=
 
 die()   { echo "coraine-build: $*" >&2; exit 1; }
 usage() { sed -n '3,/^# Copyright/{/^# Copyright/d;s/^# \{0,1\}//;p}' "$0"; }
@@ -98,6 +107,8 @@ while [ $# -gt 0 ]; do
     --source)         SOURCE=${2:?--source needs a file or a directory}; shift ;;
     --name)           NAME=${2:?--name needs a name}; shift ;;
     --name=*)         NAME=${1#--name=} ;;
+    --image)          IMAGE=${2:?--image needs a name}; shift ;;
+    --image=*)        IMAGE=${1#--image=} ;;
     -h|--help)        usage; exit 0 ;;
     -*)               die "unknown option '$1' (--help)" ;;
     *)                [ -z "$DIR" ] || die "one directory, not '$DIR' and '$1'"; DIR=$1 ;;
@@ -107,6 +118,26 @@ done
 
 [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || die "--name '$NAME': 1-64 of A-Z a-z 0-9 . _ -, starting with a letter or a digit"
 [ "$NAME" != coraine-import ] || die "--name coraine-import is the migration tool's"
+
+#
+# --image: checked before anything is compiled - a missing engine or dpkg found after a 15-minute --pgo is 15 minutes lost
+#
+if [ -n "$IMAGE" ]; then
+  [[ "$IMAGE" =~ ^([a-z0-9.-]+(:[0-9]+)?/)?[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?$ ]] \
+    || die "--image '$IMAGE': [registry[:port]/]repository[:tag] - the repository lower-case a-z 0-9 . _ / -"
+  ENGINE=${CONTAINER_ENGINE:-}
+  if [ -z "$ENGINE" ]; then
+    if command -v docker > /dev/null; then ENGINE=docker; elif command -v podman > /dev/null; then ENGINE=podman; fi
+  fi
+  [ -n "$ENGINE" ] || die "--image: neither docker nor podman is installed (CONTAINER_ENGINE names another)"
+  command -v "$ENGINE" > /dev/null || die "--image: '$ENGINE' is not installed"
+  "$ENGINE" info > /dev/null 2>&1 || die "--image: '$ENGINE info' fails - is its daemon running, may this user use it?"
+  command -v dpkg > /dev/null || die "--image: the image's packages are named by dpkg - Debian and Ubuntu only"
+  if [ -z "${IMAGE_BASE:-}" ]; then
+    # shellcheck disable=SC1091
+    IMAGE_BASE=$(. /etc/os-release && echo "$ID:$VERSION_ID")
+  fi
+fi
 
 [ -n "$DIR" ] || { { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; } || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
 
@@ -487,6 +518,86 @@ fi
 phase check
 "$INST/bin/$NAME" --version > /dev/null || die "the broker just built does not start: $INST/bin/$NAME --version"
 
+#
+# The image: the build's install/ on this distribution's base image, laid out as the published image's - the
+# broker's own defaults (/opt/seamware/plugins, /opt/seamware/etc), no environment needed
+#
+if [ -n "$IMAGE" ]; then
+  phase image
+  CTX=$DIR/image
+  R=$CTX/root
+  rm -rf "$CTX"
+  mkdir -p "$R/usr/local/bin" "$R/opt/seamware"
+  cp -a "$INST/bin/." "$R/usr/local/bin/"
+  cp -a "$INST/plugins" "$INST/etc" "$R/opt/seamware/"
+  sed "s/^exec coraine /exec $NAME /" "$C/docker/coraine-start" > "$R/usr/local/bin/coraine-start"
+  cp "$C/docker/coraine-health" "$R/usr/local/bin/coraine-health"
+  chmod 755 "$R/usr/local/bin/coraine-start" "$R/usr/local/bin/coraine-health"
+  if [ -f "$R/opt/seamware/etc/bridges.json" ]; then    # dds: the image's own paths, not the build's
+    cp "$C/etc/dds-default.json" "$R/opt/seamware/etc/bridges.json"
+    rm -rf "$R/opt/seamware/etc/dds-types"; mkdir -p "$R/opt/seamware/etc/dds-types"
+  fi
+
+  #
+  # The libraries: every one the broker, coraine-import and the plugins link. One of this distribution's packages
+  # is installed in the image; one built here (under /usr/local or /opt - libmicrohttpd, mongoc, a bundled
+  # /opt/seamware/lib) is copied to the same path, under the name the loader looks for
+  #
+  ELFS=()
+  while read -r f; do
+    file -b "$f" | grep -q '^ELF' && ELFS+=("${f#"$R"}")
+  done < <(find "$R/usr/local/bin" "$R/opt/seamware/plugins" -type f)
+  declare -A PKGS=()
+  for f in "${ELFS[@]}"; do
+    ldd "$R$f" | grep -q "not found" && { ldd "$R$f" | grep "not found" >&2; die "--image: $f links a library not found here (above)"; }
+    while read -r lib; do
+      real=$(readlink -f "$lib")
+      case "$real" in
+        /usr/local/*|/opt/*)
+          mkdir -p "$R$(dirname "$lib")"
+          [ -e "$R$lib" ] || cp -L "$lib" "$R$lib" ;;
+        *)
+          pkg=$(dpkg -S "$real" 2> /dev/null || dpkg -S "$lib" 2> /dev/null) || die "--image: no package has $lib ($f links it)"
+          PKGS[${pkg%%:*}]=1 ;;
+      esac
+    done < <(ldd "$R$f" | awk '$2 == "=>" && $3 ~ /^\// { print $3 }')
+  done
+  PKGS[curl]=1; PKGS[ca-certificates]=1                    # coraine-health; HTTPS to context sources, OIDC
+  case $(sed -n 's/^TUNE_ALLOCATOR=//p' "$INST/etc/tune.env" 2> /dev/null) in   # what --tune chose, preloaded by coraine-start
+    jemalloc)         PKGS[libjemalloc2]=1 ;;
+    tcmalloc_minimal) PKGS[libtcmalloc-minimal4]=1 ;;
+  esac
+
+  CMDARGS='"--database", "corDB"'
+  [ ! -f "$R/opt/seamware/plugins/db/currentState/mongoc.so" ] || CMDARGS='"--database", "mongoc", "--troe", "none"'
+  [ ! -f "$R/opt/seamware/plugins/api/admin.so" ] || CMDARGS="$CMDARGS, \"--apiPlugins\", \"admin\""
+  version=$("$INST/bin/$NAME" --version 2> /dev/null | head -1)
+
+  cat > "$CTX/Dockerfile" <<EOF
+# made by coraine-build --image: $DIR/install on $IMAGE_BASE
+FROM $IMAGE_BASE
+LABEL org.opencontainers.image.title="$NAME" \\
+      org.opencontainers.image.description="coraine built by coraine-build: $MODE, bridges $BRIDGES" \\
+      org.opencontainers.image.version="$version" \\
+      org.opencontainers.image.vendor="Seamware" \\
+      org.opencontainers.image.licenses="Apache-2.0"
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends $(printf '%s ' "${!PKGS[@]}" | tr ' ' '\n' | sort | tr '\n' ' ')\\
+    && rm -rf /var/lib/apt/lists/*
+COPY root/ /
+RUN ldconfig \\
+    && if ldd ${ELFS[*]} | grep "not found"; then echo "unresolved libraries - above"; exit 1; fi \\
+    && $NAME --version > /dev/null
+EXPOSE 1026
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD coraine-health || exit 1
+ENTRYPOINT ["coraine-start"]
+CMD [$CMDARGS]
+EOF
+  "$ENGINE" build -t "$IMAGE" "$CTX" || die "--image: $ENGINE build failed (above) - the context is $CTX"
+  size=$("$ENGINE" image inspect --format '{{.Size}}' "$IMAGE")
+  echo "coraine-build: image $IMAGE - $((size / 1048576)) MiB, $ENGINE, on $IMAGE_BASE"
+fi
+
 phase done
 echo
 echo "coraine-build: done - $INST"
@@ -495,4 +606,5 @@ echo
 echo "Run it:"
 echo "  . $INST/env"
 echo "  $NAME --database corDB"
+[ -z "$IMAGE" ] || echo "  or: $ENGINE run --rm -p 1026:1026 $IMAGE --database corDB"
 [ ! -f "$INST/etc/tune.env" ] || echo "  (what --tune chose: $INST/etc/tune.env - TUNE_DBLOCKPREFER, TUNE_ALLOCATOR: --dbLockPrefer and the allocator to preload (LD_PRELOAD), see doc/extreme-performance.md)"

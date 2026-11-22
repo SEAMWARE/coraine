@@ -284,6 +284,18 @@ value (`CHANNEL_WRITE_BACK`), its Operations as services (`SERVICE_EXECUTION`) -
 [corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge), a prototype. Needs OpenSSL (`libssl-dev` to build),
 which the broker links already. Size: **+0.07 MiB** - the plugin (release, stripped, 22 Nov 2026).
 
+#### Output: Docker image
+
+`--image <name>` (`localhost/coraine:mine`, `myreg:5000/team/coraine:1`): after the build, a container image of it.
+On this distribution's base image (`ubuntu:26.04` on Ubuntu 26.04; `IMAGE_BASE` names another), the packages of the
+libraries the build links, and the ones built from source (libmicrohttpd, mongoc - under `/usr/local` or `/opt`)
+copied to the same path. Laid out as the published image: the broker in `/usr/local/bin`, plugins and etc in
+`/opt/seamware`, the same entrypoint (`coraine-start` - what `--tune` chose is applied) and healthcheck - a drop-in
+for it, in compose files and in c³'s Operate. Its default command: `--database mongoc --troe none --apiPlugins
+admin` when the build has them, else `--database corDB`. With docker, else podman (`CONTAINER_ENGINE`); Debian and
+Ubuntu only. Size: **67 MiB** for the default bridges, of which 39.7 MiB is the base image (release, 22 Nov 2026,
+Ubuntu 26.04); the context it was built from stays in `<dir>/image`.
+
 #### `SUBSCRIPTIONS`
 
 Subscriptions and their notifications. Off: the 7 subscription routes answer 501, the
