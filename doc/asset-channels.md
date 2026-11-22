@@ -1,6 +1,6 @@
 # AssetChannels - a source model as a graph of entities
 
-**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge). Not built: operations as services (§ 4).
+**Status:** built in the broker (§ 7 steps 1-3): the Bridge listing what it carries, the payload check (§ 2.1, [bridge-channels.md](bridge-channels.md#the-payload-check)), and the AssetChannel - its object, its listing, the mapping (§ 3) and the node tree a bridge hands over (§ 3.3), `COR_FEATURE_ASSET_CHANNELS`. The OPC UA bridge (§ 7 step 4) is [corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge). Operations as services (§ 4): `COR_FEATURE_ASSET_CHANNEL_SERVICES`.
 
 A [Channel](bridge-channels.md) ties one endpoint to one attribute; a [DataChannel](bridge-channels.md#datachannels)
 makes each record of an endpoint one or more entities. Neither fits a source whose data is a **model**: an
@@ -193,23 +193,65 @@ and, as values change:
 | `attributeType` | a leaf's attribute type when it is not a Property: `LanguageProperty` (the value a language map, `{ "en": "ACME Presses" }` - an AAS MultiLanguageProperty) or `ListProperty` (the value an array - an AAS SubmodelElementList); a value that is not one makes a Property |
 | `contentType` | a leaf's MIME type (an AAS File, a Blob): a `contentType` sub-Property |
 | `children` | the nodes it contains |
+| `endpoint` | a `method`'s or an `operation`'s: where the bridge invokes it - the endpoint of its Service Registration (§ 4) |
+| `input`, `output` | a `method`'s or an `operation`'s variables, `{ "name", "valueType" }` - `valueType` an XML Schema type (`xs:double`) |
 | `references` | `{ "type", "target" }`: a Relationship when the target is an entity node, named by the type (several of one type: a ListRelationship); a Property (the target's id) when it is not |
 
-A `method` or `operation` makes nothing yet (§ 4). A sample that is neither `model` nor `values`, or a model
+A `method` or `operation` makes no attribute: a Service Registration of its entity when it has an `endpoint` (§ 4),
+nothing when it has none. A sample that is neither `model` nor `values`, or a model
 that makes no entity, is counted (`samplesRefused`) and dropped.
 
 ## 4. Operations and methods: Service Execution
 
-**After the read side works** (decided 2026-10-17), one source at a time.
-
 An AAS Operation and an OPC UA Method are what [Service Execution](service-execution.md) calls a service:
-the asset does something when asked, with input and output arguments. An AssetChannel registers each one it
-maps as a service of its entity (a ServiceRegistration, `serviceName` the Operation's idShort, its
-`inputSchema` and `outputSchema` from the input and output variables), and the Bridge is its **executor** -
-through the bridge executor contract (ABI 11) the IoT agents' commands use
-([iot-agent-executor.md](iot-agent-executor.md)). `POST /entities/{id}/services/{name}` then invokes the
-Operation; the execution's status follows the source's (AAS: the operation's invocation, sync or async;
-OPC UA: the Call's result).
+the asset does something when asked, with input and output arguments. Each `operation` (or `method`) node of
+a model that has an `endpoint` is registered as a service of the entity it is in - the entity node it is a
+child of, or that holds the container it is in - and the Bridge is its **executor**, through the bridge
+executor contract (ABI 11) the IoT agents' commands use ([iot-agent-executor.md](iot-agent-executor.md)).
+`POST /ngsi-ld/v1/entities/{id}/services/{name}` then invokes it. The endpoint is the bridge's to say - the
+broker knows neither the server's address nor its API (AAS: `aas+http[s]://<server>/submodels/<id,
+base64url>/submodel-elements/<idShortPath>`, [corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge)).
+
+One Service Registration per operation:
+
+```json
+{
+  "id": "urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:SetSpeed",
+  "type": "ServiceRegistration",
+  "entities": [ { "id": "urn:ngsi-ld:Press:Press30", "type": "Press" } ],
+  "serviceInformation": {
+    "serviceName": "SetSpeed",
+    "inputSchema": { "type": "object", "properties": { "speed": { "type": "number" }, "ramp": { "type": "boolean" } },
+                     "required": [ "speed", "ramp" ], "additionalProperties": false },
+    "outputSchema": { "type": "object", "properties": { "previous": { "type": "number" } },
+                      "required": [ "previous" ], "additionalProperties": false }
+  },
+  "endpoint": "aas+http://aas.example:8081/submodels/aHR0cHM6Ly9...ZXJhdGlvbmFs/submodel-elements/SetSpeed"
+}
+```
+
+- **The id**: `urn:ngsi-ld:ServiceRegistration:assetChannel:<AssetChannel>:<entity>:<name>` - 16 hex digits
+  of the AssetChannel (its Bridge and endpoint), 16 of the entity id, the operation's name. The same
+  operation keeps its registration across models and restarts.
+- **The schemas**: an object of exactly the variables - each one required, no other member - which the
+  broker checks a client's input against (400) before anything is executed. A variable's `valueType`:
+  `xs:double`, `xs:float`, `xs:decimal` a `number`; `xs:integer` and the integer types an `integer`, a bounded
+  one with its `minimum` and `maximum` (`xs:int`, `xs:short`, `xs:byte`, the unsigned ones); `xs:boolean` a
+  `boolean`; any other a `string`.
+- **A new model** (`{ "model": ... }`) makes them what it says: a new operation's registration is created,
+  a changed one replaced (`createdAt` kept), one the model no longer has deleted. Values (`{ "values": ...
+  }`) change none. An operation is an executable thing, so unlike an entity or an attribute (§ 6, decision 8) a gone
+  operation is not left alone - a service that cannot run would only fail.
+- **An AssetChannel configured away**: its registrations are deleted when another AssetChannel of the same
+  tenant reads its model.
+- **A client's registration** is never touched. One that already offers the same service on the same entity
+  wins: the operation is not registered (a warning in the log).
+- An operation with no `endpoint` (a bridge that does not execute) makes nothing; two operations of one
+  entity with the same name, only the first.
+
+The execution's status follows the source's (AAS: the operation's invocation; OPC UA: the Call's result).
+Without `COR_FEATURE_ASSET_CHANNEL_SERVICES` (off as well when `ASSET_CHANNELS` or `SERVICE_EXECUTION` is),
+operation nodes make nothing.
 
 ## 5. GET /ngsi-ld/v1/assetChannels
 
@@ -245,4 +287,4 @@ Decided (KZ, 2026-10-17):
 4. The OPC UA bridge, its own repository, on the bridge ABI as it is: the model and its values as the node
    tree (§ 3.3). The client library is to choose.
 5. AAS, the second source, its own repository ([corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge)): [aas.md](aas.md), written for AAS engineers.
-6. Operations and methods as services (§ 4).
+6. Operations and methods as services (§ 4) - built, `COR_FEATURE_ASSET_CHANNEL_SERVICES`.

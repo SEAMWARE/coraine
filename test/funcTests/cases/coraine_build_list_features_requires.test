@@ -95,6 +95,7 @@ rm -rf $D
 exit: 0
 every switch has both: True
 ADMIN_CONFIG             requires ["ADMIN_API"]                    requiresAny []
+ASSET_CHANNEL_SERVICES   requires ["ASSET_CHANNELS", "SERVICE_EXECUTION"] requiresAny []
 AUTH_METADATA            requires ["AUTH"]                         requiresAny []
 AUTH_OIDC                requires ["AUTH"]                         requiresAny []
 BRIDGE_INVENTORY         requires ["ADMIN_API"]                    requiresAny []

@@ -1,0 +1,299 @@
+#
+# FILE            bridge_asset_channel_services.test
+#
+# Copyright 2026 Seamware
+#
+# An AssetChannel's operations as services (doc/asset-channels.md § 4): each operation node of the model that
+# has an endpoint becomes a Service Registration of the entity it is in - serviceName its name, its input and
+# output variables JSON Schemas (an object of exactly them; xs:* a JSON type, a bounded integer type its range),
+# endpoint the node's. The id is made of the AssetChannel, the entity and the name.
+#
+# The loopback bridge emits the models and executes the services (loopback://echo, loopback://fail):
+#
+#   start 1   Press30: SetSpeed (echo), Stop (fail), Reset in a folder (the press's), NoEndpoint (none: not
+#             registered), Unit1 an entity of its own with Start; 1.5 s later a second model - Stop gone,
+#             SetSpeed with another output variable
+#   start 2   Press30 again, now with Clash - which a client registered on the press in between: the client's
+#             stays, the operation is not registered; Press31 with Ping
+#   start 3   Press31 only - Press30's registrations deleted (its AssetChannel configured away), the client's kept
+#
+# REQUIRE_FEATURE: ASSET_CHANNEL_SERVICES
+#
+--NAME--
+Bridges: an AssetChannel's operations as Service Registrations - made, invoked, kept as the model changes, removed with the AssetChannel
+
+--TAGS--
+bridge channel plugins services
+
+--INIT--
+corDbDrop
+
+SPEED_IN='[ { "name": "speed", "valueType": "xs:double" }, { "name": "ramp", "valueType": "xs:boolean" },
+            { "name": "count", "valueType": "xs:unsignedByte" }, { "name": "when", "valueType": "xs:dateTime" } ]'
+
+press30() {  # press30 <SetSpeed's output> <Stop's node, or nothing> <Clash's node, or nothing>
+  echo '{ "model": { "node": "object", "id": "ns=2;s=Press30", "name": "Press30", "typeName": "Press",
+          "children": [
+            { "node": "variable", "id": "ns=2;s=P30.Pressure", "name": "Pressure", "value": 212.5 },
+            { "node": "method", "id": "ns=2;s=P30.SetSpeed", "name": "SetSpeed", "endpoint": "loopback://echo",
+              "input": '"$SPEED_IN"', "output": '"$1"' },
+            '"$2"'
+            '"$3"'
+            { "node": "folder", "name": "Maintenance", "children": [
+                { "node": "method", "name": "Reset", "endpoint": "loopback://echo", "input": [], "output": [] } ] },
+            { "node": "method", "name": "NoEndpoint", "input": [], "output": [] },
+            { "node": "object", "id": "ns=2;s=P30.Unit1", "name": "Unit1", "typeName": "HydraulicUnit",
+              "children": [ { "node": "variable", "id": "ns=2;s=P30.Unit1.Running", "name": "Running", "value": true },
+                            { "node": "method", "name": "Start", "endpoint": "loopback://echo",
+                              "input": [ { "name": "level", "valueType": "xs:int" } ], "output": [] } ] } ] } }'
+}
+
+STOP='{ "node": "method", "name": "Stop", "endpoint": "loopback://fail", "input": [], "output": [] },'
+CLASH='{ "node": "method", "name": "Clash", "endpoint": "loopback://echo", "input": [], "output": [] },'
+OUT1='[ { "name": "previous", "valueType": "xs:double" } ]'
+OUT2='[ { "name": "previous", "valueType": "xs:double" }, { "name": "rampTime", "valueType": "xs:duration" } ]'
+
+PRESS31='{ "model": { "node": "object", "id": "ns=2;s=Press31", "name": "Press31", "typeName": "Press",
+           "children": [ { "node": "variable", "name": "Pressure", "value": 180 },
+                         { "node": "method", "name": "Ping", "endpoint": "loopback://echo", "input": [], "output": [] } ] } }'
+
+cat > /tmp/coraine_bridges_acs1.json <<EOF
+{ "loopback": { "emitAtStart": { "ns=2;s=Press30": $(press30 "$OUT1" "$STOP" "") },
+                "emitLater":   { "ns=2;s=Press30": $(press30 "$OUT2" "" "") },
+                "ngsild": { "defaultEntity": false, "assetChannels": { "ns=2;s=Press30": { "entities": "natural" } } } } }
+EOF
+
+cat > /tmp/coraine_bridges_acs2.json <<EOF
+{ "loopback": { "emitAtStart": { "ns=2;s=Press30": $(press30 "$OUT2" "" "$CLASH"), "ns=2;s=Press31": $PRESS31 },
+                "ngsild": { "defaultEntity": false, "assetChannels": { "ns=2;s=Press30": { "entities": "natural" },
+                                                                       "ns=2;s=Press31": { "entities": "natural" } } } } }
+EOF
+
+cat > /tmp/coraine_bridges_acs3.json <<EOF
+{ "loopback": { "emitAtStart": { "ns=2;s=Press31": $PRESS31 },
+                "ngsild": { "defaultEntity": false, "assetChannels": { "ns=2;s=Press31": { "entities": "natural" } } } } }
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges_acs1.json
+
+--RUN--
+#
+# regs - the Service Registrations, by id: entity, service, endpoint, the schemas; with 'times', whether
+# modifiedAt is createdAt (never changed)
+#
+regs() {
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/serviceRegistrations?options=sysAttrs" > /tmp/coraine_acs_regs.json
+  python3 - "$1" <<'PY'
+import json, sys
+for r in sorted(json.load(open("/tmp/coraine_acs_regs.json")), key=lambda r: r["id"]):
+    e  = r["entities"][0]
+    si = r["serviceInformation"]
+    print(r["id"])
+    print("  ", e["id"], e["type"], si["serviceName"], r["endpoint"])
+    for s in ("inputSchema", "outputSchema"):
+        if s in si:
+            print("  ", s, json.dumps(si[s], sort_keys=True))
+    if sys.argv[1] == "times":
+        print("   unchanged since created:", r["createdAt"] == r["modifiedAt"])
+PY
+}
+
+#
+# regsAwait <n> [<id part>] - until there are n registrations (and one whose id has <id part>), 10 s at most
+#
+regsAwait() {
+  local i
+  for ((i = 0; i < 100; i++)); do
+    curl -s "localhost:$CB_PORT/ngsi-ld/v1/serviceRegistrations" > /tmp/coraine_acs_await.json
+    python3 -c 'import json, sys; r = json.load(open("/tmp/coraine_acs_await.json")); sys.exit(0 if len(r) == int(sys.argv[1]) and (len(sys.argv) < 3 or any(sys.argv[2] in x["id"] for x in r)) else 1)' "$@" && return 0
+    sleep 0.1
+  done
+  echo "regsAwait $*: not there in 10 s" >&2
+}
+
+entityAwait() {  # entityAwait <entity id> - until it is there, 10 s at most
+  local i
+  for ((i = 0; i < 100; i++)); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' "localhost:$CB_PORT/ngsi-ld/v1/entities/$1")" == 200 ] && return 0
+    sleep 0.1
+  done
+  echo "entityAwait $1: not there in 10 s" >&2
+}
+
+invoke() {  # invoke <entity id> <service> <input>
+  curl -s -w " %{http_code}\n" "localhost:$CB_PORT/ngsi-ld/v1/entities/$1/services/$2" -H 'Content-Type: application/json' -d "$3"
+}
+
+echo "01. The first model - SetSpeed, Stop and the folder's Reset of the press, Start of its unit; NoEndpoint not registered"
+echo "======================================================================================================================"
+entityAwait urn:ngsi-ld:Press:Press30
+regsAwait 4
+regs
+echo
+echo
+
+
+echo "02. SetSpeed invoked through the press - the echo executor's output; an input the schema refuses: 400, nothing executed"
+echo "======================================================================================================================="
+invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true, "count": 3, "when": "2026-11-22T10:00:00Z"}'
+invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true, "count": 300, "when": "2026-11-22T10:00:00Z"}'
+invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true}'
+invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true, "count": 3, "when": "2026-11-22T10:00:00Z", "force": 1}'
+echo
+echo
+
+
+echo "03. The second model - Stop gone, SetSpeed's output changed (modifiedAt), the others as they were"
+echo "================================================================================================="
+regsAwait 3
+sleep 0.5
+regs times
+echo
+echo
+
+
+echo "04. A client registers Clash on the press"
+echo "========================================="
+curl -s -o /dev/null -w "%{http_code}\n" "localhost:$CB_PORT/ngsi-ld/v1/serviceRegistrations" -H 'Content-Type: application/json' \
+     -d '{"id": "urn:ngsi-ld:ServiceRegistration:client-clash", "type": "ServiceRegistration", "endpoint": "loopback://echo",
+          "entities": [{"id": "urn:ngsi-ld:Press:Press30", "type": "Press"}], "serviceInformation": {"serviceName": "Clash"}}'
+echo
+echo
+
+
+echo "05. Restarted: the press's model now has Clash - the client's registration stays, the operation is not registered; Press31's Ping"
+echo "================================================================================================================================"
+coraineStop
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges_acs2.json
+regsAwait 5 Ping
+sleep 0.5
+regs
+echo
+echo
+
+
+echo "06. Restarted with Press31 only - Press30's registrations deleted, the client's kept"
+echo "===================================================================================="
+coraineStop
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges_acs3.json
+entityAwait urn:ngsi-ld:Press:Press31
+regsAwait 2
+regs
+echo
+echo
+
+
+--EXPECT--
+01. The first model - SetSpeed, Stop and the folder's Reset of the press, Start of its unit; NoEndpoint not registered
+======================================================================================================================
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:Reset
+   urn:ngsi-ld:Press:Press30 Press Reset loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:SetSpeed
+   urn:ngsi-ld:Press:Press30 Press SetSpeed loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {"count": {"maximum": 255, "minimum": 0, "type": "integer"}, "ramp": {"type": "boolean"}, "speed": {"type": "number"}, "when": {"type": "string"}}, "required": ["speed", "ramp", "count", "when"], "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {"previous": {"type": "number"}}, "required": ["previous"], "type": "object"}
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:Stop
+   urn:ngsi-ld:Press:Press30 Press Stop loopback://fail
+   inputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:Start
+   urn:ngsi-ld:HydraulicUnit:Press30:Unit1 HydraulicUnit Start loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}}, "required": ["level"], "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+
+
+02. SetSpeed invoked through the press - the echo executor's output; an input the schema refuses: 400, nothing executed
+=======================================================================================================================
+{
+  "id": "urn:ngsi-ld:Press:Press30",
+  "type": "Press",
+  "speed": 12.5,
+  "ramp": true,
+  "count": 3,
+  "when": "2026-11-22T10:00:00Z"
+}
+ 200
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Bad Request Data",
+  "status": 400,
+  "detail": "the service's input: count: must be at most 255"
+}
+ 400
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Bad Request Data",
+  "status": 400,
+  "detail": "the service's input: the input: 'count' is required"
+}
+ 400
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Bad Request Data",
+  "status": 400,
+  "detail": "the service's input: the input: 'force' is not a member its schema allows"
+}
+ 400
+
+
+03. The second model - Stop gone, SetSpeed's output changed (modifiedAt), the others as they were
+=================================================================================================
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:Reset
+   urn:ngsi-ld:Press:Press30 Press Reset loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   unchanged since created: True
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:SetSpeed
+   urn:ngsi-ld:Press:Press30 Press SetSpeed loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {"count": {"maximum": 255, "minimum": 0, "type": "integer"}, "ramp": {"type": "boolean"}, "speed": {"type": "number"}, "when": {"type": "string"}}, "required": ["speed", "ramp", "count", "when"], "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {"previous": {"type": "number"}, "rampTime": {"type": "string"}}, "required": ["previous", "rampTime"], "type": "object"}
+   unchanged since created: False
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:Start
+   urn:ngsi-ld:HydraulicUnit:Press30:Unit1 HydraulicUnit Start loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}}, "required": ["level"], "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   unchanged since created: True
+
+
+04. A client registers Clash on the press
+=========================================
+201
+
+
+05. Restarted: the press's model now has Clash - the client's registration stays, the operation is not registered; Press31's Ping
+================================================================================================================================
+urn:ngsi-ld:ServiceRegistration:assetChannel:51d475b11df206fb:d467b331f3e96dbc:Ping
+   urn:ngsi-ld:Press:Press31 Press Ping loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:Reset
+   urn:ngsi-ld:Press:Press30 Press Reset loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:SetSpeed
+   urn:ngsi-ld:Press:Press30 Press SetSpeed loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {"count": {"maximum": 255, "minimum": 0, "type": "integer"}, "ramp": {"type": "boolean"}, "speed": {"type": "number"}, "when": {"type": "string"}}, "required": ["speed", "ramp", "count", "when"], "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {"previous": {"type": "number"}, "rampTime": {"type": "string"}}, "required": ["previous", "rampTime"], "type": "object"}
+urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:Start
+   urn:ngsi-ld:HydraulicUnit:Press30:Unit1 HydraulicUnit Start loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}}, "required": ["level"], "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+urn:ngsi-ld:ServiceRegistration:client-clash
+   urn:ngsi-ld:Press:Press30 Press Clash loopback://echo
+
+
+06. Restarted with Press31 only - Press30's registrations deleted, the client's kept
+====================================================================================
+urn:ngsi-ld:ServiceRegistration:assetChannel:51d475b11df206fb:d467b331f3e96dbc:Ping
+   urn:ngsi-ld:Press:Press31 Press Ping loopback://echo
+   inputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+   outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
+urn:ngsi-ld:ServiceRegistration:client-clash
+   urn:ngsi-ld:Press:Press30 Press Clash loopback://echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges_acs[123].json /tmp/coraine_acs_regs.json /tmp/coraine_acs_await.json

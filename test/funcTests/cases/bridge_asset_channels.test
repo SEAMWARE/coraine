@@ -14,7 +14,7 @@
 #   ns=2;s=Press17   an OPC UA-like object (entities "natural", attributeLayout "attributes"):
 #                    a folder (its leaves attributes by their path), an object child (an entity of its own,
 #                    and a Relationship to it), a reference to the press (a Relationship) and one to a node
-#                    that is no entity (a Property), a method (nothing yet); 1.5 s later, values: the
+#                    that is no entity (a Property), a method with no endpoint (no service); 1.5 s later, values: the
 #                    pressure changes, and a value of no node is counted and dropped
 #   https://acme.example/ids/aas/press-17
 #                    an AAS-like shell and its nameplate submodel (entities by rules, attributeLayout
