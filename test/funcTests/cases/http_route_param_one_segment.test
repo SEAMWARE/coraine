@@ -1,12 +1,12 @@
 #
-# FILE            http_trailing_slash_empty_last_segment.test
+# FILE            http_route_param_one_segment.test
 #
 # AUTHOR          Ken Zangelin
 #
 # Copyright 2026 Seamware
 #
 --NAME--
-A trailing '/' after a parameter value is an empty last segment of a longer route; after a fixed segment it is the collection
+A route parameter is one path segment; a trailing '/' is ignored, it never adds an empty segment
 
 --TAGS--
 http routing temporal
@@ -32,21 +32,14 @@ echo
 payload='{
   "speed": { "type": "Property", "value": 2 }
 }'
-echo "02. PATCH /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400"
-echo "=================================================================================================="
+echo "02. PATCH /temporal/entities/urn:E1/attrs/speed/ - the '/' is ignored: Attribute by id (DELETE only) - 405"
+echo "======================================================================================================="
 corCurl -X PATCH --url /ngsi-ld/v1/temporal/entities/urn:E1/attrs/speed/ --payload "$payload"
 echo
 echo
 
 
-echo "03. DELETE /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400"
-echo "==================================================================================================="
-corCurl -X DELETE --url /ngsi-ld/v1/temporal/entities/urn:E1/attrs/speed/
-echo
-echo
-
-
-echo "04. GET /entities/urn:E1/attrs/ - the attrs collection (POST, PATCH), not attribute-by-id - 405"
+echo "03. GET /entities/urn:E1/attrs/ - the attrs collection (POST, PATCH), not attribute-by-id - 405"
 echo "==============================================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/
 echo
@@ -56,35 +49,35 @@ echo
 payload='{
   "speed": { "type": "Property", "value": 3 }
 }'
-echo "05. PATCH /entities/urn:E1/attrs/ - the attrs collection - 204"
+echo "04. PATCH /entities/urn:E1/attrs/ - the attrs collection - 204"
 echo "=============================================================="
 corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/ --payload "$payload"
 echo
 echo
 
 
-echo "06. GET /entities/urn:E1/ - no route takes the '/', the strip stands - 200, speed == 3"
-echo "======================================================================================"
+echo "05. GET /entities/urn:E1/ - the '/' is ignored - 200, speed == 3"
+echo "================================================================"
 corCurl --url /ngsi-ld/v1/entities/urn:E1/
 echo
 echo
 
 
-echo "07. PUT /entities/ - the Entity List: 405"
+echo "06. PUT /entities/ - the Entity List: 405"
 echo "========================================="
 corCurl -X PUT --url /ngsi-ld/v1/entities/ --payload '{}'
 echo
 echo
 
 
-echo "08. GET /entities/urn:E1/attrs/a/b - attrId is one segment: no route - 404"
+echo "07. GET /entities/urn:E1/attrs/a/b - attrId is one segment: no route - 404"
 echo "==========================================================================="
 corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/a/b
 echo
 echo
 
 
-echo "09. GET /entities/a/b/attrs/speed/value - no route, the 404 names the whole path"
+echo "08. GET /entities/a/b/attrs/speed/value - no route, the 404 names the whole path"
 echo "================================================================================"
 corCurl --url /ngsi-ld/v1/entities/a/b/attrs/speed/value
 echo
@@ -102,39 +95,24 @@ Content-Length: 0
 
 
 
-02. PATCH /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400
-==================================================================================================
-HTTP/1.1 400 Bad Request
+02. PATCH /temporal/entities/urn:E1/attrs/speed/ - the '/' is ignored: Attribute by id (DELETE only) - 405
+=======================================================================================================
+HTTP/1.1 405 Method Not Allowed
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 158
+Allow: DELETE, OPTIONS
+Content-Length: 228
 
 {
-  "detail": "instanceId '' is not a valid URI",
-  "status": 400,
-  "title": "Invalid URI",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+  "detail": "PATCH /ngsi-ld/v1/temporal/entities/urn:E1/attrs/speed — supported methods: DELETE, OPTIONS",
+  "status": 405,
+  "title": "Method Not Allowed",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/MethodNotAllowed"
 }
 
 
 
-03. DELETE /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400
-===================================================================================================
-HTTP/1.1 400 Bad Request
-Date: REGEX(.*)
-Content-Type: application/json
-Content-Length: 158
-
-{
-  "detail": "instanceId '' is not a valid URI",
-  "status": 400,
-  "title": "Invalid URI",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
-}
-
-
-
-04. GET /entities/urn:E1/attrs/ - the attrs collection (POST, PATCH), not attribute-by-id - 405
+03. GET /entities/urn:E1/attrs/ - the attrs collection (POST, PATCH), not attribute-by-id - 405
 ===============================================================================================
 HTTP/1.1 405 Method Not Allowed
 Date: REGEX(.*)
@@ -151,7 +129,7 @@ Content-Length: 216
 
 
 
-05. PATCH /entities/urn:E1/attrs/ - the attrs collection - 204
+04. PATCH /entities/urn:E1/attrs/ - the attrs collection - 204
 ==============================================================
 HTTP/1.1 204 No Content
 Date: REGEX(.*)
@@ -159,8 +137,8 @@ Date: REGEX(.*)
 
 
 
-06. GET /entities/urn:E1/ - no route takes the '/', the strip stands - 200, speed == 3
-======================================================================================
+05. GET /entities/urn:E1/ - the '/' is ignored - 200, speed == 3
+================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
@@ -178,7 +156,7 @@ Content-Length: 93
 
 
 
-07. PUT /entities/ - the Entity List: 405
+06. PUT /entities/ - the Entity List: 405
 =========================================
 HTTP/1.1 405 Method Not Allowed
 Date: REGEX(.*)
@@ -195,7 +173,7 @@ Content-Length: 215
 
 
 
-08. GET /entities/urn:E1/attrs/a/b - attrId is one segment: no route - 404
+07. GET /entities/urn:E1/attrs/a/b - attrId is one segment: no route - 404
 ===========================================================================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
@@ -211,7 +189,7 @@ Content-Length: 196
 
 
 
-09. GET /entities/a/b/attrs/speed/value - no route, the 404 names the whole path
+08. GET /entities/a/b/attrs/speed/value - no route, the 404 names the whole path
 ================================================================================
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
