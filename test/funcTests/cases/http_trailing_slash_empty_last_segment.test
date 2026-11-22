@@ -1,0 +1,231 @@
+#
+# FILE            http_trailing_slash_empty_last_segment.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+--NAME--
+A trailing '/' after a parameter value is an empty last segment of a longer route; after a fixed segment it is the collection
+
+--TAGS--
+http routing temporal
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+payload='{
+  "id": "urn:E1",
+  "type": "T",
+  "speed": { "type": "Property", "value": 1 }
+}'
+echo "01. Create urn:E1 with an attribute 'speed' - 201"
+echo "================================================="
+corCurl --url /ngsi-ld/v1/entities --payload "$payload"
+echo
+echo
+
+
+payload='{
+  "speed": { "type": "Property", "value": 2 }
+}'
+echo "02. PATCH /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400"
+echo "=================================================================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/temporal/entities/urn:E1/attrs/speed/ --payload "$payload"
+echo
+echo
+
+
+echo "03. DELETE /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400"
+echo "==================================================================================================="
+corCurl -X DELETE --url /ngsi-ld/v1/temporal/entities/urn:E1/attrs/speed/
+echo
+echo
+
+
+echo "04. GET /entities/urn:E1/attrs/ - the attrs collection (POST, PATCH), not attribute-by-id - 405"
+echo "==============================================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/
+echo
+echo
+
+
+payload='{
+  "speed": { "type": "Property", "value": 3 }
+}'
+echo "05. PATCH /entities/urn:E1/attrs/ - the attrs collection - 204"
+echo "=============================================================="
+corCurl -X PATCH --url /ngsi-ld/v1/entities/urn:E1/attrs/ --payload "$payload"
+echo
+echo
+
+
+echo "06. GET /entities/urn:E1/ - no route takes the '/', the strip stands - 200, speed == 3"
+echo "======================================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:E1/
+echo
+echo
+
+
+echo "07. PUT /entities/ - the Entity List: 405"
+echo "========================================="
+corCurl -X PUT --url /ngsi-ld/v1/entities/ --payload '{}'
+echo
+echo
+
+
+echo "08. GET /entities/urn:E1/attrs/a/b - attrId is one segment: no route - 404"
+echo "==========================================================================="
+corCurl --url /ngsi-ld/v1/entities/urn:E1/attrs/a/b
+echo
+echo
+
+
+echo "09. GET /entities/a/b/attrs/speed/value - no route, the 404 names the whole path"
+echo "================================================================================"
+corCurl --url /ngsi-ld/v1/entities/a/b/attrs/speed/value
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:E1 with an attribute 'speed' - 201
+=================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:E1
+Content-Length: 0
+
+
+
+
+02. PATCH /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400
+==================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "instanceId '' is not a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. DELETE /temporal/entities/urn:E1/attrs/speed/ - Attribute Instance by id, empty instanceId - 400
+===================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "instanceId '' is not a valid URI",
+  "status": 400,
+  "title": "Invalid URI",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. GET /entities/urn:E1/attrs/ - the attrs collection (POST, PATCH), not attribute-by-id - 405
+===============================================================================================
+HTTP/1.1 405 Method Not Allowed
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: POST, PATCH, OPTIONS
+Content-Length: 216
+
+{
+  "detail": "GET /ngsi-ld/v1/entities/urn:E1/attrs — supported methods: POST, PATCH, OPTIONS",
+  "status": 405,
+  "title": "Method Not Allowed",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/MethodNotAllowed"
+}
+
+
+
+05. PATCH /entities/urn:E1/attrs/ - the attrs collection - 204
+==============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+06. GET /entities/urn:E1/ - no route takes the '/', the strip stands - 200, speed == 3
+======================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 93
+
+{
+  "id": "urn:E1",
+  "speed": {
+    "type": "Property",
+    "value": 3
+  },
+  "type": "T"
+}
+
+
+
+07. PUT /entities/ - the Entity List: 405
+=========================================
+HTTP/1.1 405 Method Not Allowed
+Date: REGEX(.*)
+Content-Type: application/json
+Allow: GET, POST, DELETE, HEAD, OPTIONS
+Content-Length: 215
+
+{
+  "detail": "PUT /ngsi-ld/v1/entities — supported methods: GET, POST, DELETE, HEAD, OPTIONS",
+  "status": 405,
+  "title": "Method Not Allowed",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/MethodNotAllowed"
+}
+
+
+
+08. GET /entities/urn:E1/attrs/a/b - attrId is one segment: no route - 404
+===========================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 196
+
+{
+  "detail": "GET /ngsi-ld/v1/entities/urn:E1/attrs/a/b is not a recognized resource",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. GET /entities/a/b/attrs/speed/value - no route, the 404 names the whole path
+================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 201
+
+{
+  "detail": "GET /ngsi-ld/v1/entities/a/b/attrs/speed/value is not a recognized resource",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+--TEARDOWN--
+coraineStop
