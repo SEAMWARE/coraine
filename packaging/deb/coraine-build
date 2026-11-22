@@ -22,7 +22,7 @@
 #                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
 #   --optimize <o>     speed (the default) or size: what the broker's defaults spend RAM on - size runs one
 #                      malloc arena for the process, for small hardware (doc/building-details.md#cor_optimize)
-#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua, cep - or none
+#   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua, aas, cep - or none
 #                      (default mqtt,modbus,cep). A bridge the source does not carry, or whose libraries are
 #                      not installed here, stops the build and says which (--list-bridges)
 #   --list-bridges     print every bridge, whether it can be built here and why not, and exit; with
@@ -225,6 +225,7 @@ modbus	corModbusBridge	1	Modbus TCP - values between Modbus registers and entiti
 dds	corDdsBridge	0	DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
 ckan	corCkanBridge	0	CKAN - an open data portal's datasets, discovered and read into entities (ckan.so, no library)
 opcua	corOpcuaBridge	0	OPC UA - a server's Variables as Channels, its Objects as AssetChannels (opcua.so, open62541)
+aas	corAasBridge	0	AAS - an Asset Administration Shell server's shells and submodels as AssetChannels, its Operations as services (aas.so, OpenSSL; a prototype)
 cep	corCep	1	CEP - corCep's rules engine in the broker: patterns over the changes, actions back on the entities (cep.so, no library)"
 
 #
@@ -237,6 +238,7 @@ bridgeWhy() {
           grep -q "^option(COR_FEATURE_DATA_CHANNELS " "$DIR/coraine/CMakeLists.txt" \
             || echo "it needs DataChannels (COR_FEATURE_DATA_CHANNELS), which this source's broker does not have" ;;
     mqtt) echo '#include <mosquitto.h>' | ${CC:-cc} -E - > /dev/null 2>&1 || echo "libmosquitto's headers are not installed (libmosquitto-dev)" ;;
+    aas)  echo '#include <openssl/ssl.h>' | ${CC:-cc} -E - > /dev/null 2>&1 || echo "OpenSSL's headers are not installed (libssl-dev)" ;;
     opcua) echo '#include <open62541/client.h>' | ${CC:-cc} -E - > /dev/null 2>&1 \
              || echo "open62541's headers are not installed (libopen62541-1.4-dev - Ubuntu 26.04, Debian 13)" ;;
     dds)  # the bridge's own makefile decides (COR_BRIDGE_DDS=auto: the Enabler's headers and libraries)

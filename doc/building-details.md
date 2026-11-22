@@ -275,6 +275,14 @@ entities, through DataChannels (`DATA_CHANNELS`). No library. Only when the sour
 to build: Ubuntu 26.04, Debian 13 - Ubuntu 24.04 has none, and no OPC UA bridge). Size: **+9.1 MiB** - the
 plugin 45 KiB, open62541 8.4 MiB, mbedTLS 0.66 MiB.
 
+#### Bridge: AAS
+
+`--bridges aas`. `aas.so`: an Asset Administration Shell server's shells and submodels as AssetChannels
+(`ASSET_CHANNELS`, [AssetChannels](asset-channels.md), [AAS](aas.md)), a written attribute as the element's new
+value (`CHANNEL_WRITE_BACK`), its Operations as services (`SERVICE_EXECUTION`) - from
+[corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge), a prototype. Needs OpenSSL (`libssl-dev` to build),
+which the broker links already. Size: **+0.07 MiB** - the plugin (release, stripped, 22 Nov 2026).
+
 #### `SUBSCRIPTIONS`
 
 Subscriptions and their notifications. Off: the 7 subscription routes answer 501, the
