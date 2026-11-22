@@ -398,6 +398,7 @@ repository, which is where to read them offline or alongside a checkout:
 | ↳ [Rules (corCep)](doc/cep-plugin.md) | corCep's rule engine in the broker: its events in process (`inproc://`) |
 | ↳ [Modbus](doc/modbus-bridge.md) | Modbus TCP registers as Channels |
 | ↳ [OPC UA](https://github.com/SEAMWARE-cor/corOpcuaBridge) | OPC UA Variables as attributes, Methods as Service Executions, the server's node tree as the bridge's inventory (`--bridges opcua`) |
+| ↳ [AAS](doc/aas.md) | an Asset Administration Shell server's shells and submodels as AssetChannels, Operations as Service Executions - a prototype ([corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge), `--bridges aas`) |
 | ↳ [CKAN](https://github.com/SEAMWARE-cor/corCkanBridge) | a CKAN portal's DataStore resources read into entities, as DataChannels (`--bridges ckan`) |
 | ↳ [Speaking to devices directly](doc/device-protocols.md) | reaching devices without an IoT Agent tier, and what that needs |
 | ↳ [FIWARE IoT Agents](doc/iot-agents.md) | what they do, how they integrate, and where the boundary sits |
