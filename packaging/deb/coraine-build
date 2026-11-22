@@ -43,6 +43,9 @@
 #                      (<dir>/coraine/packaging/deb/source.sh): coraine at the commit checked out, each lib
 #                      at origin/main (LIBS_REF=HEAD: the branch each clone has checked out). Committed
 #                      trees only - uncommitted changes are not built. coraine-dev is not needed
+#   --ref <repo>=<ref> with --source <dir>: what of that clone goes in instead - a branch (feat/x), a remote's
+#                      (origin/feat/x), a tag, a commit, HEAD. Once per repository, e.g. --ref coraine=origin/main
+#                      --ref corNgsild=feat/x. The lists (--list-features, --list-bridges) read that ref too
 #   --image <name>     a container image of the build too, <name> as repository[:tag] (e.g. localhost/coraine:mine):
 #                      this distribution's base image (ID:VERSION_ID of /etc/os-release - IMAGE_BASE names
 #                      another), the libraries the build links - from their packages, the ones under /usr/local or
@@ -83,6 +86,7 @@ JSON=0
 BRIDGES=mqtt,modbus,cep
 NAME=coraine
 IMAGE=
+REFS=                # --ref's: "repo=ref repo=ref ..."
 
 die()   { echo "coraine-build: $*" >&2; exit 1; }
 usage() { sed -n '3,/^# Copyright/{/^# Copyright/d;s/^# \{0,1\}//;p}' "$0"; }
@@ -109,6 +113,8 @@ while [ $# -gt 0 ]; do
     --name=*)         NAME=${1#--name=} ;;
     --image)          IMAGE=${2:?--image needs a name}; shift ;;
     --image=*)        IMAGE=${1#--image=} ;;
+    --ref)            REFS="$REFS ${2:?--ref needs <repo>=<ref>}"; shift ;;
+    --ref=*)          REFS="$REFS ${1#--ref=}" ;;
     -h|--help)        usage; exit 0 ;;
     -*)               die "unknown option '$1' (--help)" ;;
     *)                [ -z "$DIR" ] || die "one directory, not '$DIR' and '$1'"; DIR=$1 ;;
@@ -118,6 +124,24 @@ done
 
 [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || die "--name '$NAME': 1-64 of A-Z a-z 0-9 . _ -, starting with a letter or a digit"
 [ "$NAME" != coraine-import ] || die "--name coraine-import is the migration tool's"
+
+#
+# --ref: <repo>=<ref>, a repository once, and only from a directory of clones - each ref checked in its clone
+# before anything is exported (a typo found by git archive halfway through the export says less)
+#
+for r in $REFS; do
+  [[ "$r" =~ ^([A-Za-z0-9_-]+)=([A-Za-z0-9._/@^~-]+)$ ]] || die "--ref '$r': <repo>=<ref> - e.g. corNgsild=feat/x"
+  [[ "${BASH_REMATCH[2]}" != *..* ]] || die "--ref '$r': a ref, not a range"
+  [ "$(tr ' ' '\n' <<< "$REFS" | grep -c "^${BASH_REMATCH[1]}=")" = 1 ] || die "--ref: ${BASH_REMATCH[1]} named twice"
+done
+if [ -n "$REFS" ]; then
+  [ -d "$SOURCE" ] || die "--ref: only with --source <dir> - a tarball's source is what it is"
+  for r in $REFS; do
+    repo=${r%%=*}; ref=${r#*=}
+    [ -e "$SOURCE/$repo/.git" ] || die "--ref $r: no git clone at $SOURCE/$repo"
+    git -C "$SOURCE/$repo" rev-parse --verify --quiet "$ref^{commit}" > /dev/null || die "--ref $r: $SOURCE/$repo has no '$ref'"
+  done
+fi
 
 #
 # --image: checked before anything is compiled - a missing engine or dpkg found after a 15-minute --pgo is 15 minutes lost
@@ -168,6 +192,7 @@ fi
 mkdir -p "$DIR"
 DIR=$(cd "$DIR" && pwd)
 if [ -f "$DIR/coraine/makefile" ] && [ -f "$DIR/SOURCE" ]; then
+  [ -z "$REFS" ] || die "--ref: $DIR already holds an unpacked source - the refs would not be in it (a new directory)"
   echo "coraine-build: reusing the source already in $DIR"
 elif [ -n "$(ls -A "$DIR")" ]; then
   die "$DIR is neither empty nor a coraine-build directory"
@@ -175,18 +200,28 @@ else
   if [ -d "$SOURCE" ] && { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; }; then
     #
     # The lists only read the clones (CMakeLists.txt, each bridge's makefile): linked, not exported - as they
-    # are checked out
+    # are checked out; a clone --ref names is exported at that ref instead (a branch's switches are its own)
     #
     [ -x "$SOURCE/coraine/packaging/deb/version.sh" ] || die "--source $SOURCE: no coraine clone in it (coraine/packaging/deb/version.sh)"
-    for d in "$SOURCE"/*/; do ln -s "$(cd "$d" && pwd)" "$DIR/$(basename "$d")"; done
-    echo "version=$(cd "$SOURCE/coraine" && packaging/deb/version.sh)" > "$DIR/SOURCE"
+    for d in "$SOURCE"/*/; do
+      repo=$(basename "$d")
+      ref=$(tr ' ' '\n' <<< "$REFS" | sed -n "s/^$repo=//p")
+      if [ -n "$ref" ]; then
+        mkdir "$DIR/$repo"
+        git -C "$d" archive --format=tar "$ref" | tar -xf - -C "$DIR/$repo"
+      else
+        ln -s "$(cd "$d" && pwd)" "$DIR/$repo"
+      fi
+    done
+    coraineRef=$(tr ' ' '\n' <<< "$REFS" | sed -n "s/^coraine=//p")
+    echo "version=$(cd "$SOURCE/coraine" && CORAINE_REF=${coraineRef:-HEAD} packaging/deb/version.sh)" > "$DIR/SOURCE"
   elif [ -d "$SOURCE" ]; then
     #
     # A directory of clones: the tarball made from them, as the packages' is, then unpacked like any other
     #
     [ -x "$SOURCE/coraine/packaging/deb/source.sh" ] || die "--source $SOURCE: no coraine clone in it (coraine/packaging/deb/source.sh)"
     TARDIR=$(mktemp -d)
-    VENDOR_BRIDGES="$BRIDGE_REPO_LIST" BASE=$(cd "$SOURCE" && pwd) REF=${LIBS_REF:-origin/main} \
+    VENDOR_BRIDGES="$BRIDGE_REPO_LIST" BASE=$(cd "$SOURCE" && pwd) REF=${LIBS_REF:-origin/main} REFS="$REFS" \
       "$SOURCE/coraine/packaging/deb/source.sh" "$TARDIR" \
       || { rm -rf "$TARDIR"; die "--source $SOURCE: the source could not be exported from the clones (above)"; }
     tar -xJf "$TARDIR/coraine-src.tar.xz" -C "$DIR" --strip-components=1

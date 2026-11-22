@@ -58,7 +58,7 @@ repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/
 ## The programs beside the broker
 
 - [coraine-import](#coraine-import) - 17
-- [coraine-build](#coraine-build) - 14
+- [coraine-build](#coraine-build) - 16
 
 ---
 
@@ -2518,9 +2518,27 @@ node) named after it. It reads the same `CORAINE_*` environment variables whatev
     coraine-build --name edge1 --bridges none --source ~/git /tmp/cb
     . /tmp/cb/install/env && edge1 --database corDB
 
+### `--image`
+
+no short form · `IMAGE_BASE`, `CONTAINER_ENGINE` · String, `[registry[:port]/]repository[:tag]` · default: none
+· values: an image name, e.g. `localhost/coraine:mine` · tool: coraine-build
+
+The build as a container image too, besides `<dir>/install`: this distribution's base image (`ID:VERSION_ID`
+of `/etc/os-release` - `IMAGE_BASE` names another), the packages of the libraries the build links (named by
+dpkg; a library under `/usr/local` or `/opt` copied to the same path), and `install/` laid out as the
+published image's - the broker in `/usr/local/bin`, plugins and `etc` in `/opt/seamware`, its entrypoint
+(`coraine-start`) and healthcheck (`coraine-health`). Built with docker, else podman (`CONTAINER_ENGINE` names
+one); the image's context is `<dir>/image`. Debian and Ubuntu only. Checked before anything is compiled:
+`coraine-build: --image: neither docker nor podman is installed`, `'docker info' fails - is its daemon running,
+may this user use it?`, `the image's packages are named by dpkg - Debian and Ubuntu only`, and a name of other
+characters (`[registry[:port]/]repository[:tag] - the repository lower-case a-z 0-9 . _ / -`).
+
+    coraine-build --source ~/git --image localhost/coraine:mine /tmp/cb
+    docker run --rm -p 1026:1026 localhost/coraine:mine --database corDB
+
 ### `--source`
 
-no short form · `LIBS_REF` (with a directory) · String · default: `/usr/share/coraine/src/coraine-src.tar.xz` (installed by `coraine-dev`)
+no short form · `LIBS_REF` (with a directory; `--ref` per repository) · String · default: `/usr/share/coraine/src/coraine-src.tar.xz` (installed by `coraine-dev`)
 · values: a source tarball, or a directory of git clones · tool: coraine-build
 
 Where the source comes from.
@@ -2540,6 +2558,22 @@ then says.
 
     coraine-build --source ~/git /tmp/cb
     LIBS_REF=HEAD coraine-build --source ~/git /tmp/cb
+
+### `--ref`
+
+no short form · no environment variable · String, `<repo>=<ref>`, once per repository · default: none
+· values: a repository of the `--source` directory and a git ref of its clone · tool: coraine-build
+
+With `--source <dir>`: what of one clone goes into the build instead of the default (coraine: the commit
+checked out; c3 and each lib: `origin/main`, or `LIBS_REF`'s) - a branch (`feat/x`), a remote's
+(`origin/feat/x`), a tag, a commit, `HEAD`. Each ref is checked in its clone before anything is exported;
+`MANIFEST.txt` in `<dir>` names the ref and commit of every repository that went in. `--list-features` and
+`--list-bridges` read the clones at their refs too - a branch's switches are its own. Refused:
+`coraine-build: --ref: only with --source <dir> - a tarball's source is what it is`, a repository named
+twice, a ref the clone does not have (`coraine-build: --ref corNgsild=feat/y: /home/me/git/corNgsild has no
+'feat/y'`), and a `<dir>` that already holds an unpacked source (the refs would not be in it).
+
+    coraine-build --source ~/git --ref coraine=origin/main --ref corNgsild=feat/x /tmp/cb
 
 ### `--help`
 

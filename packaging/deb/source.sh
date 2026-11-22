@@ -17,7 +17,8 @@
 # uncommitted change is in neither, and MANIFEST.txt says so for a lib.
 #
 #   BASE  where the Cor-Lib clones are (default: the parent of this checkout - siblings)
-#   REF   what of each lib (default HEAD: the branch each clone has checked out; origin/main ...)
+#   REF   what of each lib and c3 (default HEAD: the branch each clone has checked out; origin/main ...)
+#   REFS  what of a repository instead, "repo=ref ..." (coraine-build --ref) - coraine's too (default HEAD)
 #
 # Copyright 2026 Seamware
 # SPDX-License-Identifier: Apache-2.0
@@ -29,24 +30,29 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$HERE/../.." && pwd)
 BASE=${BASE:-$(dirname "$TOP")}
 REF=${REF:-HEAD}
+REFS=${REFS:-}
 
-VERSION=$("$HERE/version.sh")
-SHA=$(git -C "$TOP" rev-parse HEAD)
-DATE=$(git -C "$TOP" log -1 --format=%cI)
+# refOf <repo> <default> - REFS' ref of the repository, else the default
+refOf() { local r; for r in $REFS; do [ "${r%%=*}" != "$1" ] || { echo "${r#*=}"; return; }; done; echo "$2"; }
 
-if [ -n "$(git -C "$TOP" status --porcelain --untracked-files=no)" ]; then
+CORAINE_REF=$(refOf coraine HEAD)
+VERSION=$(CORAINE_REF=$CORAINE_REF "$HERE/version.sh")
+SHA=$(git -C "$TOP" rev-parse "$CORAINE_REF^{commit}")
+DATE=$(git -C "$TOP" log -1 --format=%cI "$SHA")
+
+if [ "$CORAINE_REF" = HEAD ] && [ -n "$(git -C "$TOP" status --porcelain --untracked-files=no)" ]; then
   echo "source.sh: coraine has uncommitted changes - they are NOT in the tarball" >&2
 fi
 
 # the Cor-Libs, into docker/vendor/ (the image build uses the same export)
-BASE=$BASE REF=$REF "$TOP/docker/vendor-libs.sh" > /dev/null
+BASE=$BASE REF=$REF REFS=$REFS "$TOP/docker/vendor-libs.sh" > /dev/null
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 ROOT=$WORK/coraine-$VERSION
 mkdir -p "$ROOT"
 
-git -C "$TOP" archive --format=tar --prefix=coraine/ HEAD | tar -xf - -C "$ROOT"
+git -C "$TOP" archive --format=tar --prefix=coraine/ "$SHA" | tar -xf - -C "$ROOT"
 for t in "$TOP"/docker/vendor/*.tar; do
   tar -xf "$t" -C "$ROOT"
 done
@@ -56,8 +62,9 @@ done
 # Its committed tree at REF, as a lib's
 #
 [ -e "$BASE/c3/.git" ] || { echo "source.sh: no c3 clone at $BASE/c3" >&2; exit 1; }
-C3_SHA=$(git -C "$BASE/c3" rev-parse "$REF^{commit}")
-C3_BRANCH=$( [ "$REF" = HEAD ] && git -C "$BASE/c3" rev-parse --abbrev-ref HEAD || echo "$REF")
+C3_REF=$(refOf c3 "$REF")
+C3_SHA=$(git -C "$BASE/c3" rev-parse "$C3_REF^{commit}")
+C3_BRANCH=$( [ "$C3_REF" = HEAD ] && git -C "$BASE/c3" rev-parse --abbrev-ref HEAD || echo "$C3_REF")
 git -C "$BASE/c3" archive --format=tar --prefix=c3/ "$C3_SHA" | tar -xf - -C "$ROOT"
 
 #
@@ -68,7 +75,7 @@ git -C "$BASE/c3" archive --format=tar --prefix=c3/ "$C3_SHA" | tar -xf - -C "$R
 {
   cat "$TOP/docker/vendor/MANIFEST.txt"
   printf '%-10s %-24s %s\n' c3 "$C3_BRANCH" "$C3_SHA"
-  printf '%-10s %-24s %s\n' coraine "$(git -C "$TOP" rev-parse --abbrev-ref HEAD)" "$SHA"
+  printf '%-10s %-24s %s\n' coraine "$( [ "$CORAINE_REF" = HEAD ] && git -C "$TOP" rev-parse --abbrev-ref HEAD || echo "$CORAINE_REF")" "$SHA"
 } > "$ROOT/MANIFEST.txt"
 mkdir -p "$ROOT/coraine/docker/vendor"
 cp "$ROOT/MANIFEST.txt" "$ROOT/coraine/docker/vendor/MANIFEST.txt"
