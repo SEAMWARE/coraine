@@ -15,6 +15,7 @@
 # knows which distribution it is - right after <X>, a git build's date and sha after it
 # (0.6.0+ubuntu24.04.20261029.git04785a2c), so that it sorts as above on Ubuntu too.
 #
+# CORAINE_REF: the version of that commit instead of HEAD's (coraine-build --ref coraine=<ref>).
 # DEB_UPSTREAM_VERSION in the environment wins.
 #
 # Copyright 2026 Seamware
@@ -28,12 +29,17 @@ if [ -n "${DEB_UPSTREAM_VERSION:-}" ]; then
 fi
 
 TOP=$(cd "$(dirname "$0")/../.." && pwd)
-v=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' "$TOP/src/app/coraine/coraineVersion.h")
+REF=${CORAINE_REF:-HEAD}
+if [ "$REF" = HEAD ]; then
+  v=$(sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p' "$TOP/src/app/coraine/coraineVersion.h")
+else
+  v=$(git -C "$TOP" show "$REF:src/app/coraine/coraineVersion.h" | sed -n 's/^#define CORAINE_VERSION[[:space:]]*"\(.*\)"/\1/p')
+fi
 [ -n "$v" ] || { echo "version.sh: no CORAINE_VERSION in coraineVersion.h" >&2; exit 1; }
 v=${v%%+*}       # "0.6.0+dev" on main -> "0.6.0": the release it follows, a git build sorting after it
 
-if git -C "$TOP" describe --exact-match --tags --match "v$v" HEAD >/dev/null 2>&1; then
+if git -C "$TOP" describe --exact-match --tags --match "v$v" "$REF" >/dev/null 2>&1; then
   echo "$v"
 else
-  echo "$v+git$(TZ=UTC git -C "$TOP" log -1 --format=%cd --date=format-local:%Y%m%d).$(git -C "$TOP" rev-parse --short=8 HEAD)"
+  echo "$v+git$(TZ=UTC git -C "$TOP" log -1 --format=%cd --date=format-local:%Y%m%d "$REF").$(git -C "$TOP" rev-parse --short=8 "$REF")"
 fi

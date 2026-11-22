@@ -167,7 +167,8 @@ there, as any user; nothing is written outside `<dir>`. The result is in `<dir>/
 the tarball - coraine and every Cor-Lib side by side, as `corLibs/bootstrap.sh` clones them. The
 tarball is made from them as the packages' is (`<clones>/coraine/packaging/deb/source.sh`): coraine at
 the commit checked out, each lib at `origin/main` (`LIBS_REF=HEAD`: the branch each clone has checked
-out). Committed trees only - an uncommitted change is not built. Run the coraine clone's own script:
+out); `--ref <repo>=<ref>` takes another branch, tag or commit of one clone. Committed trees only - an
+uncommitted change is not built. Run the coraine clone's own script:
 
 ```sh
 ~/git/coraine/packaging/deb/coraine-build --source ~/git --pgo ~/coraine-pgo
