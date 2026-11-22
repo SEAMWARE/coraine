@@ -194,7 +194,7 @@ and, as values change:
 | `contentType` | a leaf's MIME type (an AAS File, a Blob): a `contentType` sub-Property |
 | `children` | the nodes it contains |
 | `endpoint` | a `method`'s or an `operation`'s: where the bridge invokes it - the endpoint of its Service Registration (§ 4) |
-| `input`, `output` | a `method`'s or an `operation`'s variables, `{ "name", "valueType" }` - `valueType` an XML Schema type (`xs:double`) |
+| `input`, `output` | a `method`'s or an `operation`'s variables, `{ "name", "valueType", "array" }` - `valueType` an XML Schema type (`xs:double`), left out when the source's type has none; `array` true for an array (an OPC UA argument of a ValueRank of dimensions) |
 | `references` | `{ "type", "target" }`: a Relationship when the target is an entity node, named by the type (several of one type: a ListRelationship); a Property (the target's id) when it is not |
 
 A `method` or `operation` makes no attribute: a Service Registration of its entity when it has an `endpoint` (§ 4),
@@ -210,7 +210,9 @@ child of, or that holds the container it is in - and the Bridge is its **executo
 executor contract (ABI 11) the IoT agents' commands use ([iot-agent-executor.md](iot-agent-executor.md)).
 `POST /ngsi-ld/v1/entities/{id}/services/{name}` then invokes it. The endpoint is the bridge's to say - the
 broker knows neither the server's address nor its API (AAS: `aas+http[s]://<server>/submodels/<id,
-base64url>/submodel-elements/<idShortPath>`, [corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge)).
+base64url>/submodel-elements/<idShortPath>`, [corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge);
+OPC UA: `opcua://<object NodeId>/<method NodeId>`, the object the method is in,
+[corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge)).
 
 One Service Registration per operation:
 
@@ -237,7 +239,8 @@ One Service Registration per operation:
   broker checks a client's input against (400) before anything is executed. A variable's `valueType`:
   `xs:double`, `xs:float`, `xs:decimal` a `number`; `xs:integer` and the integer types an `integer`, a bounded
   one with its `minimum` and `maximum` (`xs:int`, `xs:short`, `xs:byte`, the unsigned ones); `xs:boolean` a
-  `boolean`; any other a `string`.
+  `boolean`; any other a `string`; none, any value (`{}`). An `array` variable is `{ "type": "array", "items":
+  <that> }`.
 - **A new model** (`{ "model": ... }`) makes them what it says: a new operation's registration is created,
   a changed one replaced (`createdAt` kept), one the model no longer has deleted. Values (`{ "values": ...
   }`) change none. An operation is an executable thing, so unlike an entity or an attribute (§ 6, decision 8) a gone

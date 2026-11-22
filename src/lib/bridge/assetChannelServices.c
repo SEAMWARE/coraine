@@ -119,11 +119,12 @@ static const XsType xsTypeV[] =
 // -----------------------------------------------------------------------------
 //
 // variableSchema - one variable's JSON Schema: { "type", "minimum", "maximum" } - every other valueType
-// (string, dateTime, anyURI, ...) a string
+// (string, dateTime, anyURI, ...) a string, no valueType any value. An array variable ("array": true, an
+// OPC UA argument of a ValueRank of dimensions): { "type": "array", "items": that }
 //
-static CorNode* variableSchema(const char* name, const char* valueType)
+static CorNode* variableSchema(const char* name, const char* valueType, bool array)
 {
-  CorNode*      schemaP = corTreeObject(corRest.kallocP, name);
+  CorNode*      schemaP = corTreeObject(corRest.kallocP, array ? "items" : name);
   const XsType* xsP     = NULL;
 
   if ((valueType != NULL) && (strncmp(valueType, "xs:", 3) == 0))
@@ -138,14 +139,23 @@ static CorNode* variableSchema(const char* name, const char* valueType)
     }
   }
 
-  corTreeChildAdd(schemaP, corTreeString(corRest.kallocP, "type", (xsP != NULL) ? xsP->type : "string"));
+  if (valueType != NULL)
+    corTreeChildAdd(schemaP, corTreeString(corRest.kallocP, "type", (xsP != NULL) ? xsP->type : "string"));
 
   if ((xsP != NULL) && (xsP->hasMin == true))
     corTreeChildAdd(schemaP, corTreeInteger(corRest.kallocP, "minimum", xsP->min));
   if ((xsP != NULL) && (xsP->hasMax == true))
     corTreeChildAdd(schemaP, corTreeInteger(corRest.kallocP, "maximum", xsP->max));
 
-  return schemaP;
+  if (array == false)
+    return schemaP;
+
+  CorNode* arrayP = corTreeObject(corRest.kallocP, name);
+
+  corTreeChildAdd(arrayP, corTreeString(corRest.kallocP, "type", "array"));
+  corTreeChildAdd(arrayP, schemaP);
+
+  return arrayP;
 }
 
 
@@ -168,7 +178,10 @@ static CorNode* variablesSchema(const char* name, CorNode* varsP)
     if ((varName == NULL) || (corTreeLookup(propsP, varName) != NULL))
       continue;
 
-    corTreeChildAdd(propsP,    variableSchema(varName, str(varP, "valueType")));
+    CorNode* arrayP = corTreeLookup(varP, "array");
+    bool     array  = (arrayP != NULL) && (arrayP->type == CorBoolean) && (arrayP->value.b == true);
+
+    corTreeChildAdd(propsP,    variableSchema(varName, str(varP, "valueType"), array));
     corTreeChildAdd(requiredP, corTreeString(corRest.kallocP, NULL, varName));
   }
 

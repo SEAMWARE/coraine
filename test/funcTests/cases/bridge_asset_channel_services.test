@@ -5,14 +5,15 @@
 #
 # An AssetChannel's operations as services (doc/asset-channels.md § 4): each operation node of the model that
 # has an endpoint becomes a Service Registration of the entity it is in - serviceName its name, its input and
-# output variables JSON Schemas (an object of exactly them; xs:* a JSON type, a bounded integer type its range),
-# endpoint the node's. The id is made of the AssetChannel, the entity and the name.
+# output variables JSON Schemas (an object of exactly them; xs:* a JSON type, a bounded integer type its range,
+# an array variable an array of it, no valueType any value), endpoint the node's. The id is made of the
+# AssetChannel, the entity and the name.
 #
 # The loopback bridge emits the models and executes the services (loopback://echo, loopback://fail):
 #
 #   start 1   Press30: SetSpeed (echo), Stop (fail), Reset in a folder (the press's), NoEndpoint (none: not
-#             registered), Unit1 an entity of its own with Start; 1.5 s later a second model - Stop gone,
-#             SetSpeed with another output variable
+#             registered), Unit1 an entity of its own with Start (an array of xs:int, a variable of no
+#             valueType); 1.5 s later a second model - Stop gone, SetSpeed with another output variable
 #   start 2   Press30 again, now with Clash - which a client registered on the press in between: the client's
 #             stays, the operation is not registered; Press31 with Ping
 #   start 3   Press31 only - Press30's registrations deleted (its AssetChannel configured away), the client's kept
@@ -45,7 +46,8 @@ press30() {  # press30 <SetSpeed's output> <Stop's node, or nothing> <Clash's no
             { "node": "object", "id": "ns=2;s=P30.Unit1", "name": "Unit1", "typeName": "HydraulicUnit",
               "children": [ { "node": "variable", "id": "ns=2;s=P30.Unit1.Running", "name": "Running", "value": true },
                             { "node": "method", "name": "Start", "endpoint": "loopback://echo",
-                              "input": [ { "name": "level", "valueType": "xs:int" } ], "output": [] } ] } ] } }'
+                              "input": [ { "name": "level", "valueType": "xs:int" }, { "name": "zones", "valueType": "xs:int", "array": true },
+                                         { "name": "note" } ], "output": [] } ] } ] } }'
 }
 
 STOP='{ "node": "method", "name": "Stop", "endpoint": "loopback://fail", "input": [], "output": [] },'
@@ -133,12 +135,14 @@ echo
 echo
 
 
-echo "02. SetSpeed invoked through the press - the echo executor's output; an input the schema refuses: 400, nothing executed"
-echo "======================================================================================================================="
+echo "02. SetSpeed invoked through the press, Start through its unit - the echo executor's output; an input the schema refuses: 400"
+echo "============================================================================================================================="
 invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true, "count": 3, "when": "2026-11-22T10:00:00Z"}'
 invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true, "count": 300, "when": "2026-11-22T10:00:00Z"}'
 invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true}'
 invoke urn:ngsi-ld:Press:Press30 SetSpeed '{"speed": 12.5, "ramp": true, "count": 3, "when": "2026-11-22T10:00:00Z", "force": 1}'
+invoke urn:ngsi-ld:HydraulicUnit:Press30:Unit1 Start '{"level": 2, "zones": [1, 3], "note": {"by": "shift B"}}'
+invoke urn:ngsi-ld:HydraulicUnit:Press30:Unit1 Start '{"level": 2, "zones": [1, "3"], "note": null}'
 echo
 echo
 
@@ -200,12 +204,12 @@ urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:S
    outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
 urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:Start
    urn:ngsi-ld:HydraulicUnit:Press30:Unit1 HydraulicUnit Start loopback://echo
-   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}}, "required": ["level"], "type": "object"}
+   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}, "note": {}, "zones": {"items": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}, "type": "array"}}, "required": ["level", "zones", "note"], "type": "object"}
    outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
 
 
-02. SetSpeed invoked through the press - the echo executor's output; an input the schema refuses: 400, nothing executed
-=======================================================================================================================
+02. SetSpeed invoked through the press, Start through its unit - the echo executor's output; an input the schema refuses: 400
+=============================================================================================================================
 {
   "id": "urn:ngsi-ld:Press:Press30",
   "type": "Press",
@@ -236,6 +240,26 @@ urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:S
   "detail": "the service's input: the input: 'force' is not a member its schema allows"
 }
  400
+{
+  "id": "urn:ngsi-ld:HydraulicUnit:Press30:Unit1",
+  "type": "HydraulicUnit",
+  "level": 2,
+  "zones": [
+    1,
+    3
+  ],
+  "note": {
+    "by": "shift B"
+  }
+}
+ 200
+{
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+  "title": "Bad Request Data",
+  "status": 400,
+  "detail": "the service's input: zones[1]: must be of type integer"
+}
+ 400
 
 
 03. The second model - Stop gone, SetSpeed's output changed (modifiedAt), the others as they were
@@ -252,7 +276,7 @@ urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:S
    unchanged since created: False
 urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:Start
    urn:ngsi-ld:HydraulicUnit:Press30:Unit1 HydraulicUnit Start loopback://echo
-   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}}, "required": ["level"], "type": "object"}
+   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}, "note": {}, "zones": {"items": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}, "type": "array"}}, "required": ["level", "zones", "note"], "type": "object"}
    outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
    unchanged since created: True
 
@@ -278,7 +302,7 @@ urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:260c30320182eebf:S
    outputSchema {"additionalProperties": false, "properties": {"previous": {"type": "number"}, "rampTime": {"type": "string"}}, "required": ["previous", "rampTime"], "type": "object"}
 urn:ngsi-ld:ServiceRegistration:assetChannel:a3bff6b2ef9985f8:9296319d253748b5:Start
    urn:ngsi-ld:HydraulicUnit:Press30:Unit1 HydraulicUnit Start loopback://echo
-   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}}, "required": ["level"], "type": "object"}
+   inputSchema {"additionalProperties": false, "properties": {"level": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}, "note": {}, "zones": {"items": {"maximum": 2147483647, "minimum": -2147483648, "type": "integer"}, "type": "array"}}, "required": ["level", "zones", "note"], "type": "object"}
    outputSchema {"additionalProperties": false, "properties": {}, "type": "object"}
 urn:ngsi-ld:ServiceRegistration:client-clash
    urn:ngsi-ld:Press:Press30 Press Clash loopback://echo
