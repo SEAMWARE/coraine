@@ -1,0 +1,131 @@
+#
+# FILE            attr_value_only_objectlist_object_form.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# PUT /entities/{id}/attrs/{attrId}/value on a ListRelationship (TS 104-175 § 10.2.6, § 5.2.6.4.9):
+#   - a value only body of {"object": <URI>} items, the normalized form, sets the objectList - it was
+#     a 400 "'objectList' items must be URIs or {"object": <URI>}"
+#   - a value only body of plain URIs sets it too
+#   - the Attribute stays a ListRelationship
+# Found by the ETSI test suite's 063_01_08 (feature/set-attribute-value-more, !374).
+#
+--NAME--
+PUT .../attrs/{attrId}/value - a ListRelationship's objectList, {"object": <URI>} items or URIs
+
+--TAGS--
+entity attribute update
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Create urn:B1 with a ListRelationship locatedAt"
+echo "=================================================="
+payload='{
+  "id": "urn:B1",
+  "type": "Building",
+  "locatedAt": { "type": "ListRelationship", "objectList": [ { "object": "urn:ngsi-ld:City:Paris" }, { "object": "urn:ngsi-ld:City:Lyon" } ] }
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. PUT .../attrs/locatedAt/value - {\"object\": <URI>} items"
+echo "============================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/locatedAt/value -X PUT --payload '[{"object": "urn:ngsi-ld:City:Madrid"}, {"object": "urn:ngsi-ld:City:Barcelona"}]'
+echo
+echo
+
+
+echo "03. GET .../attrs/locatedAt - Madrid and Barcelona, still a ListRelationship"
+echo "============================================================================"
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/locatedAt
+echo
+echo
+
+
+echo "04. PUT .../attrs/locatedAt/value - plain URIs"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/locatedAt/value -X PUT --payload '["urn:ngsi-ld:City:Rome"]'
+echo
+echo
+
+
+echo "05. GET .../attrs/locatedAt - Rome"
+echo "=================================="
+corCurl --url /ngsi-ld/v1/entities/urn:B1/attrs/locatedAt
+echo
+echo
+
+
+--EXPECT--
+01. Create urn:B1 with a ListRelationship locatedAt
+==================================================
+HTTP/1.1 201 Created
+
+
+02. PUT .../attrs/locatedAt/value - {"object": <URI>} items
+============================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+03. GET .../attrs/locatedAt - Madrid and Barcelona, still a ListRelationship
+============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 168
+
+{
+  "objectList": [
+    {
+      "object": "urn:ngsi-ld:City:Madrid"
+    },
+    {
+      "object": "urn:ngsi-ld:City:Barcelona"
+    }
+  ],
+  "type": "ListRelationship"
+}
+
+
+
+04. PUT .../attrs/locatedAt/value - plain URIs
+==============================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+05. GET .../attrs/locatedAt - Rome
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 108
+
+{
+  "objectList": [
+    {
+      "object": "urn:ngsi-ld:City:Rome"
+    }
+  ],
+  "type": "ListRelationship"
+}
+
+
+
+--TEARDOWN--
+coraineStop
