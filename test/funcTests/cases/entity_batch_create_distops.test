@@ -22,7 +22,7 @@ batch create entity
 --INIT--
 corDbDrop
 corDbDrop -role CP1
-coraineStart -orderDistributed --noSplitEntities -dist
+coraineStart -od --noSplitEntities -dist
 coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--

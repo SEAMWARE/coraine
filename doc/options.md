@@ -955,7 +955,7 @@ decides for one request. Needs `--distributed` to have any effect.
 
 ### `--orderDistributed`
 
-`-orderDistributed` · `CORAINE_ORDERDISTRIBUTED` · Bool · default: `false`
+`-od` · `CORAINE_ORDERDISTRIBUTED` · Bool · default: `false`
 · values: a flag · plugin: core
 
 Accepts `orderBy` on a query that is not limited to the local scope. By default, as TS 104-175 § 10.4.3.4

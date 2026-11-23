@@ -39,7 +39,7 @@ distop distops query pagination link-header registration forwarding
 --INIT--
 corDbDrop
 corDbDrop -role CP1
-coraineStart -orderDistributed -dist --maxResponseSize 1 --entityMapMemory 0
+coraineStart -od -dist --maxResponseSize 1 --entityMapMemory 0
 coraineStart -role CP1
 ftClientStart --port 7753
 

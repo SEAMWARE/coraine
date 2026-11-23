@@ -514,7 +514,7 @@ the ones most deployments set.
 | `--entityMapMemory` | 64 | memory all EntityMaps may hold together, MiB (0 = no cap, and no automatic EntityMaps) - see [EntityMaps](#entitymaps) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
 | `--noSplitEntities` | off | each entity lives wholly at one source |
-| `--orderDistributed` | off | accept `orderBy` without `local=true` and order the merged local and Context Source matches - see [Ordering and the local scope](#ordering-and-the-local-scope) |
+| `--orderDistributed` / `-od` | off | accept `orderBy` without `local=true` and order the merged local and Context Source matches - see [Ordering and the local scope](#ordering-and-the-local-scope) |
 | `--httpEndpoint` / `-he` | auto | externally reachable base URL |
 | `--csourceAlias` | endpoint authority | alias used in `Via` loop detection |
 | `--defaultUserContext` / `-duc` | — | default user `@context`: a URL, or a file (a path, or `file://`) - read at start and hosted as `/ngsi-ld/v1/jsonldContexts/defaultUserContext`, its URL then the default (the DDS mapping tool's `dds-context.jsonld`, as Orion-LD's `-duc` takes it). A URL that cannot be retrieved fails a request read with it - a create, a query, a retrieval, with no `@context` of its own - 504 LdContextNotAvailable, as a `Link` header's |

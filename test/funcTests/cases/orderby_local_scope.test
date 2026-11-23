@@ -21,7 +21,7 @@ orderBy query
 corDbDrop
 corDbDrop -role CP1
 coraineStart
-coraineStart -role CP1 -orderDistributed
+coraineStart -role CP1 -od
 
 --RUN--
 
@@ -85,7 +85,7 @@ echo
 echo
 
 
-echo "08. A broker started with -orderDistributed: GET ?type=Room&orderBy=temperature - 200, ordered"
+echo "08. A broker started with -od: GET ?type=Room&orderBy=temperature - 200, ordered"
 echo "=============================================================================================="
 corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities?type=Room&orderBy=temperature&options=keyValues'
 echo
@@ -251,7 +251,7 @@ Content-Length: 248
 
 
 
-08. A broker started with -orderDistributed: GET ?type=Room&orderBy=temperature - 200, ordered
+08. A broker started with -od: GET ?type=Room&orderBy=temperature - 200, ordered
 ==============================================================================================
 HTTP/1.1 200 OK
 Date: REGEX(.*)
