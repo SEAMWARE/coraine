@@ -249,13 +249,15 @@ The default: `--database mongoc` too, entities in a MongoDB.
 `--features TROE_CORDB=ON`, the default. corDB's own temporal history: `--troe corDB` with `--database corDB` -
 the history in the same store, under the same lock, in the same log. Off: `corDB.so` is built without it
 (corDB's `COR_WITH_TROE_CORDB=0`), keeps no history, and the broker does not offer `--troe corDB`.
-Size: @@SIZE_CORDB@@.
+Size: **20 KiB** - `corDB.so` 16 KiB, the broker 4 KiB; what turning it off saves.
 
 #### Temporal: TimescaleDB
 
 `--features TROE_TIMESCALE=ON`, the default. `timescale.so`: the temporal history in PostgreSQL with
 TimescaleDB (`--troe timescale`), through libpq. Off: not built, the broker does not offer `--troe timescale`.
-Size: @@SIZE_TIMESCALE@@.
+Size: **2.3 MiB** - `timescale.so` 137 KiB, the broker 4 KiB, and the libraries only it loads: libpq
+0.37 MiB, and Kerberos and LDAP behind it (libkrb5, libgssapi_krb5, libldap, libk5crypto, liblber,
+libkrb5support, libkeyutils) 1.81 MiB; what turning it off saves. Measured 2026-11-23, release builds.
 
 With neither, the broker keeps no history of its own (`--troe none`, its default): a subscription carries it
 to wherever it is kept - QuantumLeap, Cygnus, Kafnus.
@@ -583,6 +585,8 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_BRIDGE_INVENTORY=OFF` | 1,361 bytes (release build) | `GET /admin/bridges/{bridge}/inventory` answers 501; a bridge's `inventory` is never called |
 | `COR_FEATURE_BRIDGE_HTTP_LISTEN=OFF` | 43,616 bytes (release build, libmicrohttpd: corHttp is not linked) | `BridgeBroker.httpListen` is NULL: the broker serves no port for a bridge plugin |
 | `COR_FEATURE_CHANNEL_CHECKS=OFF` | 5,821 bytes (release build, AssetChannels on) | no payload check - a bridge's `payloadCheck` is never called, every client write to a mapped attribute goes on to the transport and the store as before ([the payload check](bridge-channels.md#the-payload-check)) |
+| `COR_FEATURE_TROE_CORDB=OFF` | 20,664 bytes - 16,568 from `corDB.so`, built without its TRoE part (`COR_WITH_TROE_CORDB=0`), 4,096 from the broker (release build) | no `--troe corDB` - corDB keeps no history ([Temporal: corDB](#temporal-cordb)) |
+| `COR_FEATURE_TROE_TIMESCALE=OFF` | 143,832 bytes, and the 2.18 MiB of libraries only `timescale.so` loads (libpq, Kerberos, LDAP) | `timescale.so` is not built: no `--troe timescale` ([Temporal: TimescaleDB](#temporal-timescaledb)) |
 
 **These two leave the broker unchanged and drop a plugin**, which is the whole
 of their effect — the broker is a plugin loader and it simply has one fewer to

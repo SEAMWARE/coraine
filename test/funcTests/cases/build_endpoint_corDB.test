@@ -138,7 +138,9 @@ Content-Length: REGEX([0-9]+)
     "SUBSCRIPTIONS": REGEX([a-z]+),
     "TEMPORAL_ENTITY_MAP": REGEX([a-z]+),
     "TIMEPOINT": REGEX([a-z]+),
-    "TRANSPORTS": REGEX([a-z]+)
+    "TRANSPORTS": REGEX([a-z]+),
+    "TROE_CORDB": REGEX([a-z]+),
+    "TROE_TIMESCALE": REGEX([a-z]+)
   },
   "plugins": {
     "built": [
@@ -250,7 +252,9 @@ Content-Length: REGEX([0-9]+)
     "SUBSCRIPTIONS": REGEX([a-z]+),
     "TEMPORAL_ENTITY_MAP": REGEX([a-z]+),
     "TIMEPOINT": REGEX([a-z]+),
-    "TRANSPORTS": REGEX([a-z]+)
+    "TRANSPORTS": REGEX([a-z]+),
+    "TROE_CORDB": REGEX([a-z]+),
+    "TROE_TIMESCALE": REGEX([a-z]+)
   },
   "plugins": {
     "built": [
