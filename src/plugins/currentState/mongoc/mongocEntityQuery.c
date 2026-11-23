@@ -14,7 +14,8 @@
 
 #include "corLog/corLog.h"                               // COR_E
 #include "corTree/CorNode.h"                         // CorNode
-#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd
+#include "corTree/corTreeBuilder.h"                  // corTreeArray, corTreeChildAdd, corTreeFloat, corTreeChildRemove
+#include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corRest/CorRestState.h"                      // corRest
 #include "corNgsild/LdVocab.h"                        // LD_VOCAB_SCOPE, LD_VOCAB_CREATED_AT
 #include "corNgsild/LdGeoRel.h"                      // LdGeoRel, LdGeoRelType
@@ -29,6 +30,7 @@
 #include "db/DbDriver.h"                             // DB_OK, DB_ERR
 #include "currentState/mongoc/mongocDotEscape.h"                  // mongocEscapeDotsInKey
 #include "currentState/mongoc/mongocBsonToTree.h"                 // mongocEntityBsonToTree
+#include "shared/geoMatch.h"                                       // geoDistanceOrder
 #include "currentState/mongoc/mongocEntityQuery.h"                // Own interface
 
 
@@ -1453,9 +1455,14 @@ static const char* bsonAppendCoordValue(bson_t* arrayP, int* indexP, const char*
   }
   else
   {
-    // Number
+    // Number - anything else ends the array (ldCheckGeoQuery refuses such coordinates before they get
+    // here; were one to slip through, a non-number would leave p where it was, and the loop would never end)
     char* end;
     double val = strtod(p, &end);
+
+    if (end == p)
+      return p + strlen(p);
+
     bson_append_double(arrayP, key, keyLen, val);
     return end;
   }
@@ -2007,8 +2014,17 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
   // For georel=near, use $geoNear aggregation pipeline to get distance.
   // For all other queries, use find().
   //
-  bool useGeoNear  = (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear);
-  bool useDistSort = (filterP != NULL && filterP->geoRel == NULL && filterP->distGeoproperty != NULL);
+  //
+  // A distance order (§ 7.6.2) is $geoNear's when it can be: from a Point (MongoDB's $geoNear takes
+  // nothing else) and with no georel (the georel is the query's own filter, and $geoNear can be only one
+  // stage). Any other distance order - from a LineString, a Polygon, ..., or beside a georel - takes each
+  // entity's distance from the reference here, as the entities come in (distInPlugin): an orderBy query
+  // is unpaged (getEntities.c: the broker orders and paginates), so every match comes in.
+  //
+  bool distPoint    = (filterP != NULL) && ((filterP->distGeometry == NULL) || (strcmp(filterP->distGeometry, "Point") == 0));
+  bool useGeoNear   = (filterP != NULL && filterP->geoRel != NULL && filterP->geoRel->rel == LdGeoNear);
+  bool useDistSort  = (filterP != NULL && filterP->geoRel == NULL && filterP->distGeoproperty != NULL && distPoint);
+  bool distInPlugin = (filterP != NULL && filterP->distGeoproperty != NULL && useDistSort == false);
 
   mongoc_cursor_t* cursorP;
 
@@ -2276,6 +2292,23 @@ int mongocEntityQuery(Tenant* tenantP, DbQueryFilter* filterP, CorNode** arrayPP
     }
 
     CorNode* entityP = mongocEntityBsonToTree(&corRest.kalloc, doc);
+
+    if (distInPlugin)
+    {
+      //
+      // Its distance from the reference of the order - a georel=near's $geoNear distance (from the
+      // georel's reference) replaced. None: the entity has no such GeoProperty, and ranks last.
+      //
+      double   distance;
+      CorNode* distP    = corTreeLookup(entityP, "geoDistance");
+      bool     has      = geoDistanceOrder(entityP, filterP, &distance);
+
+      if (distP != NULL)
+        corTreeChildRemove(entityP, distP);
+      if (has)
+        corTreeChildAdd(entityP, corTreeFloat(corRest.kallocP, "geoDistance", distance));
+    }
+
     corTreeChildAdd(arrayP, entityP);
   }
 

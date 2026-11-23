@@ -25,7 +25,7 @@ a denominator that had changed underneath it. The figures live in
 [`coverage.md`](coverage.md), which is the one place they are measured and the one
 place they are kept.
 
-## Matrix: 2314 spec statements — 1051 asserted by a test, 373 partially, 890 unasserted; 245 high-priority
+## Matrix: 2314 spec statements — 1055 asserted by a test, 373 partially, 886 unasserted; 245 high-priority
 
 Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 
@@ -235,8 +235,8 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 ### ordering (3)
 
 - [~] **[7.6]** orderBy by attribute path (dot-separated) addressing a sub-attribute / Property of Property — orderBy=name.createdAt is accepted (200) on the temporal endpoint but result set is empty, so the dot-path ordering result is never asserted. No /entities test verifies a dot-path sub-attribute actually drives the order.
-- [ ] **[7.6]** Sort by distance ascending from a Point (dist-asc + orderFrom) — No test uses orderBy=location;dist-asc&orderFrom=[lon,lat] to rank by nearest-first distance.
-- [ ] **[7.6]** Sort by distance descending from a Point (dist-desc + orderFrom) — No test uses orderBy=location;dist-desc&orderFrom=[lon,lat] for farthest-first ordering.
+- [x] **[7.6]** Sort by distance ascending from a Point (dist-asc + orderFrom) — geo_orderby_distance(_corDB): nearest first, the entities without the GeoProperty last; beside a georel the distances are from orderFrom.
+- [x] **[7.6]** Sort by distance descending from a Point (dist-desc + orderFrom) — geo_orderby_distance(_corDB): farthest first, also beside georel=within.
 
 ### pagination (4)
 
@@ -884,8 +884,8 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [ ] **[7.6]** Mixed-datatype value comparison order (Number<String<Object<Array<Boolean<Time<Date<DateTime<Null) — No test ranks entities whose ordering attribute holds different datatypes to verify the cross-type precedence order.
 - [ ] **[7.6]** null values sorted last among present values — No test ranks an entity whose ordering attribute value is null to verify null-last placement among present values.
 - [~] **[7.6]** Entities missing the ordering attribute sorted after null (absolute last) — Missing-attribute-sorts-last is asserted (V5 last), but there is no entity with an explicit null value, so the missing-after-null relative ordering is not distinguished.
-- [ ] **[7.6]** Sort by distance uses Haversine spherical distance — No test verifies distance ordering reflects great-circle (Haversine) distance vs planar distance.
-- [ ] **[7.6]** orderFrom with non-Point reference geometry via orderGeometry (e.g. LineString) — No test uses orderGeometry=LineString with orderFrom coordinates for distance ordering against a non-Point reference geometry.
+- [x] **[7.6]** Sort by distance uses Haversine spherical distance — geo_orderby_distance_corDB: the geoDistance values are the haversine ones (mongoc: MongoDB's earth model for a Point reference).
+- [x] **[7.6]** orderFrom with non-Point reference geometry via orderGeometry (e.g. LineString) — geo_orderby_distance(_corDB): a LineString and a Polygon reference (0 m inside it); orderFrom not of the orderGeometry, or not JSON → 400.
 - [ ] **[7.6]** orderFrom coordinates conform to RFC 7946 §3.1.2 — No test exercises orderFrom coordinate parsing ([lon,lat] GeoJSON semantics).
 - [ ] **[7.6]** Distance sort limited to GeoProperties; non-GeoProperty attributes ranked after GeoProperties — No test verifies that under distance sort, non-GeoProperty entities are ranked after GeoProperty-holding ones.
 - [ ] **[7.6]** collation parameter selects case-insensitive ordering (und-u-ks-identic) — No test uses the collation parameter (und-u-ks-identic) for case-insensitive ordering.

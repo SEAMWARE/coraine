@@ -25,6 +25,16 @@ extern bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP
 
 // -----------------------------------------------------------------------------
 //
+// geoDistanceOrder - an entity's distance for a distance order (§ 7.6.2, DbQueryFilter.distGeoproperty)
+//
+// *distanceP: metres from the reference geometry (distGeometry - Point when NULL - and distFrom) to the
+// entity's distGeoproperty, the shortest distance between the two; -1, and false returned, when the
+// entity has no such GeoProperty. Filters nothing: the georel of filterP, if any, is not looked at.
+//
+extern bool geoDistanceOrder(CorNode* entityP, DbQueryFilter* filterP, double* distanceP);
+
+// -----------------------------------------------------------------------------
+//
 // geoEntityValidate - true if every GeoProperty value in the (DB-model) entity
 // is a valid GEOS geometry; false for a degenerate / self-intersecting polygon.
 // Lets an in-memory store reject geometry a 2dsphere index would refuse.
