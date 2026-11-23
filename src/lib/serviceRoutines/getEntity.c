@@ -1103,21 +1103,10 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
       if (authEntityArrayFilter(flatP) == false)
         return true;
 #endif
-      // Single-entity Retrieve shape: if flat returned only the
-      // primary (no linked targets resolved), unwrap the array so the
-      // response stays a plain Entity object. § 4.5.23 doesn't mandate
-      // a single-element array — the array shape is for "primary +
-      // targets" and degenerates to "just the primary" when no targets
-      // were found.
-      if (flatP != NULL && flatP->type == CorArray)
-      {
-        CorNode* first = flatP->value.head;
-        if (first != NULL && first->next == NULL)
-        {
-          ldNodeRename(first, NULL);
-          flatP = first;
-        }
-      }
+      //
+      // TS 104 175 § 7.7.3: a flat retrieval "shall always consist of an array of Entities" - also when no
+      // linked entity is found and the array holds only the primary
+      //
       corRest.out.responseTree = flatP;
       return true;
     }

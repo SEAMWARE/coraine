@@ -102,16 +102,18 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: 100
+Content-Length: 120
 
-{
-  "id": "urn:V1",
-  "speed": {
-    "type": "Property",
-    "value": 42
-  },
-  "type": "Vehicle"
-}
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "value": 42
+    },
+    "type": "Vehicle"
+  }
+]
 
 
 
