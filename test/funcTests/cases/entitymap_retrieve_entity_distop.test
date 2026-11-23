@@ -1,0 +1,310 @@
+#
+# FILE            entitymap_retrieve_entity_distop.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# Retrieve Entity with an EntityMap, distributed (TS 104-175 § 10.4.2.4):
+#
+#   - with a map in use, "only the retrieved Entity Map shall be used to determine which Context Source
+#     Registrations match the Entity ID": a registration made after the map is not asked;
+#   - "the location of the linked Entity Map shall be passed as part of any forwarded request": the source
+#     gets its own map in NGSILD-EntityMap - CP1, its map deleted, makes a new one (201) and names it;
+#   - "the Entity Map's linked maps are updated to hold the location of every Entity Map used by the
+#     Context Source Registrations": CB's map then links CP1's new map;
+#   - ?entityMap=true: the map made holds the entity with every source that answered with it.
+#
+#   CP1: urn:V2 speed 20     - registration urn:CSR:R1, made before the map
+#   CP2: urn:V2 color "red"  - registration urn:CSR:R2, made after it
+#
+# REQUIRE_FEATURE: REGISTRATIONS
+#
+
+--NAME--
+Retrieve Entity with an EntityMap, distributed: only the map's registrations, their linked maps passed and updated (§ 10.4.2.4)
+
+--TAGS--
+entitymap distop retrieve
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2
+coraineStart --noSplitEntities -dist
+coraineStart -role CP1 --noSplitEntities -dist
+coraineStart -role CP2 --noSplitEntities -dist
+
+--RUN--
+
+CP1="http://localhost:${CP1_PORT}"
+CP2="http://localhost:${CP2_PORT}"
+
+#
+# mapMask - the response with every EntityMap id as MAPID
+#
+mapMask()
+{
+  sed -E 's/EntityMap:[0-9a-f]+/EntityMap:MAPID/g'
+}
+
+#
+# mapOf - the EntityMap id in a response's NGSILD-EntityMap header
+#
+mapOf()
+{
+  echo "$1" | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed -E 's|.*entityMaps/||'
+}
+
+#
+# linkedMap <map id> <registration id> - the map's linked map of a registration
+#
+linkedMap()
+{
+  corCurl --url "/ngsi-ld/v1/entityMaps/$1" | tr -d '\r' | sed -n '/^{/,$p' | python3 -c 'import sys, json; print(json.load(sys.stdin)["linkedMaps"].get(sys.argv[1], ""))' "$2"
+}
+
+
+echo "01. urn:V2 on CP1 (speed) and on CP2 (color); registration R1 (CP1) on CB"
+echo "========================================================================="
+corCurl --port $CP1_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","speed":{"type":"Property","value":20}}'
+echo
+corCurl --port $CP2_PORT --url /ngsi-ld/v1/entities --payload '{"id":"urn:V2","type":"Vehicle","color":{"type":"Property","value":"red"}}'
+echo
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R1","type":"ContextSourceRegistration","endpoint":"'"$CP1"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "02. GET /entityMaps?type=Vehicle on CB - urn:V2 from R1, R1's linked map is CP1's own"
+echo "====================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entityMaps?type=Vehicle')
+echo "$out" | mapMask
+MAP=$(mapOf "$out")
+CP1MAP=$(linkedMap "$MAP" urn:CSR:R1)
+[ -n "$CP1MAP" ] && echo "R1's linked map: a map on CP1" || echo "R1's linked map: NONE"
+echo
+echo
+
+
+echo "03. Registration R2 (CP2) on CB, after the map"
+echo "=============================================="
+corCurl --url /ngsi-ld/v1/csourceRegistrations --payload '{"id":"urn:CSR:R2","type":"ContextSourceRegistration","endpoint":"'"$CP2"'","mode":"inclusive","operations":["queryEntity","retrieveEntity"],"information":[{"entities":[{"type":"Vehicle"}]}]}'
+echo
+echo
+
+
+echo "04. GET /entities/urn:V2 - no map: both sources, speed and color"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues'
+echo
+echo
+
+
+echo "05. GET /entities/urn:V2, NGSILD-EntityMap the map of step 02 - 200, only R1: speed, no color"
+echo "============================================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues' -H "NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/$MAP" | mapMask
+echo
+echo
+
+
+echo "06. CP1's map deleted; the same request - CP1, given its map, makes a new one; CB's map links it"
+echo "================================================================================================"
+corCurl --port $CP1_PORT --url "/ngsi-ld/v1/entityMaps/$CP1MAP" -X DELETE
+echo
+corCurl --url '/ngsi-ld/v1/entities/urn:V2?options=keyValues' -H "NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/$MAP" | mapMask
+echo
+CP1MAP2=$(linkedMap "$MAP" urn:CSR:R1)
+[ -n "$CP1MAP2" ] && [ "$CP1MAP2" != "$CP1MAP" ] && echo "R1's linked map: a new one" || echo "R1's linked map: NOT a new one"
+corCurl --port $CP1_PORT --url "/ngsi-ld/v1/entityMaps/$CP1MAP2" | mapMask
+echo
+echo
+
+
+echo "07. GET /entities/urn:V2?entityMap=true - 201, speed and color; the map: urn:V2 from R1 and R2"
+echo "=============================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entities/urn:V2?entityMap=true&options=keyValues')
+echo "$out" | mapMask
+corCurl --url "/ngsi-ld/v1/entityMaps/$(mapOf "$out")" | mapMask
+echo
+echo
+
+
+--EXPECT--
+01. urn:V2 on CP1 (speed) and on CP2 (color); registration R1 (CP1) on CB
+=========================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V2
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R1
+Content-Length: 0
+
+
+
+
+02. GET /entityMaps?type=Vehicle on CB - urn:V2 from R1, R1's linked map is CP1's own
+=====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V2": [
+      "urn:CSR:R1"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:EntityMap:MAPID",
+  "linkedMaps": {
+    "urn:CSR:R1": "urn:ngsi-ld:EntityMap:MAPID"
+  },
+  "type": "EntityMap"
+}
+R1's linked map: a map on CP1
+
+
+03. Registration R2 (CP2) on CB, after the map
+==============================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/csourceRegistrations/urn:CSR:R2
+Content-Length: 0
+
+
+
+
+04. GET /entities/urn:V2 - no map: both sources, speed and color
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+{
+  "color": "red",
+  "id": "urn:V2",
+  "speed": 20,
+  "type": "Vehicle"
+}
+
+
+
+05. GET /entities/urn:V2, NGSILD-EntityMap the map of step 02 - 200, only R1: speed, no color
+=============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V2",
+  "speed": 20,
+  "type": "Vehicle"
+}
+
+
+
+06. CP1's map deleted; the same request - CP1, given its map, makes a new one; CB's map links it
+================================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 57
+
+{
+  "id": "urn:V2",
+  "speed": 20,
+  "type": "Vehicle"
+}
+
+
+R1's linked map: a new one
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:EntityMap:MAPID",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+07. GET /entities/urn:V2?entityMap=true - 201, speed and color; the map: urn:V2 from R1 and R2
+==============================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 75
+
+{
+  "color": "red",
+  "id": "urn:V2",
+  "speed": 20,
+  "type": "Vehicle"
+}
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:V2": [
+      "urn:CSR:R1",
+      "urn:CSR:R2"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:EntityMap:MAPID",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+coraineStop -role CP2
+corDbDrop
+corDbDrop -role CP1
+corDbDrop -role CP2

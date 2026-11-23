@@ -888,7 +888,8 @@ static bool temporalEntityMap(Tenant* tenantP, TroeQueryFilter* fP, LdEntityMap*
 
   ldEntityMapPurgeExpired(storeP);
 
-  LdEntityMap* mapP = ldEntityMapCreate(storeP, 5ULL * 60 * 1000000000ULL, mapTenantP);   // the default lifetime: 5 minutes
+  // The lifetime: ?entityMapLifetime= for a map the client asked for, 0 - the default, 5 minutes - for one made anew
+  LdEntityMap* mapP = ldEntityMapCreate(storeP, corNgsild.entityMapAuto ? 0 : corNgsild.entityMapLifetimeNs, mapTenantP);
 
   if (mapP == NULL)
   {
@@ -1002,8 +1003,8 @@ static bool temporalMapOpen(LdEntityMap** mapPP)
 // the map recorded in one request per source - GET /temporal/entities?id=<its entities of the page>&...
 // (100 ids a request), the registration looked up by the id the map holds, not matched again: the map is a
 // frozen set. The parts of an entity merged (an entity split across sources), the page in the map's order;
-// an entity with no history in the window is not on it. 200, the map in NGSILD-EntityMap, its links name
-// the map.
+// an entity with no history in the window is not on it. 200 (201 from the caller when the map was just
+// made), the map in NGSILD-EntityMap, its links name the map.
 //
 static bool temporalMapPage(LdEntityMap* mapP, Tenant* tenantP, TroeQueryFilter* fP)
 {
@@ -1566,16 +1567,28 @@ static bool temporalQuery(bool mapCreate)
   if (mapCreate)
     return temporalEntityMap(tenantP, &filter, NULL);
 
+  bool mapMade = false;
+
   if ((pageMapP == NULL) && corNgsild.entityMapCreate)
   {
     TroeQueryFilter mapFilter = filter;              // the map's collection rewrites its filter; the page reads this one
 
     if (temporalEntityMap(tenantP, &mapFilter, &pageMapP) == true)
       return true;
+
+    mapMade = true;
   }
 
   if (pageMapP != NULL)
-    return temporalMapPage(pageMapP, tenantP, &filter);
+  {
+    temporalMapPage(pageMapP, tenantP, &filter);
+
+    // TS 104-176 table 8.2.3.1-2: "201 Created (in case an EntityMap has been (re)created)"
+    if (mapMade && (corRest.out.httpStatusCode == 200))
+      corRest.out.httpStatusCode = 201;
+
+    return true;
+  }
 #endif
 
   TroeRangeInfo rangeInfo;

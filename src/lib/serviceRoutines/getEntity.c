@@ -8,6 +8,7 @@
 //
 
 #include <stddef.h>                                  // NULL
+#include <stdio.h>                                   // snprintf
 #include <stdlib.h>                                  // free
 #include <string.h>                                  // strlen, strcpy, strcmp
 #include <strings.h>                                 // strcasecmp
@@ -44,6 +45,7 @@
 #include "corNgsild/ldEntityMatch.h"                   // ldEntityMatchType
 #include "corNgsild/ldCsourceAlias.h"                 // ldCsourceAliasForTenant, ldViaHasAlias
 #include "corNgsild/ldDistOp.h"                       // ldDistOpLoopDetected, ldDistOpSendReceive, ldDistOpForwardContext
+#include "corNgsild/ldEntityMap.h"                    // ldEntityMapLinkedMapLookup
 #include "corNgsild/ldQRender.h"                      // ldCompactOrEncode
 #include "corNgsild/ldTermId.h"                       // ldTermId, CorTerm*
 
@@ -555,8 +557,12 @@ static void ensureEntityId(CorNode* treeP, const char* entityId)
 // (retrieveEntity → 502) or merely a missed link (join → leave unfollowed).
 // DistRetrieveErr + this prototype live in getEntity.h.
 //
+// `rmP` (NULL: none) - the EntityMap of the retrieval (§ 10.4.2.4). A map in use: only the registrations
+// its entry for the entity names are asked, each with the map it used (linked maps) in NGSILD-EntityMap.
+// Either way the sources that answered with the entity, and the maps they used, are recorded in it.
+//
 CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* typeExpr, Tenant* tP,
-                               bool wholeForward, bool* matchedP, DistRetrieveErr* errP)
+                               bool wholeForward, bool* matchedP, DistRetrieveErr* errP, RetrieveMap* rmP)
 {
   if (matchedP != NULL) *matchedP = false;
   if (errP != NULL) { errP->status = 0; errP->noEndpoint = false; errP->upstreamDetail = NULL; errP->regId = NULL; errP->upstreamCode = 0; }
@@ -610,6 +616,9 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* 
   if ((destP != NULL) && (typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(destP, "type"), typeExpr))
     destP = NULL;
 
+  if (destP != NULL)
+    retrieveMapSource(rmP, "@none", NULL);
+
   int64_t nowNs = nowNanoseconds();
 
   LdRegCacheItem** groups[]  = { exclV, redirV, inclV, auxV };
@@ -651,6 +660,26 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* 
       if (csr->endpoint == NULL) continue;
       if (ldDistOpCsrWouldLoop(csr, ownAlias)) continue;
 
+      // § 10.4.2.4: with an EntityMap in use, "only the retrieved Entity Map" says which registrations match
+      const char* linkedMapUrl = NULL;
+
+      if ((rmP != NULL) && (rmP->mapP != NULL))
+      {
+        if ((rmP->entryP == NULL) || (csr->regId == NULL) || (corStringInArray(csr->regId, rmP->entryP->sourceIdV) == false))
+          continue;
+
+        const char* linkedMapId = ldEntityMapLinkedMapLookup(rmP->mapP, csr->regId);
+
+        if (linkedMapId != NULL)
+        {
+          int   size = strlen(linkedMapId) + 32;
+          char* url  = (char*) corAlloc(&corRest.kalloc, size);
+
+          snprintf(url, size, "/ngsi-ld/v1/entityMaps/%s", linkedMapId);
+          linkedMapUrl = url;
+        }
+      }
+
       bool canRetrieve = ldRegOpSupported(csr, LdOpRetrieveEntity);
       bool canQE       = ldRegOpSupported(csr, LdOpQueryEntities);
       bool canQB       = ldRegOpSupported(csr, LdOpBatchQuery);
@@ -677,6 +706,7 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* 
         else
           buildQueryBatchForm(csr, riP, entityId, &items[itemCount]);
 
+        items[itemCount].entityMap = linkedMapUrl;
         itemGroup[itemCount]     = g;
         itemRiP[itemCount]       = riP;
         itemCount++;
@@ -743,6 +773,9 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* 
         upP->next = NULL;
       }
 
+      if (items[i].csr != NULL)
+        retrieveMapSource(rmP, items[i].csr->regId, results[i].entityMap);
+
       CorLdContext* respCtxP = (results[i].responseContextUrl != NULL)
                               ? corLdContextFromUrl(results[i].responseContextUrl, &corRest.kalloc) : NULL;
       if (respCtxP == NULL)
@@ -782,10 +815,6 @@ CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* 
 
 
 
-// -----------------------------------------------------------------------------
-//
-// getEntity -
-//
 // -----------------------------------------------------------------------------
 //
 // geoJsonGeomProtectSetup - see getEntities.c. For a geo+json response, mark
@@ -831,7 +860,12 @@ static void geoJsonGeomProtectSetup(void)
 
 
 
-bool getEntity(void)
+// -----------------------------------------------------------------------------
+//
+// entityRetrieve - the entity, local and from the registrations (§ 10.4.2.4) - those the EntityMap in use
+// names, when one is (rmP)
+//
+static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
 {
   // § 4.21 / § 6.4.3 — cross-parameter projection validation
   // (pick ∩ omit, pick + attrs, omit + attrs, etc).
@@ -840,8 +874,6 @@ bool getEntity(void)
 
   // geo+json: protect the geometry GeoProperty through the member projection.
   geoJsonGeomProtectSetup();
-
-  const char* entityId = corRest.in.wildcard[0];
 
   //
   // § 6.3.22 / § 5.5.15 — snapshot-aware read. NGSILD-Snapshot header
@@ -854,6 +886,14 @@ bool getEntity(void)
     if (seen)
     {
       if (snapItem == NULL) return true;            // 404 raised by helper
+
+      if ((rmP->make == true) || (rmP->mapP != NULL))
+      {
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+                "an EntityMap is not used with NGSILD-Snapshot - a Snapshot is a frozen set of its own");
+        return true;
+      }
+
       return snapshotGetEntity(snapItem, entityId);
     }
   }
@@ -886,7 +926,7 @@ bool getEntity(void)
     // Request-driven retrieve: scope the reg match by the request's type
     // (NULL = no type filter), and let buildInfoPickParam honour the
     // request projection for the forward pick (wholeForward = false).
-    CorNode*         destP   = distributedRetrieveOne(entityId, corNgsild.typeV, corNgsild.typeExpr, tP, false, &matched, &err);
+    CorNode*         destP   = distributedRetrieveOne(entityId, corNgsild.typeV, corNgsild.typeExpr, tP, false, &matched, &err, rmP);
 
     if (matched)
     {
@@ -957,6 +997,8 @@ bool getEntity(void)
     ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
     return true;
   }
+
+  retrieveMapSource(rmP, "@none", NULL);
 
   // Apply pick/omit attribute projection (or the legacy attrs alias).
   // Each path then enforces its own 404-on-empty rule:
@@ -1094,5 +1136,25 @@ bool getEntity(void)
   }
 
   corRest.out.responseTree = entityP;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// getEntity - GET /entities/{entityId} (TS 104-175 § 10.4.2), with its EntityMap (RetrieveMap)
+//
+bool getEntity(void)
+{
+  const char* entityId = corRest.in.wildcard[0];
+  RetrieveMap rm;
+
+  retrieveMapOpen(&rm, entityId);
+  entityRetrieve(entityId, &rm);
+
+  if (corRest.out.problemType == NULL)
+    retrieveMapClose(&rm, entityId);
+
   return true;
 }

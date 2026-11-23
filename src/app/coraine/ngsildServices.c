@@ -165,7 +165,7 @@
 // and splitEntities (TS 104-176 table 8.2.3.1-1). Not in this build: refused as any unknown parameter is
 //
 #if COR_FEATURE_TEMPORAL_ENTITY_MAP
-#  define TEMPORAL_MAP_PARAMS   (LD_PARAM_ENTITY_MAP | LD_PARAM_SPLIT_ENTITIES)
+#  define TEMPORAL_MAP_PARAMS   (LD_PARAM_ENTITY_MAP | LD_PARAM_ENTITY_MAP_LIFETIME | LD_PARAM_SPLIT_ENTITIES)
 #else
 #  define TEMPORAL_MAP_PARAMS   0
 #endif

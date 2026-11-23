@@ -197,7 +197,7 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
     {
       DistRetrieveErr err     = {0};
       bool            matched = false;
-      CorNode*        merged  = distributedRetrieveOne(entityId, objectTypeV, NULL, tenantP, true, &matched, &err);
+      CorNode*        merged  = distributedRetrieveOne(entityId, objectTypeV, NULL, tenantP, true, &matched, &err, NULL);
       if (matched && merged != NULL)
       {
         *entityPP = merged;
@@ -232,7 +232,7 @@ int linkedFetchOne(const char* entityId, char** objectTypeV, bool typedRemoteOnl
   {
     DistRetrieveErr err     = {0};
     bool            matched = false;
-    CorNode*        merged  = distributedRetrieveOne(entityId, NULL, NULL, tenantP, true, &matched, &err);
+    CorNode*        merged  = distributedRetrieveOne(entityId, NULL, NULL, tenantP, true, &matched, &err, NULL);
     if (matched && merged != NULL)
     {
       *entityPP = merged;
