@@ -193,10 +193,11 @@ Snapshot writes, `mongoc` and the rest are not compiled in.
 > **ICU is off in every row above, deliberately.** § 7.6.2.1 names ICU "root"
 > collation as the default order for `orderBy` on strings, and linking ICU for it
 > costs **three libraries and 39.2 MiB** — `libicudata` alone is 31.6 MiB, six
-> times the whole broker, for a collation table. `COR_FEATURE_ICU_COLLATION=ON`
-> buys it back; the ICU-free build sorts ASCII exactly as root collation does and
-> approximates the rest. Replacing it with a collation implementation of our own
-> — the common case first, tailorings added on demand — is on the roadmap.
+> times the whole broker, for a collation table. The ICU-free build orders strings
+> by corBase's own `corCollate` - the root order for the Latin letters, and the
+> `sv`, `de-u-co-phonebk` and `-u-kn` collations, the same order as ICU's
+> ([Building - details](building-details.md)). A comparison costs 10.1 ns,
+> ICU's 10.7 ns (2026-11-23, this laptop, short names).
 ## RAM
 
 Resident set of the broker process. *Private dirty* is the part no other process

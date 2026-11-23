@@ -23,6 +23,8 @@ lists below are one line each, linked to it.
 
 Recently built, and documented where it lives:
 
+-   **String collation without ICU** - `orderBy` on strings in the root order, and `collation=` `sv`,
+    `de-u-co-phonebk`, `-u-kn`, with no libicu (39.2 MiB) ([Building - details](building-details.md)).
 -   **An NGSI-LD plugin for APISIX** - `ngsild-pep`
     ([corApisixNgsild](https://github.com/SEAMWARE/corApisixNgsild)): `fdsc.so`'s own decision in the
     gateway the FIWARE Data Space Connector already uses, in front of any NGSI-LD broker; on the 64 cases
@@ -225,7 +227,6 @@ product is heading and may wish to get involved.
 
 -   **[corDB](https://github.com/SEAMWARE-cor/corDB) standalone** - corDB as a server of its own beside the brokers, for high availability (the
     haaux role), with backups of current state and history. ([more](ideas.md#cordb-standalone---and-as-haaux))
--   **Our own string collation, replacing ICU** - root collation without 39 MiB of libicu. ([more](ideas.md#our-own-string-collation-replacing-icu))
 -   **Array reduction for API objects** - subscriptions, registrations, ... - once the core context has
     `@set` for their arrays (entity data is done). ([more](ideas.md#array-reduction-in-corjsonld))
 -   **Embedded deployment** - constrained hardware as a build configuration. ([more](ideas.md#embedded-deployment))

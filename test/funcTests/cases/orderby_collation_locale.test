@@ -8,10 +8,8 @@
 # TS 104-175 § 7.6.2.1 — the default string order is ICU "root" collation, and
 # `collation` selects another locale.
 #
-# orderby_string_collation.test uses pure ASCII, and ASCII is exactly where root
-# collation and a case-insensitive byte compare agree - so it passes on a build
-# with no ICU at all. This one is the discriminator. Two of its inputs order
-# differently under the two:
+# orderby_string_collation.test uses pure ASCII, and ASCII is where the root collation and a case-insensitive
+# byte compare agree. This one is the discriminator. Two of its inputs order differently under the two:
 #
 #   '_under' vs '1one'  - root puts punctuation before digits; byte order does not
 #   'äpple'             - root gives it a's primary weight (apple, Apple, äpple,
@@ -19,23 +17,13 @@
 #
 # And the locale really is consulted: in Swedish, 'ä' is a letter of its own,
 # after 'z' - so collation=sv moves äpple to the very end. An unknown language tag
-# is not an error; ICU falls back to root.
+# is not an error; ICU falls back to root, and so does corBase's corCollate.
 #
-# ⚠ This test needs an ICU build, and COR_FEATURE_ICU_COLLATION is OFF by default
-# - so by default this test is not a candidate for the run at all. `make
-# COR_WITH_ICU=1` builds the broker that it applies to, and then it runs.
-#
-# REQUIRE_FEATURE rather than a plain red on the default build: a red says the
-# broker is broken, and it is not - it is a broker that was deliberately built
-# without the 39.2 MiB of libicu, doing exactly what that build promises. The
-# claim this test makes is about § 7.6.2.1 collation, and only an ICU build makes
-# that claim. What the DEFAULT build promises is asserted by
-# orderby_string_collation.test, which is pure ASCII and runs either way.
-#
-# REQUIRE_FEATURE: ICU_COLLATION
+# Every build runs it: without ICU, corCollate gives these orders (orderby_collation_own.test has more); an ICU
+# build (make COR_WITH_ICU=1) gives them through ICU.
 #
 --NAME--
-orderBy uses ICU root collation, and `collation` selects a locale (§ 7.6.2.1)
+orderBy uses the root collation, and `collation` selects a locale (§ 7.6.2.1)
 
 --TAGS--
 orderBy collation query
