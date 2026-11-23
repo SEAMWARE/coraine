@@ -1,0 +1,171 @@
+#
+# FILE            orderby_collation_syntax.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.4.3.4: "If a preferred collation setting is present and it does not conform to a valid ICU
+# collation (see IETF RFC 6067) then an error of type BadRequestData shall be raised". RFC 6067 collations are
+# BCP 47 language tags (RFC 5646), so the SHAPE of the tag is checked - in every build, with or without ICU
+# (ICU's ucol_open accepts anything, with U_USING_DEFAULT_WARNING). A well-formed tag of an unknown language
+# is no error (orderby_collation_locale.test, step 04).
+#
+--NAME--
+collation - a malformed BCP 47 tag is 400 BadRequestData (§ 10.4.3.4)
+
+--TAGS--
+orderBy collation query
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed 2 entities: name a, name b"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C1","type":"T","name":{"type":"Property","value":"b"}}' | head -1
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C2","type":"T","name":{"type":"Property","value":"a"}}' | head -1
+echo
+echo
+
+
+echo "02. collation=!invalid! - characters outside a language tag: 400"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=!invalid!'
+echo
+echo
+
+
+echo "03. collation=abcdefghij - a primary subtag of 10 letters (2-8): 400"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=abcdefghij'
+echo
+echo
+
+
+echo "04. collation=de- - an empty subtag: 400"
+echo "========================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=de-'
+echo
+echo
+
+
+echo "05. collation=de-u-co-phonebk (§ 7.6.2.3 example 7) - 200"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=de-u-co-phonebk&options=keyValues'
+echo
+echo
+
+
+echo "06. collation=und-u-ks-identic (§ 7.6.2.3 example 6) - 200"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=und-u-ks-identic&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 2 entities: name a, name b
+===================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. collation=!invalid! - characters outside a language tag: 400
+================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 201
+
+{
+  "detail": "'collation' must be a BCP 47 language tag (RFC 6067), got '!invalid!'",
+  "status": 400,
+  "title": "Invalid collation",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. collation=abcdefghij - a primary subtag of 10 letters (2-8): 400
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 202
+
+{
+  "detail": "'collation' must be a BCP 47 language tag (RFC 6067), got 'abcdefghij'",
+  "status": 400,
+  "title": "Invalid collation",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+04. collation=de- - an empty subtag: 400
+========================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 195
+
+{
+  "detail": "'collation' must be a BCP 47 language tag (RFC 6067), got 'de-'",
+  "status": 400,
+  "title": "Invalid collation",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. collation=de-u-co-phonebk (§ 7.6.2.3 example 7) - 200
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 143
+
+[
+  {
+    "id": "urn:ngsi-ld:C2",
+    "name": "a",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C1",
+    "name": "b",
+    "type": "T"
+  }
+]
+
+
+
+06. collation=und-u-ks-identic (§ 7.6.2.3 example 6) - 200
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 143
+
+[
+  {
+    "id": "urn:ngsi-ld:C2",
+    "name": "a",
+    "type": "T"
+  },
+  {
+    "id": "urn:ngsi-ld:C1",
+    "name": "b",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
