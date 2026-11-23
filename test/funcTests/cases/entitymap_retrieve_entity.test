@@ -1,0 +1,559 @@
+#
+# FILE            entitymap_retrieve_entity.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# EntityMaps on the retrieval of one entity (TS 104-175 § 10.4.2.4, TS 104-176 tables 7.3.3.1-1/-2, 7.5.3.1-1,
+# 7.6.3.1-1) - Retrieve Entity, Retrieve Attribute and its value:
+#
+#   - ?entityMap=true makes a map of the entity - the entity with the sources that hold it ("@none": the
+#     broker's own copy) - and answers 201, the map in NGSILD-EntityMap;
+#   - ?entityMapLifetime= (an ISO 8601 duration) is that map's lifetime; one that is not a duration is 400;
+#   - the NGSILD-EntityMap request header naming a map that is there: 200, the same map in NGSILD-EntityMap;
+#   - naming a map that is gone: a new one is made, 201 ("(re)created");
+#   - ?entityMap= is a Boolean (or, not NGSI-LD, the id of a map - a URI): anything else is 400, and no map;
+#   - an entity that is not there: 404, and no map.
+#
+# And on Query Entities, the same parameters (TS 104-176 table 7.2.3.1-1): ?entityMapLifetime= is accepted,
+# ?entityMap=notaboolean is 400 (it was taken as the id of a map that is not there, and made one), and the
+# NGSILD-EntityMap request header naming a map that is gone makes a new one: 201.
+#
+# And POST /entityOperations/query (TS 104-175 § 5.2.6.5.1): "createEntityMap": true is ?entityMap=true -
+# the v1.9 core context has no term for it, its expansion is in the default vocabulary - and
+# "entityMapLifetime" its lifetime.
+#
+
+--NAME--
+EntityMaps on Retrieve Entity, Retrieve Attribute and its value; entityMap / entityMapLifetime checked (§ 10.4.2.4)
+
+--TAGS--
+entitymap retrieve attr attrValue query post
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+#
+# mapMask - the response with every EntityMap id as MAPID
+#
+mapMask()
+{
+  sed -E 's/EntityMap:[0-9a-f]+/EntityMap:MAPID/g'
+}
+
+#
+# mapOf - the EntityMap id in a response's NGSILD-EntityMap header
+#
+mapOf()
+{
+  echo "$1" | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed -E 's|.*entityMaps/||'
+}
+
+#
+# lifetime - how long from now a map expires, rounded to minutes
+#
+lifetime()
+{
+  corCurl --url "/ngsi-ld/v1/entityMaps/$1" | tr -d '\r' | sed -n '/^{/,$p' | python3 -c '
+import sys, json, datetime
+m   = json.load(sys.stdin)
+exp = datetime.datetime.fromisoformat(m["expiresAt"].replace("Z", "+00:00"))
+now = datetime.datetime.now(datetime.timezone.utc)
+print("the map expires in %d minutes" % round((exp - now).total_seconds() / 60))'
+}
+
+
+echo "01. Rooms urn:R1 and urn:R2"
+echo "==========================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R1","type":"Room","temperature":{"type":"Property","value":21}}'
+echo
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:R2","type":"Room","temperature":{"type":"Property","value":23}}'
+echo
+echo
+
+
+echo "02. GET /entities/urn:R1?entityMap=true - 201, the entity, the map in NGSILD-EntityMap"
+echo "======================================================================================"
+out=$(corCurl --url '/ngsi-ld/v1/entities/urn:R1?entityMap=true')
+echo "$out" | mapMask
+MAP1=$(mapOf "$out")
+echo
+echo
+
+
+echo "03. The map: urn:R1, the broker's own copy (@none); the default lifetime, 5 minutes"
+echo "==================================================================================="
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP1" | mapMask
+echo
+lifetime "$MAP1"
+echo
+echo
+
+
+echo "04. GET /entities/urn:R1?entityMap=true&entityMapLifetime=PT1H - 201, a map that lives an hour"
+echo "=============================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entities/urn:R1?entityMap=true&entityMapLifetime=PT1H')
+echo "$out" | head -1
+lifetime "$(mapOf "$out")"
+echo
+echo
+
+
+echo "05. GET /entities/urn:R1, NGSILD-EntityMap naming the map of step 02 - 200, that map"
+echo "===================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entities/urn:R1' -H "NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/$MAP1")
+echo "$out" | mapMask
+[ "$(mapOf "$out")" == "$MAP1" ] && echo "the same map: yes" || echo "the same map: NO"
+echo
+echo
+
+
+echo "06. The map deleted; the same request - 201, a new map of urn:R1"
+echo "================================================================"
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP1" -X DELETE
+echo
+out=$(corCurl --url '/ngsi-ld/v1/entities/urn:R1' -H "NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/$MAP1")
+echo "$out" | head -1
+MAP2=$(mapOf "$out")
+[ -n "$MAP2" ] && [ "$MAP2" != "$MAP1" ] && echo "a new map: yes" || echo "a new map: NO"
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP2" | mapMask
+echo
+echo
+
+
+echo "07. entityMap=notaboolean, entityMapLifetime=notaduration - 400, no map"
+echo "========================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R1?entityMap=notaboolean'
+echo
+corCurl --url '/ngsi-ld/v1/entities/urn:R1?entityMap=true&entityMapLifetime=notaduration'
+echo
+echo
+
+
+echo "08. An entity that is not there, entityMap=true - 404, no map"
+echo "============================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:nope?entityMap=true'
+echo
+echo
+
+
+echo "09. Retrieve Attribute and its value with entityMap=true - 201 each, a map of urn:R2"
+echo "===================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entities/urn:R2/attrs/temperature?entityMap=true')
+echo "$out" | mapMask
+corCurl --url "/ngsi-ld/v1/entityMaps/$(mapOf "$out")" | mapMask
+echo
+corCurl --url '/ngsi-ld/v1/entities/urn:R2/attrs/temperature/value?entityMap=true' | mapMask
+echo
+echo
+
+
+echo "10. Query Entities: entityMapLifetime=PT2H - 201, a map of both rooms that lives two hours"
+echo "=========================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entities?type=Room&entityMap=true&entityMapLifetime=PT2H&options=keyValues')
+echo "$out" | mapMask
+MAP3=$(mapOf "$out")
+lifetime "$MAP3"
+echo
+echo
+
+
+echo "11. Query Entities: entityMap=notaboolean, entityMapLifetime=notaduration - 400"
+echo "==============================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Room&entityMap=notaboolean'
+echo
+corCurl --url '/ngsi-ld/v1/entities?type=Room&entityMap=true&entityMapLifetime=notaduration'
+echo
+echo
+
+
+echo "12. Query Entities, NGSILD-EntityMap naming the deleted map of step 10 - 201, a new map"
+echo "======================================================================================"
+corCurl --url "/ngsi-ld/v1/entityMaps/$MAP3" -X DELETE
+echo
+out=$(corCurl --url '/ngsi-ld/v1/entities?type=Room&options=keyValues' -H "NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/$MAP3")
+echo "$out" | mapMask
+MAP4=$(mapOf "$out")
+[ -n "$MAP4" ] && [ "$MAP4" != "$MAP3" ] && echo "a new map: yes" || echo "a new map: NO"
+echo
+echo
+
+
+echo "13. POST /entityOperations/query, createEntityMap and entityMapLifetime in the Query - 201, a map of an hour"
+echo "==========================================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/entityOperations/query?options=keyValues' --payload '{"type":"Query","entities":[{"type":"Room"}],"createEntityMap":true,"entityMapLifetime":"PT1H"}')
+echo "$out" | mapMask
+lifetime "$(mapOf "$out")"
+echo
+echo
+
+
+echo "14. POST /entityOperations/query, createEntityMap false - 200, no map"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/query?options=keyValues' --payload '{"type":"Query","entities":[{"type":"Room"}],"createEntityMap":false}'
+echo
+echo
+
+
+echo "15. POST /entityOperations/query, an entityMapLifetime that is not a duration - 400"
+echo "==================================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/query' --payload '{"type":"Query","entities":[{"type":"Room"}],"createEntityMap":true,"entityMapLifetime":"an hour"}'
+echo
+echo
+
+
+--EXPECT--
+01. Rooms urn:R1 and urn:R2
+===========================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:R1
+Content-Length: 0
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:R2
+Content-Length: 0
+
+
+
+
+02. GET /entities/urn:R1?entityMap=true - 201, the entity, the map in NGSILD-EntityMap
+======================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 103
+
+{
+  "id": "urn:R1",
+  "temperature": {
+    "type": "Property",
+    "value": 21
+  },
+  "type": "Room"
+}
+
+
+03. The map: urn:R1, the broker's own copy (@none); the default lifetime, 5 minutes
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:R1": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:EntityMap:MAPID",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+the map expires in 5 minutes
+
+
+04. GET /entities/urn:R1?entityMap=true&entityMapLifetime=PT1H - 201, a map that lives an hour
+==============================================================================================
+HTTP/1.1 201 Created
+the map expires in 60 minutes
+
+
+05. GET /entities/urn:R1, NGSILD-EntityMap naming the map of step 02 - 200, that map
+====================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 103
+
+{
+  "id": "urn:R1",
+  "temperature": {
+    "type": "Property",
+    "value": 21
+  },
+  "type": "Room"
+}
+the same map: yes
+
+
+06. The map deleted; the same request - 201, a new map of urn:R1
+================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 201 Created
+a new map: yes
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:R1": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:EntityMap:MAPID",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+
+07. entityMap=notaboolean, entityMapLifetime=notaduration - 400, no map
+========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 210
+
+{
+  "detail": "'entityMap' must be 'true', 'false' or the id of an EntityMap; got 'notaboolean'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "'entityMapLifetime' must be an ISO 8601 duration; got 'notaduration'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. An entity that is not there, entityMap=true - 404, no map
+=============================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 153
+
+{
+  "detail": "entity 'urn:nope' not found",
+  "status": 404,
+  "title": "Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+09. Retrieve Attribute and its value with entityMap=true - 201 each, a map of urn:R2
+====================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 40
+
+{
+  "type": "Property",
+  "value": 23
+}
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "entityMap": {
+    "urn:R2": [
+      "@none"
+    ]
+  },
+  "expiresAt": "REGEX(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:EntityMap:MAPID",
+  "linkedMaps": {},
+  "type": "EntityMap"
+}
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Content-Length: 2
+
+23
+
+
+10. Query Entities: entityMapLifetime=PT2H - 201, a map of both rooms that lives two hours
+==========================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 145
+
+[
+  {
+    "id": "urn:R1",
+    "temperature": 21,
+    "type": "Room"
+  },
+  {
+    "id": "urn:R2",
+    "temperature": 23,
+    "type": "Room"
+  }
+]
+the map expires in 120 minutes
+
+
+11. Query Entities: entityMap=notaboolean, entityMapLifetime=notaduration - 400
+===============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 210
+
+{
+  "detail": "'entityMap' must be 'true', 'false' or the id of an EntityMap; got 'notaboolean'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 198
+
+{
+  "detail": "'entityMapLifetime' must be an ISO 8601 duration; got 'notaduration'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. Query Entities, NGSILD-EntityMap naming the deleted map of step 10 - 201, a new map
+======================================================================================
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 145
+
+[
+  {
+    "id": "urn:R1",
+    "temperature": 21,
+    "type": "Room"
+  },
+  {
+    "id": "urn:R2",
+    "temperature": 23,
+    "type": "Room"
+  }
+]
+a new map: yes
+
+
+13. POST /entityOperations/query, createEntityMap and entityMapLifetime in the Query - 201, a map of an hour
+===========================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 145
+
+[
+  {
+    "id": "urn:R1",
+    "temperature": 21,
+    "type": "Room"
+  },
+  {
+    "id": "urn:R2",
+    "temperature": 23,
+    "type": "Room"
+  }
+]
+the map expires in 60 minutes
+
+
+14. POST /entityOperations/query, createEntityMap false - 200, no map
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 145
+
+[
+  {
+    "id": "urn:R1",
+    "temperature": 21,
+    "type": "Room"
+  },
+  {
+    "id": "urn:R2",
+    "temperature": 23,
+    "type": "Room"
+  }
+]
+
+
+
+15. POST /entityOperations/query, an entityMapLifetime that is not a duration - 400
+===================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 193
+
+{
+  "detail": "'entityMapLifetime' must be an ISO 8601 duration; got 'an hour'",
+  "status": 400,
+  "title": "Invalid request",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop

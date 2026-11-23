@@ -21,8 +21,8 @@
 #     request"); a page that sends a selecting parameter with a different value, or one the
 #     creating query did not have, is 400; one that leaves it out is served by the map's query;
 #   - an expired map: the link is a complete query, so a new map is made from it and the page served
-#     from that one (§ 9.6: "a new one shall be created"), 200; with no selector to make one from - an
-#     unknown map named by the header alone - 404.
+#     from that one (§ 9.6: "a new one shall be created"), 201 ("(re)created"); with no selector to make
+#     one from - an unknown map named by the header alone - 404.
 #
 # REQUIRE_FEATURE: METRICS ADMIN_API
 #
@@ -160,7 +160,7 @@ echo
 echo
 
 
-echo "11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 200"
+echo "11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 201"
 echo "=================================================================================="
 corCurl --url "$MAP1" -X PATCH --payload '{"expiresAt":"2020-01-01T00:00:00.000Z"}' | head -1
 page "$P1NEXT"
@@ -261,10 +261,10 @@ NGSILD-EntityMap: (none)
 https://uri.etsi.org/ngsi-ld/errors/BadRequestData: URL parameter 'attrs' was not part of the query that created entity map 'urn:ngsi-ld:EntityMap:MAPID'
 
 
-11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 200
+11. The map expires; its page-2 link is a complete query: a NEW map, R11..R20, 201
 ==================================================================================
 HTTP/1.1 204 No Content
-HTTP/1.1 200 OK
+HTTP/1.1 201 Created
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
   rel=first /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0
   rel=prev  /ngsi-ld/v1/entities?entityMap=urn:ngsi-ld:EntityMap:MAPID&type=Room&options=keyValues&limit=10&offset=0

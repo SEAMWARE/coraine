@@ -31,4 +31,51 @@ extern void entityMapHeader(LdEntityMap* mapP);
 //
 extern void entityMapFill(LdEntityMap* mapP, CorNode* arrayP, CorNode* srcMap, CorNode* linkedMapsTracker);
 
+
+
+
+// -----------------------------------------------------------------------------
+//
+// RetrieveMap - an EntityMap taking part in a retrieval of one entity (TS 104-175 § 10.4.2.4)
+//
+// Retrieve Entity, Retrieve Attribute and its value: ?entityMap=true asks for a map of the entity, the
+// NGSILD-EntityMap request header (or ?entityMap=<id>) names one to use. A named map that is there
+// says which registrations take part (its entry for the entity), one that is gone is made anew.
+//
+typedef struct RetrieveMap
+{
+  LdEntityMap*       mapP;       // the map in use, pinned for the request; NULL: none
+  LdEntityMapEntry*  entryP;     // its entry for the entity: the sources to ask - NULL when it has none (none asked)
+  bool               make;       // a map is made of this retrieval
+  bool               remake;     // ... in place of one that is gone
+  CorNode*           sourcesP;   // the sources that answered with the entity ("@none": the local copy) - for the map made
+  CorNode*           linkedP;    // registration id -> the EntityMap that source used
+} RetrieveMap;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// retrieveMapOpen - the EntityMap of a retrieval of one entity, into rmP (always set)
+//
+extern void retrieveMapOpen(RetrieveMap* rmP, const char* entityId);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// retrieveMapSource - a source that answered with the entity ("@none" for the local copy), and the map it used
+//
+extern void retrieveMapSource(RetrieveMap* rmP, const char* sourceId, const char* sourceMapUrl);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// retrieveMapClose - the retrieval succeeded: the map made (201) or the one used (200), in NGSILD-EntityMap
+//
+// Returns true when that failed (the ProblemDetails set).
+//
+extern bool retrieveMapClose(RetrieveMap* rmP, const char* entityId);
+
 #endif  // ENTITY_MAP_BUILD_H

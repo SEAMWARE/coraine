@@ -2287,8 +2287,8 @@ static bool entityMapServe(LdEntityMap* mapP)
 // entityMapPaginate - GET /entities?entityMap=<mapId>, or the NGSILD-EntityMap request header (§ 9.6 / § 7.4.2.4)
 //
 // A page of an existing map: 200, the map's URI in NGSILD-EntityMap. An automatic map lives on while
-// it is paged (ldEntityMapTouch). An expired or unknown map is 404: the link carries nothing else to
-// re-query from.
+// it is paged (ldEntityMapTouch). An expired or unknown map is made anew from the request (201), or is
+// 404 when the request has nothing to re-query from.
 //
 static bool entityMapPaginate(void)
 {
@@ -2311,7 +2311,7 @@ static bool entityMapPaginate(void)
     // § 9.6: "If an Entity Map has expired, or cannot be accessed, no inference can be made as to which
     // entities are held within the Context Sources and a new one shall be created." The request is a
     // complete query (its links repeat the creating request's parameters): a new map is made from it
-    // and the page served from the new one, at the requested offset - 200, the new map in
+    // and the page served from the new one, at the requested offset - 201, the new map in
     // NGSILD-EntityMap. A request with no selector at all (a link of a map without its query) has
     // nothing to make one from: 404.
     //
@@ -2328,9 +2328,18 @@ static bool entityMapPaginate(void)
 
     corNgsild.entityMapId     = NULL;
     corNgsild.entityMapCreate = true;
-    corNgsild.entityMapAuto   = true;                // 201 only for a map the client asked to create
+    corNgsild.entityMapAuto   = true;                // made by the broker: its default lifetime, its eviction
 
-    return queryEntities(NULL);
+    queryEntities(NULL);
+
+    //
+    // TS 104-176 table 7.2.3.1-2: "201 Created (in case an EntityMap has been (re)created)" - unless no map
+    // was made after all (an automatic map that did not fit in the maps' memory, an error)
+    //
+    if ((corRest.out.httpStatusCode == 200) && (corNgsild.entityMapAutoOff == false))
+      corRest.out.httpStatusCode = 201;
+
+    return true;
   }
 
   ldEntityMapRequestPin(mapP);     // unpinned post-response
@@ -4034,8 +4043,11 @@ static bool queryEntities(PagePosition* posP)
       // Purge expired maps first
       ldEntityMapPurgeExpired(storeP);
 
-      // Default lifetime: 5 minutes
-      LdEntityMap* mapP = ldEntityMapCreate(storeP, 5ULL * 60 * 1000000000ULL, tP);
+      //
+      // The lifetime: ?entityMapLifetime= for a map the client asked for (TS 104-176 table 7.2.3.1-1: "Only
+      // applicable if entityMap is set to true"), 0 - the default, 5 minutes - for the broker's own
+      //
+      LdEntityMap* mapP = ldEntityMapCreate(storeP, corNgsild.entityMapAuto ? 0 : corNgsild.entityMapLifetimeNs, tP);
 
       if (mapP == NULL)
       {

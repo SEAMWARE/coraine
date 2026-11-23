@@ -15,6 +15,7 @@
 #include "corTree/CorNode.h"                       // CorNode
 #include "db/Tenant.h"                             // Tenant
 #include "corNgsild/LdTypeExpr.h"                  // LdTypeExpr
+#include "serviceRoutines/entityMapBuild.h"        // RetrieveMap
 
 
 
@@ -50,6 +51,6 @@ typedef struct DistRetrieveErr
 // implementation in getEntity.c for the full contract.
 //
 extern CorNode* distributedRetrieveOne(const char* entityId, char** typeV, LdTypeExpr* typeExpr, Tenant* tP,
-                                      bool wholeForward, bool* matchedP, DistRetrieveErr* errP);
+                                      bool wholeForward, bool* matchedP, DistRetrieveErr* errP, RetrieveMap* rmP);
 
 #endif  // GET_ENTITY_H

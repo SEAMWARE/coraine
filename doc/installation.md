@@ -1457,7 +1457,7 @@ is a Snapshot (`NGSILD-Snapshot`), not an EntityMap.
 | | Status | `NGSILD-EntityMap` response header | `Link` |
 |---|---|---|---|
 | a query that gets an automatic map | 200 - the answer is the result of the query; the map is a by-product of paginating it | the map's URI | `next` / `last` name the map |
-| a page of an expired or unknown map, with the query's parameters | 200 - a new map is made from them | the new map's URI | name the new map |
+| a page of an expired or unknown map, with the query's parameters | 201 - a new map is made from them (TS 104-176 table 7.2.3.1-2: "(re)created") | the new map's URI | name the new map |
 | `?entityMap=true`, or `GET`/`POST /ngsi-ld/v1/entityMaps` | 201 Created (TS 104-176 clause 7: "in case an EntityMap has been (re)created") | the map's URI | the first page's `next` / `last` name the new map |
 | a page of an existing map: `?entityMap=<id>`, or the request header `NGSILD-EntityMap: <URI>` | 200 | the map's URI | `first` / `prev` / `next` / `last` name the map |
 
@@ -1478,11 +1478,29 @@ removal would shift every later position, and the next page, at `offset` + `limi
 entities as were removed. So the positions of the frozen set never move, a page can be shorter than
 `limit`, and `NGSILD-Results-Count` stays the size of the frozen set.
 
-A map lives 5 minutes. An automatic map's lifetime slides: each page served from it gives it another
-5 minutes. A page of a map that has expired, or is unknown: "a new one shall be created" (§ 9.6) - from
-the request's own parameters (a link carries the whole query), and the requested page is served from
-the new map, named in `NGSILD-EntityMap` (200). A request with no selector at all - nothing to make a
-map from - gets 404.
+A map lives 5 minutes, or what `entityMapLifetime` (an ISO 8601 duration, `PT1H`) says on the request
+that asked for it (`entityMap=true`, `createEntityMap` in a POST query's `Query`, `/entityMaps`); a
+lifetime that is not a duration is 400. An automatic map's lifetime slides: each page served from it
+gives it another 5 minutes. A page of a map that has expired, or is unknown: "a new one shall be
+created" (§ 9.6) - from the request's own parameters (a link carries the whole query), and the requested
+page is served from the new map, named in `NGSILD-EntityMap` (201). A request with no selector at all -
+nothing to make a map from - gets 404. `entityMap` is `true`, `false` or the id of a map (a URI - the
+links carry it); anything else is 400.
+
+**Retrieve Entity, Retrieve Attribute and its value** (TS 104-175 § 10.4.2.4; TS 104-176 tables 7.3.3.1-1,
+7.5.3.1-1, 7.6.3.1-1) take `entityMap`, `entityMapLifetime` and the `NGSILD-EntityMap` request header:
+
+- `entityMap=true` makes a map of the entity - its id, with every source that answered with it (`@none`:
+  this broker's copy) and the maps those sources used (`linkedMaps`): 201, the map in `NGSILD-EntityMap`.
+- `NGSILD-EntityMap` naming a map that is there: the registrations asked are those the map's entry for the
+  entity names - one registered after the map is not asked, and none is when the map does not hold the
+  entity; this broker's copy is read as always. Each source is sent its own map (the map's `linkedMaps`)
+  in `NGSILD-EntityMap`, and the map a source answers with becomes its linked map. 200, the map in
+  `NGSILD-EntityMap`.
+- Naming a map that is gone: a new one, as for `entityMap=true` (201).
+- An entity that is not found (404) makes no map; nor does a read of a Snapshot (`NGSILD-Snapshot`, 400).
+
+Retrieve Attribute and its value read this broker's copy only: their map holds the entity with `@none`.
 
 **`--entityMapMemory <MiB>`** (default 64) is the memory all EntityMaps may hold together: an entity
 id and its sources, about 70 bytes plus the id for an entity of this broker. When a new map does not
@@ -1528,8 +1546,8 @@ counts in `--entityMapMemory` (403 `TooManyResults` when it does not fit), and `
 **Query Temporal with a map** - `GET /temporal/entities` and `POST /temporal/entityOperations/query`
 (TS 104-176 table 8.2.3.1-1, TS 104-175 § 9.6):
 
-- `entityMap=true` makes the map as `/temporal/entityMaps` would, and answers its first page: 200, the map
-  in `NGSILD-EntityMap`.
+- `entityMap=true` makes the map as `/temporal/entityMaps` would, and answers its first page: 201
+  (TS 104-176 table 8.2.3.1-2), the map in `NGSILD-EntityMap`. `entityMapLifetime` is its lifetime.
 - `entityMap=<id>` (or the `NGSILD-EntityMap` request header) answers the page `offset` / `limit` of the
   map. Each entity's history comes from where the map says it is: the local ones from the TRoE, those of a
   Context Source by the registration the map recorded - not matched again - in one
@@ -1539,7 +1557,7 @@ counts in `--entityMapMemory` (403 `TooManyResults` when it does not fit), and `
 - A page is in the map's window and with its filters: a `timerel`, `timeAt`, `endTimeAt`, `timeproperty`,
   `type`, `q`, `scopeQ` or GeoQuery that differs from the map's is 400, one left out is the map's - the
   page's links (`/temporal/entities?entityMap=<id>&...`) repeat the query. A map that is gone is made again
-  from a request that is a complete query; a request that is not one is 404.
+  from a request that is a complete query (201); a request that is not one is 404.
 - Not with `NGSILD-Snapshot` (400).
 
 In the build by default; `-DCOR_FEATURE_TEMPORAL_ENTITY_MAP=OFF` leaves the two routes and the `entityMap`

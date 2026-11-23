@@ -44,17 +44,17 @@
 #if COR_FEATURE_AUTH
 #include "auth/auth.h"                               // authEntityStoredCheck, authEntityWanted, authEntityDeny
 #endif
+#include "serviceRoutines/entityMapBuild.h"          // RetrieveMap, retrieveMapOpen, retrieveMapSource, retrieveMapClose
 #include "serviceRoutines/getEntityAttr.h"           // Own interface
 
 
 
 // -----------------------------------------------------------------------------
 //
-// getEntityAttr -
+// entityAttrRetrieve - the attribute, from the local copy of the entity
 //
-bool getEntityAttr(void)
+static bool entityAttrRetrieve(const char* entityId)
 {
-  const char* entityId = corRest.in.wildcard[0];
 #if COR_FEATURE_AUTH
   if (authEntityStoredCheck(entityId) == false)      // the stored entity's types - before anything is forwarded, bridged or written
     return true;
@@ -218,5 +218,28 @@ bool getEntityAttr(void)
   corRest.out.responseTree   = unwrapped;
   corRest.out.httpStatusCode = 200;
   corNgsild.rawResponse      = true;
+  return true;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// getEntityAttr - with its EntityMap (TS 104-175 § 10.4.4.4 / TS 104-176 table 7.5.3.1-1): the entity is the local copy
+//
+bool getEntityAttr(void)
+{
+  const char* entityId = corRest.in.wildcard[0];
+  RetrieveMap rm;
+
+  retrieveMapOpen(&rm, entityId);
+  entityAttrRetrieve(entityId);
+
+  if (corRest.out.problemType == NULL)
+  {
+    retrieveMapSource(&rm, "@none", NULL);
+    retrieveMapClose(&rm, entityId);
+  }
+
   return true;
 }

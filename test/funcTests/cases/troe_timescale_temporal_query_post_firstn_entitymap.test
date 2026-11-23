@@ -1,0 +1,193 @@
+#
+# FILE            troe_timescale_temporal_query_post_firstn_entitymap.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# POST /temporal/entityOperations/query (TS 104-176 § 8.7.3.1) - the Query's members that the v1.9 core
+# context has no term for: firstN and offsetN of the TemporalQuery (TS 104-175 § 5.2.6.7.4), and
+# createEntityMap (§ 5.2.6.5.1). Their expansion is in the default vocabulary; they are the Query's members
+# all the same - firstN and offsetN page the instances, createEntityMap makes a map (201, the map in
+# NGSILD-EntityMap) and entityMapLifetime is its lifetime.
+#
+#   urn:V1 speed: 10 @ 09:00, 20 @ 10:00, 30 @ 11:00
+#
+--NAME--
+TRoE timescale - POST temporal query: firstN, offsetN and createEntityMap in the Query (§ 5.2.6.7.4, § 5.2.6.5.1)
+
+--TAGS--
+troe timescale postgres temporal query post firstN entitymap
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale --troeSync
+
+--RUN--
+
+#
+# mapMask - the response with every EntityMap id as MAPID
+#
+mapMask()
+{
+  sed -E 's/EntityMap:[0-9a-f]+/EntityMap:MAPID/g'
+}
+
+
+echo "01. urn:V1, three speeds: 10 @ 09:00, 20 @ 10:00, 30 @ 11:00"
+echo "============================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V1","type":"Vehicle","speed":{"type":"Property","value":10,"observedAt":"2026-04-28T09:00:00Z"}}'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":20,"observedAt":"2026-04-28T10:00:00Z"}'
+echo
+corCurl --url /ngsi-ld/v1/entities/urn:V1/attrs/speed -X PATCH --payload '{"value":30,"observedAt":"2026-04-28T11:00:00Z"}'
+echo
+echo
+
+
+echo "02. temporalQ firstN 2 - 10 and 20"
+echo "=================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?options=temporalValues' --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"temporalQ":{"timerel":"after","timeAt":"2026-04-28T08:00:00Z","firstN":2}}'
+echo
+echo
+
+
+echo "03. temporalQ firstN 1, offsetN 1 - 20"
+echo "======================================"
+corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?options=temporalValues' --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"temporalQ":{"timerel":"after","timeAt":"2026-04-28T08:00:00Z","firstN":1,"offsetN":1}}'
+echo
+echo
+
+
+echo "04. createEntityMap true, entityMapLifetime PT1H - 201, the map in NGSILD-EntityMap, an hour"
+echo "==================================================================================="
+out=$(corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?options=temporalValues' --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"temporalQ":{"timerel":"after","timeAt":"2026-04-28T08:00:00Z"},"createEntityMap":true,"entityMapLifetime":"PT1H"}')
+echo "$out" | mapMask
+mapId=$(echo "$out" | tr -d '\r' | grep -i '^NGSILD-EntityMap:' | sed -E 's|.*entityMaps/||')
+corCurl --url "/ngsi-ld/v1/entityMaps/$mapId" | tr -d '\r' | sed -n '/^{/,$p' | python3 -c '
+import sys, json, datetime
+exp = datetime.datetime.fromisoformat(json.load(sys.stdin)["expiresAt"].replace("Z", "+00:00"))
+print("the map expires in %d minutes" % round((exp - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 60))'
+echo
+echo
+
+
+--EXPECT--
+01. urn:V1, three speeds: 10 @ 09:00, 20 @ 10:00, 30 @ 11:00
+=============================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:V1
+Content-Length: 0
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+HTTP/1.1 204 No Content
+Date: REGEX(.*)
+
+
+
+
+02. temporalQ firstN 2 - 10 and 20
+==================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entityOperations/query?options=temporalValues&offsetN=2>;rel="intervalafter";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 263
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          20,
+          "2026-04-28T10:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+03. temporalQ firstN 1, offsetN 1 - 20
+======================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: </ngsi-ld/v1/temporal/entityOperations/query?options=temporalValues&offsetN=0>;rel="intervalbefore";type="application/json", </ngsi-ld/v1/temporal/entityOperations/query?options=temporalValues&offsetN=2>;rel="intervalafter";type="application/json"
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 195
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          20,
+          "2026-04-28T10:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+
+
+
+04. createEntityMap true, entityMapLifetime PT1H - 201, the map in NGSILD-EntityMap, an hour
+===================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Content-Type: application/json
+NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/urn:ngsi-ld:EntityMap:MAPID
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 331
+
+[
+  {
+    "id": "urn:V1",
+    "speed": {
+      "type": "Property",
+      "values": [
+        [
+          10,
+          "2026-04-28T09:00:00Z"
+        ],
+        [
+          20,
+          "2026-04-28T10:00:00Z"
+        ],
+        [
+          30,
+          "2026-04-28T11:00:00Z"
+        ]
+      ]
+    },
+    "type": "Vehicle"
+  }
+]
+the map expires in 60 minutes
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop

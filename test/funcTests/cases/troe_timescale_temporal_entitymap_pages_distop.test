@@ -57,7 +57,7 @@ echo
 echo
 
 
-echo "03. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 on CB - page 1: V1 (CB's and CP1's instances), V2"
+echo "03. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 on CB - page 1 (201): V1 (CB's and CP1's instances), V2"
 echo "================================================================================================================================"
 out=$(corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T08:00:00Z&entityMap=true&limit=2&options=temporalValues')
 echo "$out"
@@ -96,9 +96,9 @@ Content-Length: 0
 done
 
 
-03. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 on CB - page 1: V1 (CB's and CP1's instances), V2
+03. GET /temporal/entities?type=Vehicle, after 08:00, entityMap=true, limit=2 on CB - page 1 (201): V1 (CB's and CP1's instances), V2
 ================================================================================================================================
-HTTP/1.1 200 OK
+HTTP/1.1 201 Created
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-EntityMap: /ngsi-ld/v1/entityMaps/REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)
