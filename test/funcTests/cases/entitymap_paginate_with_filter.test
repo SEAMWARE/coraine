@@ -49,7 +49,7 @@ echo
 
 echo "04. Create EntityMap with type=Vehicle & q=speed>15 — map binds those, page = V2,V3"
 echo "==================================================================================="
-MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&q=speed%3E15&entityMap=true&orderBy=id&local=true' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 if [ -n "$MAP_ID" ]; then echo "Map captured (id present): yes"; else echo "Map captured (id present): no"; fi
 echo
 echo

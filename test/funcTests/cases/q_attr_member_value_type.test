@@ -58,7 +58,7 @@ for q in 'name.valueType' \
          'name.valueType==%22Number%22,%22String%22'
 do
   echo "q=$q"
-  corCurl --url "/ngsi-ld/v1/entities?type=T&orderBy=id&q=$q" | grep -E '^HTTP|"id"'
+  corCurl --url "/ngsi-ld/v1/entities?type=T&orderBy=id&local=true&q=$q" | grep -E '^HTTP|"id"'
 done
 echo
 echo

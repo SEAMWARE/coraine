@@ -43,28 +43,28 @@ echo
 
 echo "02. q=description[*]==\"pain\" — any language: L1 (en), L2 (de array), L4 (en array)"
 echo "==================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&attrs=description&options=keyValues&orderBy=id&local=true'
 echo
 echo
 
 
 echo "03. q=description[*]~=pain — pattern in any language: L1, L2, L4"
 echo "==============================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pain&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pain&attrs=description&options=keyValues&orderBy=id&local=true'
 echo
 echo
 
 
 echo "04. q=description[*]!=\"pain\" — NO language equals pain: L3 only"
 echo "==============================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&attrs=description&options=keyValues&orderBy=id&local=true'
 echo
 echo
 
 
 echo "05. q=description[en]==\"pain\" — specific language (control): L1 + L4 (en array element)"
 echo "========================================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5Ben%5D==%22pain%22&langProperties=description&attrs=description&options=keyValues&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5Ben%5D==%22pain%22&langProperties=description&attrs=description&options=keyValues&orderBy=id&local=true'
 echo
 echo
 

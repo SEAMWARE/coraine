@@ -514,6 +514,7 @@ the ones most deployments set.
 | `--entityMapMemory` | 64 | memory all EntityMaps may hold together, MiB (0 = no cap, and no automatic EntityMaps) - see [EntityMaps](#entitymaps) |
 | `--distributed` / `-dist` | off | forward operations to registered Context Sources |
 | `--noSplitEntities` | off | each entity lives wholly at one source |
+| `--orderDistributed` / `-od` | off | accept `orderBy` without `local=true` and order the merged local and Context Source matches - see [Ordering and the local scope](#ordering-and-the-local-scope) |
 | `--httpEndpoint` / `-he` | auto | externally reachable base URL |
 | `--csourceAlias` | endpoint authority | alias used in `Via` loop detection |
 | `--defaultUserContext` / `-duc` | — | default user `@context`: a URL, or a file (a path, or `file://`) - read at start and hosted as `/ngsi-ld/v1/jsonldContexts/defaultUserContext`, its URL then the default (the DDS mapping tool's `dds-context.jsonld`, as Orion-LD's `-duc` takes it). A URL that cannot be retrieved fails a request read with it - a create, a query, a retrieval, with no `@context` of its own - 504 LdContextNotAvailable, as a `Link` header's |
@@ -1320,6 +1321,40 @@ The answers that were read are then counted entity by entity, as rendered:
 | one entity's history, `GET /temporal/entities/{id}`, with Context Sources | the instance arrays of every attribute - local and each source's - cut at the same depth (the K instances of each that fit together); `rel="intervalafter"` at `offsetN` + K |
 
 In the build by default; `-DCOR_FEATURE_RESPONSE_BUDGET=OFF` leaves it out (no option, no budget).
+
+## Ordering and the local scope
+
+`orderBy` orders the entities of a query (TS 104-175 § 7.6.2). The spec allows it only on a query limited
+to the local scope (§ 10.4.3.4 Query Entities, § 11.3.3.4 Query Temporal Evolution of Entities, scope
+§ 8.6): with `local=true`. By default coraine follows it; `--orderDistributed` (env
+`CORAINE_ORDERDISTRIBUTED=true`) also orders a query that reaches Context Sources.
+
+| `orderBy` | `local=true` | `--orderDistributed` | Answer |
+|---|---|---|---|
+| absent | either | either | not affected |
+| present | yes | either | 200, ordered |
+| present | no | off (the default) | 400 BadRequestData, title "Ordering outside the local scope" |
+| present | no | on | 200: with `--distributed` the local matches and the sources' merged, then ordered; without it, the local ones |
+| present, on a Snapshot (`NGSILD-Snapshot`) | either | either | 200, ordered: a Snapshot read forwards nothing |
+
+It applies to `GET /ngsi-ld/v1/entities`, `POST /ngsi-ld/v1/entityOperations/query`,
+`GET /ngsi-ld/v1/temporal/entities` and `POST /ngsi-ld/v1/temporal/entityOperations/query`, where
+`orderBy` and `local` are URL parameters. An ordered distributed query needs every match at once before
+the first page is cut - see [Distributed queries](#distributed-queries) for the response budget.
+
+    # shell
+    coraine --database corDB --distributed --orderDistributed
+
+    # Docker
+    docker run -e CORAINE_ORDERDISTRIBUTED=true ... seamware/coraine:<version> --distributed
+
+    # systemd (a drop-in)
+    [Service]
+    Environment=CORAINE_ORDERDISTRIBUTED=true
+
+    curl 'localhost:1026/ngsi-ld/v1/entities?type=Room&orderBy=temperature'
+    # default:             400 BadRequestData, "'orderBy' needs 'local=true' (§ 10.4.3.4, § 11.3.3.4) - or a broker started with --orderDistributed"
+    # --orderDistributed:  200
 
 ## Pagination
 

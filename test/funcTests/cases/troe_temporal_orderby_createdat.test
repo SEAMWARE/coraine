@@ -61,7 +61,7 @@ echo
 
 echo "02. orderBy=createdAt - creation order B2, B1, B3 (NOT id order)"
 echo "================================================================"
-corCurl --url '/ngsi-ld/v1/temporal/entities?type=Building&orderBy=createdAt&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=createdAt' --out raw | grep -oE '"id": "urn:B[0-9]"'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Building&orderBy=createdAt&local=true&timerel=after&timeAt=1970-01-01T00:00:00Z&timeproperty=createdAt' --out raw | grep -oE '"id": "urn:B[0-9]"'
 echo
 echo
 

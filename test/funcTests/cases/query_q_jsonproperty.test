@@ -48,7 +48,7 @@ echo "03. jsonKeys=jp: jp[id]==\"some-id\": J1 - jp[type]==\"some-type\": J1, J2
 echo "======================================================================================================"
 for q in 'jp%5Bid%5D==%22some-id%22' 'jp%5Btype%5D==%22some-type%22' 'jp%5Bid%5D==%22wrong-id%22'; do
   echo "$q:"
-  corCurl --url /ngsi-ld/v1/entities --urlParams "type=T&orderBy=id&jsonKeys=jp&q=$q" | grep '"id": "urn'
+  corCurl --url /ngsi-ld/v1/entities --urlParams "type=T&orderBy=id&local=true&jsonKeys=jp&q=$q" | grep '"id": "urn'
 done
 echo
 echo
@@ -56,7 +56,7 @@ echo
 
 echo "04. jsonKeys=jp: jp[id]!=\"wrong-id\": J1, J2 - jp[other]==\"x\" and jp[deep.k]==\"v\": J1"
 echo "=========================================================================================="
-corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&orderBy=id&jsonKeys=jp&q=jp%5Bid%5D!=%22wrong-id%22' | grep '"id": "urn'
+corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&orderBy=id&local=true&jsonKeys=jp&q=jp%5Bid%5D!=%22wrong-id%22' | grep '"id": "urn'
 corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&jsonKeys=jp&q=jp%5Bother%5D==%22x%22' | grep '"id": "urn'
 corCurl --url /ngsi-ld/v1/entities --urlParams 'type=T&jsonKeys=jp&q=jp%5Bdeep.k%5D==%22v%22' | grep '"id": "urn'
 echo

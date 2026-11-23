@@ -245,6 +245,7 @@ char*          httpEndpoint = NULL;
 char*          contextSourceExtras = NULL;  // path to a JSON file (§ 5.2.40)
 char*          traceLevels  = NULL;
 bool           noSplitEntities = false;
+bool           orderDistributed = false;
 bool           distributed     = false;     // --distributed: opt-in distributed operations (like TRoE)
 bool           highPrecision   = false;     // --high-precision/-hp: 9-digit (ns) timestamps vs default 6 (µs, §5.2.2.4)
 bool           asyncSnapshot   = false;
@@ -317,6 +318,7 @@ static CorArg kargV[] =
   { "--contextSourceExtras","-csx",         CorArgString, _vp &contextSourceExtras, CorArgOpt, _vp NULL, NULL, NULL,  "a JSON file rendered verbatim as contextSourceExtras on /info/sourceIdentity (§ 5.2.40); default $SEAMWARE_ETC_DIR/contextSourceExtras.json - missing, nothing is rendered" },
   { "--distributed",        "-dist",        CorArgBool,   _vp &distributed, CorArgOpt, _vp false, _vp false, _vp true, "enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way" },
   { "--noSplitEntities",    "-noSplitEntities",CorArgBool, _vp &noSplitEntities,CorArgOpt, _vp false, _vp false, _vp true, "disable split entities — each entity fully at one source" },
+  { "--orderDistributed",   "-od",          CorArgBool,   _vp &orderDistributed, CorArgOpt, _vp false, _vp false, _vp true, "accept orderBy on a query without local=true, and order the merged results of the Context Sources; default: such a query is 400 BadRequestData (TS 104-175 § 10.4.3.4, § 11.3.3.4)" },
   { "--high-precision",     "-hp",          CorArgBool,   _vp &highPrecision, CorArgOpt, _vp false, _vp false, _vp true, "render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs)" },
   { "--asyncSnapshot",      "-asyncSnapshot",  CorArgBool, _vp &asyncSnapshot, CorArgOpt, _vp false, _vp false, _vp true, "run a Snapshot's queries on a thread of their own: the POST's 201 comes at once and the Snapshot reads snapshotStatus 'preparing' until they are done; default: the 201 comes once they are" },
   { "--maxRequestSize",     "-mrs",            CorArgInt,  _vp &maxRequestSize, CorArgOpt, _vp 2,    _vp 0,    _vp 4096,  "max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)" },
@@ -1918,6 +1920,7 @@ int main(int argC, char* argV[])
 
   ldNotifyValueChangeOnly = notifyValueChangeOnly;
   ldSplitEntities       = !noSplitEntities;  // default: true (split entities is standard NGSI-LD behavior)
+  ldOrderDistributed    = orderDistributed;  // default: false - orderBy needs local=true (§ 10.4.3.4, § 11.3.3.4)
   ldDistributed         = distributed;      // default: false — every entity operation stays local until asked otherwise
   ldTimestampHighPrecision = highPrecision;  // default false → 6 fractional digits (§5.2.2.4); -hp → 9
   ldBrokerStartTimeSec  = (long long) time(NULL);

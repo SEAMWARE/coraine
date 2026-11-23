@@ -41,14 +41,14 @@ echo
 
 echo "02. orderBy=speed;desc — 30,20,10 then the two missing LAST"
 echo "==========================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed;desc&local=true&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=speed (asc control) — 10,20,30 then the two missing LAST"
 echo "==================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=speed&local=true&options=keyValues'
 echo
 echo
 

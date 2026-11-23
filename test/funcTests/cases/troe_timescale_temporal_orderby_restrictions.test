@@ -26,14 +26,14 @@ coraineStart --troe timescale
 
 echo "01. orderBy=id (no local flag) -> 200"
 echo "====================================="
-corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=id&local=true'
 echo
 echo
 
 
 echo "02. orderBy=speed (attribute name) -> 200"
 echo "========================================="
-corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=speed'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=speed&local=true'
 echo
 echo
 
@@ -47,7 +47,7 @@ echo
 
 echo "04. orderBy=name.createdAt (sub-property) -> 200"
 echo "================================================"
-corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=name.createdAt'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-01-01T00:00:00Z&orderBy=name.createdAt&local=true'
 echo
 echo
 

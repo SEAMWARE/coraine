@@ -40,7 +40,7 @@ echo
 
 echo "02. georel=within default location — E1,E2 match; E3 (no location) non-matching"
 echo "==============================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7,39%5D,%5B10,39%5D,%5B10,42%5D,%5B7,42%5D,%5B7,39%5D%5D%5D&orderBy=id&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7,39%5D,%5B10,39%5D,%5B10,42%5D,%5B7,42%5D,%5B7,39%5D%5D%5D&orderBy=id&local=true&options=keyValues'
 echo
 echo
 
@@ -62,7 +62,7 @@ echo
 
 echo "05. georel=within&geoproperty=opArea — only E4 has opArea; E1/E2/E5 non-matching"
 echo "================================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7,39%5D,%5B10,39%5D,%5B10,42%5D,%5B7,42%5D,%5B7,39%5D%5D%5D&geoproperty=opArea&orderBy=id&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7,39%5D,%5B10,39%5D,%5B10,42%5D,%5B7,42%5D,%5B7,39%5D%5D%5D&geoproperty=opArea&orderBy=id&local=true&options=keyValues'
 echo
 echo
 

@@ -64,21 +64,21 @@ echo
 
 echo "02. orderBy=name — root collation: _under, 1one, apple, Apple, äpple, banana, zebra"
 echo "==================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&options=keyValues'
 echo
 echo
 
 
 echo "03. collation=sv — Swedish sorts ä after z, so äpple goes last"
 echo "=============================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&collation=sv&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=sv&options=keyValues'
 echo
 echo
 
 
 echo "04. collation=xx-nonsense — an unknown tag is no error, it falls back to root"
 echo "============================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&collation=xx-nonsense&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&collation=xx-nonsense&options=keyValues'
 echo
 echo
 

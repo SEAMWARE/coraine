@@ -73,7 +73,7 @@ echo
 
 echo "04. GET type=Blob&orderBy=name&limit=3 - ordered over all seven"
 echo "==============================================================="
-page '/ngsi-ld/v1/entities?type=Blob&orderBy=name&limit=3'
+page '/ngsi-ld/v1/entities?type=Blob&orderBy=name&local=true&limit=3'
 \rm -f /tmp/budgetPage.out
 echo
 echo
@@ -108,7 +108,7 @@ ids: urn:Huge:1
 04. GET type=Blob&orderBy=name&limit=3 - ordered over all seven
 ===============================================================
 HTTP/1.1 200 OK
-Link: </ngsi-ld/v1/entities?type=Blob&orderBy=name&limit=3&offset=3>;rel="next";type="application/json"
+Link: </ngsi-ld/v1/entities?type=Blob&orderBy=name&local=true&limit=3&offset=3>;rel="next";type="application/json"
 ids: urn:B:7 urn:B:6 urn:B:5
 
 

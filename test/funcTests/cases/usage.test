@@ -115,6 +115,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--contextSourceExtras/-csx <a JSON file rendered verbatim as contextSourceExtras on /info/sourceIdentity (§ 5.2.40); default $SEAMWARE_ETC_DIR/contextSourceExtras.json - missing, nothing is rendered>]
                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                [--orderDistributed/-od (accept orderBy on a query without local=true, and order the merged results of the Context Sources; default: such a query is 400 BadRequestData (TS 104-175 § 10.4.3.4, § 11.3.3.4))]
                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                 [--asyncSnapshot/-asyncSnapshot (run a Snapshot's queries on a thread of their own: the POST's 201 comes at once and the Snapshot reads snapshotStatus 'preparing' until they are done; default: the 201 comes once they are)]
                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
@@ -187,6 +188,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--contextSourceExtras/-csx <a JSON file rendered verbatim as contextSourceExtras on /info/sourceIdentity (§ 5.2.40); default $SEAMWARE_ETC_DIR/contextSourceExtras.json - missing, nothing is rendered>]
                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                [--orderDistributed/-od (accept orderBy on a query without local=true, and order the merged results of the Context Sources; default: such a query is 400 BadRequestData (TS 104-175 § 10.4.3.4, § 11.3.3.4))]
                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                 [--asyncSnapshot/-asyncSnapshot (run a Snapshot's queries on a thread of their own: the POST's 201 comes at once and the Snapshot reads snapshotStatus 'preparing' until they are done; default: the 201 comes once they are)]
                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
@@ -262,6 +264,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--contextSourceExtras/-csx <a JSON file rendered verbatim as contextSourceExtras on /info/sourceIdentity (§ 5.2.40); default $SEAMWARE_ETC_DIR/contextSourceExtras.json - missing, nothing is rendered>]
                 [--distributed/-dist (enable distributed operations (forward to registered Context Sources); off by default — the Registry API works either way)]
                 [--noSplitEntities/-noSplitEntities (disable split entities — each entity fully at one source)]
+                [--orderDistributed/-od (accept orderBy on a query without local=true, and order the merged results of the Context Sources; default: such a query is 400 BadRequestData (TS 104-175 § 10.4.3.4, § 11.3.3.4))]
                 [--high-precision/-hp (render DateTime values (createdAt/modifiedAt/observedAt/expiresAt) at full nanosecond precision (9 digits); default is 6 (§5.2.2.4 µs))]
                 [--asyncSnapshot/-asyncSnapshot (run a Snapshot's queries on a thread of their own: the POST's 201 comes at once and the Snapshot reads snapshotStatus 'preparing' until they are done; default: the 201 comes once they are)]
                 [--maxRequestSize/-mrs <max request body size in MiB (0 = no cap; § 6.3.2 413 threshold)>]
@@ -325,6 +328,7 @@ Usage: coraine  [--usage/-u (usage)]
   --contextSourceExtras   (-csx)                CORAINE_CONTEXTSOURCEEXTRAS   Optional   String   -
   --distributed           (-dist)               CORAINE_DISTRIBUTED           Optional   Bool     false
   --noSplitEntities       (-noSplitEntities)    CORAINE_NOSPLITENTITIES       Optional   Bool     false
+  --orderDistributed      (-od)                 CORAINE_ORDERDISTRIBUTED      Optional   Bool     false
   --high-precision        (-hp)                 CORAINE_HIGH_PRECISION        Optional   Bool     false
   --asyncSnapshot         (-asyncSnapshot)      CORAINE_ASYNCSNAPSHOT         Optional   Bool     false
   --maxRequestSize        (-mrs)                CORAINE_MAXREQUESTSIZE        Optional   Int      2

@@ -151,7 +151,7 @@ echo
 
 echo "09. orderBy=speed - ordering by value is a Snapshot's job: no map, the links as without maps"
 echo "============================================================================================="
-page '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&limit=3&options=keyValues'
+page '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&local=true&limit=3&options=keyValues'
 echo
 echo
 
@@ -242,7 +242,7 @@ ids: urn:V7 urn:V8
 =============================================================================================
 HTTP/1.1 200 OK
 NGSILD-EntityMap: (none)
-  rel=next  /ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&options=keyValues&limit=3&offset=3
+  rel=next  /ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&local=true&options=keyValues&limit=3&offset=3
 ids: urn:V5 urn:V1 urn:V2
 
 
