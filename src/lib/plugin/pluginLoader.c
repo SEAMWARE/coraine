@@ -223,6 +223,12 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
   //
   if (strcmp(shortName, "corDB") == 0)
   {
+#if COR_FEATURE_TROE_CORDB == 0
+    if (errorBuf != NULL)
+      snprintf(errorBuf, errorBufSize, "TRoE 'corDB': this broker was built without corDB's history (COR_FEATURE_TROE_CORDB)");
+    return -1;
+#endif
+
     if ((db.alias == NULL) || (strcmp(db.alias, "corDB") != 0))
     {
       if (errorBuf != NULL)
@@ -269,9 +275,18 @@ static int nameCompare(const void* a, const void* b)
   return strcmp(*(const char* const*) a, *(const char* const*) b);
 }
 
+//
+// The TRoE plugins installed (troe/temporal/*.so: none, timescale - built when COR_FEATURE_TROE_TIMESCALE), and
+// corDB - its history is corDB.so's own: offered when this broker was built with it (COR_FEATURE_TROE_CORDB) and
+// corDB.so is there
+//
 void pluginTroeArgUpdate(void)
 {
   corPluginArgUpdate("--troe", "troe/temporal");
+
+#if COR_FEATURE_TROE_CORDB == 0
+  return;
+#endif
 
   char path[512];
   corPluginResolve(corPluginBaseDir(), "db", "currentState", "corDB", path, sizeof(path));

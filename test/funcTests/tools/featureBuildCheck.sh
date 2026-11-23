@@ -68,6 +68,8 @@ CONFIGS=(
   "DB_INDEXES=OFF|-DCOR_FEATURE_DB_INDEXES=OFF"
   "PROBES=OFF|-DCOR_FEATURE_PROBES=OFF"
   "LOG_LINES=OFF|-DCOR_FEATURE_LOG_LINES=OFF"
+  "TROE_CORDB=OFF|-DCOR_FEATURE_TROE_CORDB=OFF"
+  "TROE_TIMESCALE=OFF|-DCOR_FEATURE_TROE_TIMESCALE=OFF"
 )
 
 rc=0
@@ -103,7 +105,7 @@ for cfg in "${CONFIGS[@]}"; do
   # GEOQ is corDB's COR_WITH_GEOQ, as the broker's makefile passes it. CORAINE: this tree's shared sources
   # (geoMatch.c, dbPluginAbi.c) - by default corDB compiles ../coraine's, another checkout's
   #
-  dbFlags=$(echo "$flags" | tr ' ' '\n' | sed -n 's/^-D\(COR_FEATURE_[A-Z_]*\)=OFF$/\1=0/p' | sed 's/^COR_FEATURE_GEOQ=0$/COR_WITH_GEOQ=0/' | tr '\n' ' ')
+  dbFlags=$(echo "$flags" | tr ' ' '\n' | sed -n 's/^-D\(COR_FEATURE_[A-Z_]*\)=OFF$/\1=0/p' | sed -e 's/^COR_FEATURE_GEOQ=0$/COR_WITH_GEOQ=0/' -e 's/^COR_FEATURE_TROE_CORDB=0$/COR_WITH_TROE_CORDB=0/' | tr '\n' ' ')
   if ! make -C "$SRC/../corDB" OBJDIR="$d.corDB" CORAINE="$SRC" $dbFlags > "$d.corDB.log" 2>&1; then
     echo "$label: corDB build FAILED"
     grep -E "error:|undefined reference" "$d.corDB.log" | head -5
@@ -115,6 +117,7 @@ for cfg in "${CONFIGS[@]}"; do
   mkdir -p "$P/db/currentState" "$P/troe/temporal" "$P/api"
   cp -p "$d.corDB/corDB.so"                          "$P/db/currentState/" 2>/dev/null
   cp -p "$d/src/plugins/temporal/none/none.so"       "$P/troe/temporal/"   2>/dev/null
+  cp -p "$d/src/plugins/temporal/timescale/timescale.so" "$P/troe/temporal/" 2>/dev/null   # not built: TROE_TIMESCALE=OFF
 
   SEAMWARE_PLUGIN_DIR="$P" "$d/src/app/coraine/coraine" \
       --port "$PORT" --database corDB --troe none > "$d.run.log" 2>&1 &
@@ -149,7 +152,23 @@ for cfg in "${CONFIGS[@]}"; do
   kill "$pid" 2>/dev/null
   wait "$pid" 2>/dev/null
 
-  echo "$label: build ok, start ok, REGISTRATIONS=$regs SUBSCRIPTIONS=$subs"
+  #
+  # The TRoE switches: what the broker offers as --troe (its usage, from the plugins there and its own build) -
+  # and --troe corDB refused by a broker built without it, whatever corDB.so is there
+  #
+  troe=""
+  case "$label" in
+    TROE_*)
+      troe=" troe=$(SEAMWARE_PLUGIN_DIR="$P" "$d/src/app/coraine/coraine" -u 2>&1 | sed -n 's/.*\[--troe\/-troe <\([^>]*\)>\].*/\1/p')"
+      if [ "$label" = TROE_CORDB=OFF ]; then
+        make -C "$SRC/../corDB" OBJDIR="$d.corDB.full" CORAINE="$SRC" > "$d.corDB.full.log" 2>&1   # a corDB.so WITH history
+        cp -p "$d.corDB.full/corDB.so" "$P/db/currentState/" 2>/dev/null
+        refused=$(SEAMWARE_PLUGIN_DIR="$P" timeout 10 "$d/src/app/coraine/coraine" --port "$PORT" --database corDB --troe corDB 2>&1 | grep -c "built without corDB's history")
+        troe="$troe corDB-refused=$refused"
+      fi ;;
+  esac
+
+  echo "$label: build ok, start ok, REGISTRATIONS=$regs SUBSCRIPTIONS=$subs$troe"
 done
 
 exit $rc

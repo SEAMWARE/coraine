@@ -80,6 +80,8 @@ option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, 
 
 # Group: Stores and tools - the plugins and programs built beside the broker
 option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
+option(COR_FEATURE_TROE_CORDB      "corDB's own temporal history (--troe corDB, with --database corDB): corDB.so with its TRoE part - off, corDB keeps no history and --troe corDB is not offered" ON)
+option(COR_FEATURE_TROE_TIMESCALE  "Build the timescale TRoE plugin: the temporal history in PostgreSQL/TimescaleDB (--troe timescale; libpq) - off, --troe timescale is not offered" ON)
 option(COR_FEATURE_Q_PREFILTER     "Enable the q pre-filter of the mongoc plugin: a value term is served by an index on <attr>.@none.value, the entities with a datasetId instance marked (@dsAttrs, storage format 2)" ON)
 option(COR_FEATURE_DB_INDEXES     "Enable declared indexes: the attributes whose q an index of the store serves - the store plugin's --dbValueIndexes (mongoc, corDB) and the admin API's /admin/indexes; timescale's --troeValueIndexes and /admin/troeIndexes" ON)
 option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream (from another broker's database) written into the stores (doc/migration.md)" ON)
@@ -94,7 +96,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC TROE_CORDB TROE_TIMESCALE ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -416,7 +418,9 @@ if (COR_FEATURE_REGISTRATIONS)
   ADD_SUBDIRECTORY(src/lib/forwarding)
 endif()
 ADD_SUBDIRECTORY(src/plugins/temporal/none)
-ADD_SUBDIRECTORY(src/plugins/temporal/timescale)
+if (COR_FEATURE_TROE_TIMESCALE)
+  ADD_SUBDIRECTORY(src/plugins/temporal/timescale)
+endif()
 
 if (COR_FEATURE_MONGOC)
   ADD_SUBDIRECTORY(src/plugins/currentState/mongoc)
