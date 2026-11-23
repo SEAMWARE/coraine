@@ -65,7 +65,7 @@ echo
 
 echo "06. Ordering by distance (orderBy=location;dist-asc, orderFrom - § 7.6.2.2) - 501"
 echo "=================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Bus&orderBy=location;dist-asc&orderFrom=%5B-71.05,42.35%5D'
+corCurl --url '/ngsi-ld/v1/entities?type=Bus&orderBy=location;dist-asc&local=true&orderFrom=%5B-71.05,42.35%5D'
 echo
 echo
 

@@ -163,7 +163,7 @@ echo
 echo "12. 400: with offset, with orderBy, both together, not a position"
 echo "================================================================="
 corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&offset=2' | grep -E '^HTTP|"detail"'
-corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&orderBy=speed' | grep -E '^HTTP|"detail"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&orderBy=speed&local=true' | grep -E '^HTTP|"detail"'
 corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=1,urn:E01&pageBefore=1,urn:E01' | grep -E '^HTTP|"detail"'
 corCurl --url '/ngsi-ld/v1/entities?type=T&pageAfter=urn:E01' | grep -E '^HTTP|"detail"'
 echo

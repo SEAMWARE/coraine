@@ -39,14 +39,14 @@ echo
 
 echo "02. POST query entities:[{type:Vehicle}] → V1+V2"
 echo "================================================"
-corCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}]}'
+corCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id&local=true" --payload '{"type":"Query","entities":[{"type":"Vehicle"}]}'
 echo
 echo
 
 
 echo "03. POST query q=speed>15 → V2"
 echo "=============================="
-corCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id" --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>15"}'
+corCurl --url "/ngsi-ld/v1/entityOperations/query?orderBy=id&local=true" --payload '{"type":"Query","entities":[{"type":"Vehicle"}],"q":"speed>15"}'
 echo
 echo
 

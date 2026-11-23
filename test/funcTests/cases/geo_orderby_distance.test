@@ -53,84 +53,84 @@ echo
 
 echo "02. orderBy=location;dist-asc — nearest first: A, C, B, then D (no location) last"
 echo "================================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=%5B8,40%5D&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=location;dist-desc — farthest first: B, C, A, then D last"
 echo "===================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-desc&orderFrom=%5B8,40%5D&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-desc&local=true&orderFrom=%5B8,40%5D&options=keyValues'
 echo
 echo
 
 
 echo "04. dist-asc limit=2 — the two nearest: A, C"
 echo "============================================"
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&limit=2&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=%5B8,40%5D&limit=2&options=keyValues'
 echo
 echo
 
 
 echo "05. dist-asc offset=2 limit=5 — pages into the non-geo tail: B, D"
 echo "================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&offset=2&limit=5&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=%5B8,40%5D&offset=2&limit=5&options=keyValues'
 echo
 echo
 
 
 echo "06. dist-asc without orderFrom — 400 BadRequestData"
 echo "==================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true'
 echo
 echo
 
 
 echo "07. orderGeometry=LineString near B - B (on it), C, A, then D"
 echo "=============================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B9,40.9%5D,%5B9,41.1%5D%5D&orderGeometry=LineString&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=%5B%5B9,40.9%5D,%5B9,41.1%5D%5D&orderGeometry=LineString&options=keyValues'
 echo
 echo
 
 
 echo "08. orderGeometry=Polygon around A - A (inside, 0 m), C, B, then D"
 echo "=================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B%5B8.0,39.9%5D,%5B8.07,39.9%5D,%5B8.07,40.1%5D,%5B8.0,40.1%5D,%5B8.0,39.9%5D%5D%5D&orderGeometry=Polygon&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=%5B%5B%5B8.0,39.9%5D,%5B8.07,39.9%5D,%5B8.07,40.1%5D,%5B8.0,40.1%5D,%5B8.0,39.9%5D%5D%5D&orderGeometry=Polygon&options=keyValues'
 echo
 echo
 
 
 echo "09. dist-desc beside georel=within (A and C inside) - C, A: the georel filters, the order orders"
 echo "==============================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7.9,39.9%5D,%5B8.2,39.9%5D,%5B8.2,40.1%5D,%5B7.9,40.1%5D,%5B7.9,39.9%5D%5D%5D&orderBy=location;dist-desc&orderFrom=%5B8,40%5D&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7.9,39.9%5D,%5B8.2,39.9%5D,%5B8.2,40.1%5D,%5B7.9,40.1%5D,%5B7.9,39.9%5D%5D%5D&orderBy=location;dist-desc&local=true&orderFrom=%5B8,40%5D&options=keyValues'
 echo
 echo
 
 
 echo "10. dist-asc from [8,40] beside georel=near [9,41] - A, C, B: the distances are from orderFrom, not from the georel's point"
 echo "========================================================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&georel=near;maxDistance==200000&geometry=Point&coordinates=%5B9,41%5D&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=P&georel=near;maxDistance==200000&geometry=Point&coordinates=%5B9,41%5D&orderBy=location;dist-asc&local=true&orderFrom=%5B8,40%5D&options=keyValues'
 echo
 echo
 
 
 echo "11. orderFrom=[8,invalid] - 400 BadRequestData (not JSON)"
 echo "========================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,invalid%5D'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=%5B8,invalid%5D'
 echo
 echo
 
 
 echo "12. orderGeometry=Point, orderFrom=[8] - 400 BadRequestData (a position has two or three numbers)"
 echo "================================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderGeometry=Point&orderFrom=%5B8%5D'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderGeometry=Point&orderFrom=%5B8%5D'
 echo
 echo
 
 
 echo "13. orderGeometry=LineString, orderFrom=[8,40] - 400 BadRequestData (a position, not a LineString's)"
 echo "===================================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderGeometry=LineString&orderFrom=%5B8,40%5D'
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderGeometry=LineString&orderFrom=%5B8,40%5D'
 echo
 echo
 
@@ -257,7 +257,7 @@ Content-Length: 647
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=[8,40]&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: </ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=[8,40]&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 384
 
@@ -295,7 +295,7 @@ Content-Length: 384
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=[8,40]&options=keyValues&limit=5&offset=0>;rel="prev";type="application/json"
+Link: </ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&local=true&orderFrom=[8,40]&options=keyValues&limit=5&offset=0>;rel="prev";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 266
 

@@ -41,35 +41,35 @@ echo
 
 echo "02. q=description[*]==\"pain\" - L1, not P1"
 echo "=========================================="
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&pick=id&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D==%22pain%22&pick=id&orderBy=id&local=true'
 echo
 echo
 
 
 echo "03. q=description[*]!=\"pain\" - L2, not P2"
 echo "=========================================="
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&pick=id&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D!=%22pain%22&pick=id&orderBy=id&local=true'
 echo
 echo
 
 
 echo "04. q=description[*]~=pai - L1, not P1"
 echo "======================================"
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pai&pick=id&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D~=pai&pick=id&orderBy=id&local=true'
 echo
 echo
 
 
 echo "05. q=description[*] - exists: L1 and L2"
 echo "========================================"
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D&pick=id&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=description%5B*%5D&pick=id&orderBy=id&local=true'
 echo
 echo
 
 
 echo "06. q=!description[*] - not exists: N1, P1 and P2"
 echo "================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=D&q=!description%5B*%5D&pick=id&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=D&q=!description%5B*%5D&pick=id&orderBy=id&local=true'
 echo
 echo
 

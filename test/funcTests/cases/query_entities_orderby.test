@@ -41,21 +41,21 @@ echo
 
 echo "02. orderBy=speed → ascending"
 echo "============================="
-corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed&local=true&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=speed;desc → descending"
 echo "===================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=speed;desc&local=true&options=keyValues'
 echo
 echo
 
 
 echo "04. orderBy=name,speed → name asc, then speed asc for ties"
 echo "==========================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name,speed&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name,speed&local=true&options=keyValues'
 echo
 echo
 
@@ -66,7 +66,7 @@ echo "================================================="
 corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:V5","type":"Vehicle","speed":{"type":"Property","value":999}}'
 echo
 echo
-corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&orderBy=name&local=true&options=keyValues'
 echo
 echo
 

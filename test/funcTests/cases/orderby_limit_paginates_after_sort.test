@@ -46,21 +46,21 @@ echo
 
 echo "02. orderBy=name&limit=2 - the first two BY NAME"
 echo "==============================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&limit=2&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=name&limit=2&offset=2 - the second page BY NAME"
 echo "=========================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&offset=2&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&limit=2&offset=2&options=keyValues'
 echo
 echo
 
 
 echo "04. orderBy=name;desc&limit=2 - the exact reverse"
 echo "================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&limit=2&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&local=true&limit=2&options=keyValues'
 echo
 echo
 
@@ -74,7 +74,7 @@ echo
 
 echo "06. orderBy with count - the count is the whole result set, not the page"
 echo "======================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&count=true&options=keyValues' | grep -i 'NGSILD-Results-Count'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&limit=2&count=true&options=keyValues' | grep -i 'NGSILD-Results-Count'
 echo
 echo
 
@@ -88,14 +88,14 @@ echo
 
 echo "08. offset past the end - the last element, § 6.4.7.2"
 echo "===================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&offset=99&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&limit=2&offset=99&options=keyValues'
 echo
 echo
 
 
 echo "09. EntityMap over an orderBy query - every page, in name order"
 echo "=============================================================="
-MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&entityMap=true' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&limit=2&entityMap=true' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 for off in 0 2 4; do
   echo "    offset=$off:"
   corCurl --url "/ngsi-ld/v1/entities?entityMap=$MAP_ID&limit=2&offset=$off&options=keyValues" | grep -o '"name": "[^"]*"'
@@ -106,7 +106,7 @@ echo
 
 echo "10. FOLLOW the next links - the client behaviour the bug actually broke"
 echo "======================================================================"
-URL='/ngsi-ld/v1/entities?type=T&orderBy=name&limit=2&options=keyValues'
+URL='/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&limit=2&options=keyValues'
 PAGE=1
 while [ -n "$URL" ] && [ $PAGE -le 5 ]; do
   echo "    page $PAGE:"
@@ -136,7 +136,7 @@ HTTP/1.1 201 Created
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name&local=true&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 153
 
@@ -160,7 +160,7 @@ Content-Length: 153
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=0>;rel="prev";type="application/json", </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=4>;rel="next";type="application/json"
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name&local=true&options=keyValues&limit=2&offset=0>;rel="prev";type="application/json", </ngsi-ld/v1/entities?type=T&orderBy=name&local=true&options=keyValues&limit=2&offset=4>;rel="next";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 153
 
@@ -184,7 +184,7 @@ Content-Length: 153
 HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Link: </ngsi-ld/v1/entities?type=T&orderBy=name;desc&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name;desc&local=true&options=keyValues&limit=2&offset=2>;rel="next";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 153
 
@@ -244,7 +244,7 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Warning: 199 coraine "offset 99 is past the result set (6 entities) - the last entity is returned"
-Link: </ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues&limit=2&offset=3>;rel="prev";type="application/json"
+Link: </ngsi-ld/v1/entities?type=T&orderBy=name&local=true&options=keyValues&limit=2&offset=3>;rel="prev";type="application/json"
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: 78
 

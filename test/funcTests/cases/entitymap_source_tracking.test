@@ -23,7 +23,7 @@ entity entitymap query
 corDbDrop
 corDbDrop -role CP1
 corDbDrop -role CP2
-coraineStart --noSplitEntities -dist
+coraineStart -orderDistributed --noSplitEntities -dist
 coraineStart -role CP1 --noSplitEntities -dist
 coraineStart -role CP2 --noSplitEntities -dist
 

@@ -42,14 +42,14 @@ echo
 
 echo "02. orderBy=name — apple, Apple, banana, Banana, cherry (root, not byte order)"
 echo "============================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name&local=true&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=name;desc — the exact reverse"
 echo "========================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=T&orderBy=name;desc&local=true&options=keyValues'
 echo
 echo
 

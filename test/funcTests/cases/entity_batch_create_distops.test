@@ -22,7 +22,7 @@ batch create entity
 --INIT--
 corDbDrop
 corDbDrop -role CP1
-coraineStart --noSplitEntities -dist
+coraineStart -orderDistributed --noSplitEntities -dist
 coraineStart -role CP1 --noSplitEntities -dist
 
 --RUN--
@@ -69,7 +69,7 @@ echo
 
 echo "04. GET CP1?type=Vehicle → all 3 (forwarded in a single batch POST)"
 echo "==================================================================="
-corCurl --port $CP1_PORT --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id"
+corCurl --port $CP1_PORT --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id&local=true"
 echo
 echo
 
@@ -93,7 +93,7 @@ echo
 
 echo "07. GET CP1?type=Vehicle → now includes B1 (4 total)"
 echo "===================================================="
-corCurl --port $CP1_PORT --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id"
+corCurl --port $CP1_PORT --url "/ngsi-ld/v1/entities?type=Vehicle&options=keyValues&orderBy=id&local=true"
 echo
 echo
 

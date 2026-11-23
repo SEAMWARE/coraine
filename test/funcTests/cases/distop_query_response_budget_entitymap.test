@@ -30,7 +30,7 @@ distop distops query pagination link-header registration forwarding entitymap
 --INIT--
 corDbDrop
 corDbDrop -role CP1
-coraineStart -dist --maxResponseSize 1
+coraineStart -orderDistributed -dist --maxResponseSize 1
 coraineStart -role CP1
 
 --RUN--

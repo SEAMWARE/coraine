@@ -34,7 +34,7 @@ options, and its options are also documented with the plugin.
 - [@contexts](#contexts) - 2
 - [Subscriptions and notifications](#subscriptions-and-notifications) - 3
 - [Service Execution](#service-execution) - 2
-- [Distributed operations](#distributed-operations) - 5
+- [Distributed operations](#distributed-operations) - 6
 - [High availability](#high-availability) - 1
 - [Bridges](#bridges) - 5
 - [The database and the history - choosing the plugins](#the-database-and-the-history-choosing-the-plugins) - 5
@@ -870,7 +870,8 @@ check with this.
 
 Forwarding to the Context Sources registered with `POST /ngsi-ld/v1/csourceRegistrations`: whether it
 happens, how long a source is waited for, how the broker names itself to other brokers, how the
-parts of an entity held by several sources are put together, and how such queries are paged. See
+parts of an entity held by several sources are put together, how such queries are paged, and whether they may be
+ordered. See
 [Response size - Distributed queries](installation.md#distributed-queries) and
 [EntityMaps](installation.md#entitymaps).
 
@@ -951,6 +952,25 @@ decides for one request. Needs `--distributed` to have any effect.
     # Room:7 with humidity here and temperature at the source:
     #   default:            [{"id":"urn:ngsi-ld:Room:7", "humidity":..., "temperature":...}]
     #   --noSplitEntities:  [{"id":"urn:ngsi-ld:Room:7", "humidity":...}]
+
+### `--orderDistributed`
+
+`-orderDistributed` · `CORAINE_ORDERDISTRIBUTED` · Bool · default: `false`
+· values: a flag · plugin: core
+
+Accepts `orderBy` on a query that is not limited to the local scope. By default, as TS 104-175 § 10.4.3.4
+and § 11.3.3.4 have it, a query with `orderBy` and without `local=true` is refused with 400
+BadRequestData, title "Ordering outside the local scope". With `--orderDistributed` it is accepted: with
+`--distributed`, the local matches and the Context Sources' are merged and then ordered; without it, the
+query is local anyway. Query Entities (`GET /entities`, `POST /entityOperations/query`) and Query Temporal
+Evolution of Entities (`GET /temporal/entities`, `POST /temporal/entityOperations/query`). A query on a
+Snapshot (`NGSILD-Snapshot`) forwards nothing and is ordered either way. See
+[Ordering and the local scope](installation.md#ordering-and-the-local-scope).
+
+    coraine --database corDB --distributed --orderDistributed
+    curl 'localhost:1026/ngsi-ld/v1/entities?type=Room&orderBy=temperature'
+    #   default:             400 {"title":"Ordering outside the local scope", ...}
+    #   --orderDistributed:  200, the local and the sources' Rooms, by temperature
 
 ### `--autoEntityMaps`
 

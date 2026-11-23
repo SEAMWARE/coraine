@@ -1,0 +1,286 @@
+#
+# FILE            orderby_local_scope.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 10.4.3.4 (Query Entities) and § 11.3.3.4 (Query Temporal Evolution of Entities): "If the
+# ordering parameter is present and the execution of the operation is not limited to the local scope (see
+# clause 8.6) then an error of type BadRequestData shall be raised". By default coraine follows it, on GET and
+# POST alike; --orderDistributed accepts orderBy without local=true (the broker orders the merged results of
+# its Context Sources). A Snapshot read forwards nothing and is ordered either way (snapshot_orderby_q.test).
+#
+--NAME--
+orderBy outside the local scope - 400 by default, accepted with --orderDistributed
+
+--TAGS--
+orderBy query
+
+--INIT--
+corDbDrop
+corDbDrop -role CP1
+coraineStart
+coraineStart -role CP1 -orderDistributed
+
+--RUN--
+
+echo "01. Seed 3 Rooms on each broker: temperature 30, 10, 20"
+echo "======================================================="
+for port in $CB_PORT $CP1_PORT; do
+  for r in 1:30 2:10 3:20; do
+    corCurl --port $port --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:Room:'${r%%:*}'","type":"Room","temperature":{"type":"Property","value":'${r##*:}'}}' | head -1
+  done
+done
+echo
+echo
+
+
+echo "02. GET /entities?type=Room&orderBy=temperature - no local=true: 400"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=Room&orderBy=temperature&options=keyValues'
+echo
+echo
+
+
+echo "03. GET /entities?type=Room&orderBy=temperature&local=true - 200, ordered"
+echo "========================================================================"
+corCurl --url '/ngsi-ld/v1/entities?type=Room&orderBy=temperature&local=true&options=keyValues'
+echo
+echo
+
+
+echo "04. POST /entityOperations/query?orderBy=temperature - no local=true: 400"
+echo "========================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/query?orderBy=temperature&options=keyValues' --payload '{"type":"Query","entities":[{"type":"Room"}]}'
+echo
+echo
+
+
+echo "05. POST /entityOperations/query?orderBy=temperature&local=true - 200, ordered"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/query?orderBy=temperature&local=true&options=keyValues' --payload '{"type":"Query","entities":[{"type":"Room"}]}'
+echo
+echo
+
+
+echo "05b. POST /entityOperations/query?orderBy=temperature;desc&local=true - 200, descending"
+echo "==================================================================================="
+corCurl --url '/ngsi-ld/v1/entityOperations/query?orderBy=temperature%3Bdesc&local=true&options=keyValues' --payload '{"type":"Query","entities":[{"type":"Room"}]}'
+echo
+echo
+
+
+echo "06. GET /temporal/entities?type=Room&orderBy=temperature - no local=true: 400"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Room&orderBy=temperature&timerel=after&timeAt=2020-01-01T00:00:00Z'
+echo
+echo
+
+
+echo "07. POST /temporal/entityOperations/query?orderBy=temperature - no local=true: 400"
+echo "=================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entityOperations/query?orderBy=temperature' --payload '{"type":"Query","entities":[{"type":"Room"}],"temporalQ":{"timerel":"after","timeAt":"2020-01-01T00:00:00Z"}}'
+echo
+echo
+
+
+echo "08. A broker started with -orderDistributed: GET ?type=Room&orderBy=temperature - 200, ordered"
+echo "=============================================================================================="
+corCurl --port $CP1_PORT --url '/ngsi-ld/v1/entities?type=Room&orderBy=temperature&options=keyValues'
+echo
+echo
+
+
+--EXPECT--
+01. Seed 3 Rooms on each broker: temperature 30, 10, 20
+=======================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. GET /entities?type=Room&orderBy=temperature - no local=true: 400
+====================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "'orderBy' needs 'local=true' (§ 10.4.3.4, § 11.3.3.4) - or a broker started with --orderDistributed",
+  "status": 400,
+  "title": "Ordering outside the local scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+03. GET /entities?type=Room&orderBy=temperature&local=true - 200, ordered
+========================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 252
+
+[
+  {
+    "id": "urn:ngsi-ld:Room:2",
+    "temperature": 10,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:3",
+    "temperature": 20,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:1",
+    "temperature": 30,
+    "type": "Room"
+  }
+]
+
+
+
+04. POST /entityOperations/query?orderBy=temperature - no local=true: 400
+=========================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "'orderBy' needs 'local=true' (§ 10.4.3.4, § 11.3.3.4) - or a broker started with --orderDistributed",
+  "status": 400,
+  "title": "Ordering outside the local scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+05. POST /entityOperations/query?orderBy=temperature&local=true - 200, ordered
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 252
+
+[
+  {
+    "id": "urn:ngsi-ld:Room:2",
+    "temperature": 10,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:3",
+    "temperature": 20,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:1",
+    "temperature": 30,
+    "type": "Room"
+  }
+]
+
+
+
+05b. POST /entityOperations/query?orderBy=temperature;desc&local=true - 200, descending
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 252
+
+[
+  {
+    "id": "urn:ngsi-ld:Room:1",
+    "temperature": 30,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:3",
+    "temperature": 20,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:2",
+    "temperature": 10,
+    "type": "Room"
+  }
+]
+
+
+
+06. GET /temporal/entities?type=Room&orderBy=temperature - no local=true: 400
+=============================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "'orderBy' needs 'local=true' (§ 10.4.3.4, § 11.3.3.4) - or a broker started with --orderDistributed",
+  "status": 400,
+  "title": "Ordering outside the local scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+07. POST /temporal/entityOperations/query?orderBy=temperature - no local=true: 400
+==================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 248
+
+{
+  "detail": "'orderBy' needs 'local=true' (§ 10.4.3.4, § 11.3.3.4) - or a broker started with --orderDistributed",
+  "status": 400,
+  "title": "Ordering outside the local scope",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+08. A broker started with -orderDistributed: GET ?type=Room&orderBy=temperature - 200, ordered
+==============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 252
+
+[
+  {
+    "id": "urn:ngsi-ld:Room:2",
+    "temperature": 10,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:3",
+    "temperature": 20,
+    "type": "Room"
+  },
+  {
+    "id": "urn:ngsi-ld:Room:1",
+    "temperature": 30,
+    "type": "Room"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
+coraineStop -role CP1
+corDbDrop
+corDbDrop -role CP1

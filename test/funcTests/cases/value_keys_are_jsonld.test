@@ -103,7 +103,7 @@ echo
 
 echo "04. orderBy=rawdata[airquality.particulate] - E2 (30) before E1 (40)"
 echo "===================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=T&q=rawdata&orderBy=rawdata%5Bairquality.particulate%5D' | grep '"id"'
+corCurl --url '/ngsi-ld/v1/entities?type=T&q=rawdata&orderBy=rawdata%5Bairquality.particulate%5D&local=true' | grep '"id"'
 echo
 echo
 

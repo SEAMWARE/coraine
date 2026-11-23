@@ -39,14 +39,14 @@ echo
 
 echo "02. Query with entityMap=true - the map id comes back in NGSILD-EntityMap"
 echo "========================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id'
+corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&local=true'
 echo
 echo
 
 
 echo "03. Capture the map id from an identical request"
 echo "================================================"
-MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
+MAP_ID=$(corCurl --url '/ngsi-ld/v1/entities?type=Vehicle&entityMap=true&orderBy=id&local=true' 2>/dev/null | grep -i 'NGSILD-EntityMap:' | sed -E 's|.*entityMaps/([^[:space:]]*).*|\1|' | tr -d '\r')
 if [ -n "$MAP_ID" ]; then echo "map id captured"; else echo "NO MAP ID - the rest of this test is meaningless"; fi
 echo
 echo

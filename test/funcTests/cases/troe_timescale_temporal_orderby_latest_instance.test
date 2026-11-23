@@ -50,14 +50,14 @@ echo
 
 echo "02. orderBy=speed - by LATEST instance: V1(10), V2(20), V3(30)"
 echo "=============================================================="
-corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&orderBy=speed&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&orderBy=speed&local=true&format=temporalValues'
 echo
 echo
 
 
 echo "03. orderBy=speed;desc - the same choice, reversed: V3, V2, V1"
 echo "=============================================================="
-corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&orderBy=speed;desc&format=temporalValues'
+corCurl --url '/ngsi-ld/v1/temporal/entities?type=Vehicle&timerel=after&timeAt=2026-04-28T00:00:00Z&orderBy=speed;desc&local=true&format=temporalValues'
 echo
 echo
 

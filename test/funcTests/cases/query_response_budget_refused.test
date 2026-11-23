@@ -55,14 +55,14 @@ echo
 
 echo "03. GET type=Blob&orderBy=name&limit=1 - orderBy needs all five (1.5 MB) at once: 403 TooManyResults"
 echo "====================================================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Blob&orderBy=name&limit=1'
+corCurl --url '/ngsi-ld/v1/entities?type=Blob&orderBy=name&local=true&limit=1'
 echo
 echo
 
 
 echo "04. GET type=Blob&q=name<n3&orderBy=name - two matches fit: 200, ordered"
 echo "========================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Blob&q=name%3C%22n3%22&orderBy=name&pick=id,name'
+corCurl --url '/ngsi-ld/v1/entities?type=Blob&q=name%3C%22n3%22&orderBy=name&local=true&pick=id,name'
 echo
 echo
 

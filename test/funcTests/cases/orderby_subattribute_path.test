@@ -51,28 +51,28 @@ echo
 
 echo "02. orderBy=temperature.accuracy - S3(1), S1(2), S2(3)"
 echo "======================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.accuracy&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.accuracy&local=true&options=keyValues'
 echo
 echo
 
 
 echo "03. orderBy=temperature.accuracy;desc - S2(3), S1(2), S3(1)"
 echo "==========================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.accuracy;desc&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.accuracy;desc&local=true&options=keyValues'
 echo
 echo
 
 
 echo "04. orderBy=temperature - the attribute's own value: S1(10), S2(20), S3(30)"
 echo "==========================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature&local=true&options=keyValues'
 echo
 echo
 
 
 echo "05. orderBy=temperature.missing - no such sub-attribute anywhere, order kept"
 echo "============================================================================"
-corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.missing&options=keyValues'
+corCurl --url '/ngsi-ld/v1/entities?type=Sensor&orderBy=temperature.missing&local=true&options=keyValues'
 echo
 echo
 
