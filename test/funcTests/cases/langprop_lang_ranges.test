@@ -1,0 +1,386 @@
+#
+# FILE            langprop_lang_ranges.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# The 'lang' filter is a list of language ranges with quality values (TS 104 175 § 7.2.7, example 4:
+# "fr-CH,fr;q=0.9,en;q=0.8,*;q=0.5" - the Accept-Language syntax of RFC 9110 § 12.5.4):
+#   - the ranges are tried best q first; equal q keep their order; q=0 is "not acceptable"
+#   - per range: the key with that very tag (case-insensitive), else a key the range is a prefix of
+#     (RFC 4647 basic filtering: "de" matches "de-AT")
+#   - '*', or no range matching: the default (@none > en > first key, see langprop_lang_fallback.test)
+#
+--NAME--
+LanguageProperty lang filter - ranges, quality values, '*', prefix match
+
+--TAGS--
+langProp format
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed: E1 {fr,nl,en,de-AT}, E2 {@none,fr,nl}"
+echo "==============================================="
+payload='{
+  "id":"urn:ngsi-ld:T:E1","type":"T",
+  "g":{"type":"LanguageProperty","languageMap":{"fr":"Bonjour","nl":"Hallo","en":"Hello","de-AT":"Servus"}}
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+payload='{
+  "id":"urn:ngsi-ld:T:E2","type":"T",
+  "g":{"type":"LanguageProperty","languageMap":{"@none":"None","fr":"Bonjour","nl":"Hallo"}}
+}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. E1 ?lang=fr;q=0.5,nl;q=0.9 - nl (the higher q)"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr;q=0.5,nl;q=0.9'
+echo
+echo
+
+
+echo "03. E1 ?lang=nl,fr - nl (no q: q=1 for both, order kept)"
+echo "========================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=nl,fr'
+echo
+echo
+
+
+echo "04. E1 ?lang=fr;q=0.7,nl;q=0.7 - fr (equal q, order kept)"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr;q=0.7,nl;q=0.7'
+echo
+echo
+
+
+echo "05. E1 ?lang=it,nl;q=0.2 - nl (it absent, the next range)"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=it,nl;q=0.2'
+echo
+echo
+
+
+echo "06. E1 ?lang=de - de-AT (the range is a prefix of the tag)"
+echo "=========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=de'
+echo
+echo
+
+
+echo "07. E1 ?lang=NL - nl (tags are case-insensitive; 'lang' gives the stored tag)"
+echo "============================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=NL'
+echo
+echo
+
+
+echo "08. E1 ?lang=nl;q=0,fr;q=0.1 - fr (q=0 is not acceptable)"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=nl;q=0,fr;q=0.1'
+echo
+echo
+
+
+echo "09. E1 ?lang=*,nl;q=0.5 - en ('*' first: the default, no @none so en)"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=*,nl;q=0.5'
+echo
+echo
+
+
+echo "10. E2 ?lang=it,*;q=0.5,nl;q=0.1 - @none ('*' before nl: the default)"
+echo "====================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E2?lang=it,*;q=0.5,nl;q=0.1'
+echo
+echo
+
+
+echo "11. E1 ?lang=fr-CH,fr;q=0.9,en;q=0.8,*;q=0.5 (§ 7.2.7 example 4) - fr"
+echo "===================================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr-CH,fr;q=0.9,en;q=0.8,*;q=0.5'
+echo
+echo
+
+
+echo "12. E1 ?lang=fr; q=0.5, nl; q=0.9 (whitespace around ';' and ',') - nl"
+echo "======================================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:T:E1?lang=fr;%20q=0.5,%20nl;%20q=0.9'
+echo
+echo
+
+
+echo "13. Query Entities ?type=T&lang=fr;q=0.5,nl;q=0.9 - nl for both"
+echo "==============================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=T&lang=fr;q=0.5,nl;q=0.9'
+echo
+echo
+
+
+--EXPECT--
+01. Seed: E1 {fr,nl,en,de-AT}, E2 {@none,fr,nl}
+===============================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. E1 ?lang=fr;q=0.5,nl;q=0.9 - nl (the higher q)
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "nl",
+    "type": "Property",
+    "value": "Hallo"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+03. E1 ?lang=nl,fr - nl (no q: q=1 for both, order kept)
+========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "nl",
+    "type": "Property",
+    "value": "Hallo"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+04. E1 ?lang=fr;q=0.7,nl;q=0.7 - fr (equal q, order kept)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "g": {
+    "lang": "fr",
+    "type": "Property",
+    "value": "Bonjour"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+05. E1 ?lang=it,nl;q=0.2 - nl (it absent, the next range)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "nl",
+    "type": "Property",
+    "value": "Hallo"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+06. E1 ?lang=de - de-AT (the range is a prefix of the tag)
+==========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 127
+
+{
+  "g": {
+    "lang": "de-AT",
+    "type": "Property",
+    "value": "Servus"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+07. E1 ?lang=NL - nl (tags are case-insensitive; 'lang' gives the stored tag)
+=============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "nl",
+    "type": "Property",
+    "value": "Hallo"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+08. E1 ?lang=nl;q=0,fr;q=0.1 - fr (q=0 is not acceptable)
+=========================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "g": {
+    "lang": "fr",
+    "type": "Property",
+    "value": "Bonjour"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+09. E1 ?lang=*,nl;q=0.5 - en ('*' first: the default, no @none so en)
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "en",
+    "type": "Property",
+    "value": "Hello"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+10. E2 ?lang=it,*;q=0.5,nl;q=0.1 - @none ('*' before nl: the default)
+=====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "g": {
+    "lang": "@none",
+    "type": "Property",
+    "value": "None"
+  },
+  "id": "urn:ngsi-ld:T:E2",
+  "type": "T"
+}
+
+
+
+11. E1 ?lang=fr-CH,fr;q=0.9,en;q=0.8,*;q=0.5 (§ 7.2.7 example 4) - fr
+====================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 125
+
+{
+  "g": {
+    "lang": "fr",
+    "type": "Property",
+    "value": "Bonjour"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+12. E1 ?lang=fr; q=0.5, nl; q=0.9 (whitespace around ';' and ',') - nl
+======================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 123
+
+{
+  "g": {
+    "lang": "nl",
+    "type": "Property",
+    "value": "Hallo"
+  },
+  "id": "urn:ngsi-ld:T:E1",
+  "type": "T"
+}
+
+
+
+13. Query Entities ?type=T&lang=fr;q=0.5,nl;q=0.9 - nl for both
+===============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 287
+
+[
+  {
+    "g": {
+      "lang": "nl",
+      "type": "Property",
+      "value": "Hallo"
+    },
+    "id": "urn:ngsi-ld:T:E1",
+    "type": "T"
+  },
+  {
+    "g": {
+      "lang": "nl",
+      "type": "Property",
+      "value": "Hallo"
+    },
+    "id": "urn:ngsi-ld:T:E2",
+    "type": "T"
+  }
+]
+
+
+
+--TEARDOWN--
+coraineStop
