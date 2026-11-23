@@ -61,12 +61,12 @@ HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: openiot
-Content-Length: 168
+Content-Length: 175
 
 {
   "detail": "entity 'urn:ngsi-ld:Filling:001' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

@@ -143,7 +143,7 @@ bool patchSubscription(void)
 
   if (isCsrSub)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Subscription not found", "subscription '%s' not found", subId);
     return true;
   }
 
@@ -189,7 +189,7 @@ bool patchSubscription(void)
   //
   if (db.subscriptionReplace == NULL || db.subscriptionRetrieve == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "subscription CRUD not supported by this DB plugin");
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database", "subscription CRUD not supported by this DB plugin");
     return true;
   }
 
@@ -208,7 +208,7 @@ bool patchSubscription(void)
   if (rr == DB_NOT_FOUND || mergedSubP == NULL)
   {
     ldSubCacheUnlock(subCacheP);
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Subscription not found", "subscription '%s' not found", subId);
     return true;
   }
 

@@ -54,13 +54,13 @@ bool adminGetBridgeInventory(void)
 
   if (driverP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no bridge '%s' is loaded", alias);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Bridge not found", "no bridge '%s' is loaded", alias);
     return true;
   }
 
   if ((driverP->abiVersion < 14) || (driverP->inventory == NULL))
   {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "bridge '%s' has no inventory (bridge ABI 14)", alias);
+    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Bridge has no inventory", "bridge '%s' has no inventory (bridge ABI 14)", alias);
     return true;
   }
 
@@ -69,7 +69,7 @@ bool adminGetBridgeInventory(void)
 
   if ((depthText != NULL) && ((depth < 0) || (depth > 16)))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "depth is a number from 0 to 16 (a bridge may cap it lower)");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid depth", "depth is a number from 0 to 16 (a bridge may cap it lower)");
     return true;
   }
 
@@ -79,13 +79,13 @@ bool adminGetBridgeInventory(void)
 
   if (r == BRIDGE_NOT_FOUND)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "bridge '%s': %s", alias, (err[0] != 0) ? err : "no such 'from'");
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Bridge not found", "bridge '%s': %s", alias, (err[0] != 0) ? err : "no such 'from'");
     return true;
   }
 
   if (r != BRIDGE_OK)
   {
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable", "bridge '%s': %s", alias, (err[0] != 0) ? err : "its transport cannot answer");
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Bridge inventory unavailable", "bridge '%s': %s", alias, (err[0] != 0) ? err : "its transport cannot answer");
     free(json);
     return true;
   }
@@ -101,7 +101,7 @@ bool adminGetBridgeInventory(void)
 
   if (treeP == NULL)
   {
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable", "bridge '%s': its inventory is not JSON", alias);
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Bridge inventory not JSON", "bridge '%s': its inventory is not JSON", alias);
     return true;
   }
 

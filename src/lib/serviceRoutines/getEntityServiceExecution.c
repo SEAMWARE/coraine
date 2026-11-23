@@ -44,7 +44,7 @@ bool getEntityServiceExecution(void)
   if ((entityIdP == NULL) || (strcmp(entityIdP->value.s, corRest.in.wildcard[0]) != 0) ||
       (serviceNameP == NULL) || (strcmp(serviceNameP->value.s, serviceName) != 0))
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Service Execution '%s' is not one of that service on that entity", corRest.in.wildcard[2]);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Service Execution not found", "Service Execution '%s' is not one of that service on that entity", corRest.in.wildcard[2]);
     return true;
   }
 

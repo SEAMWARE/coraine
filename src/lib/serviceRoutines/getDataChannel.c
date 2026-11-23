@@ -32,7 +32,7 @@ bool getDataChannel(void)
 
   if (dcP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "DataChannel '%s' not found", id);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "DataChannel not found", "DataChannel '%s' not found", id);
     return true;
   }
 

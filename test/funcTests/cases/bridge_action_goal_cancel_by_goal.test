@@ -308,12 +308,12 @@ Content-Length: 120
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 210
+Content-Length: 229
 
 {
   "detail": "attribute 'navigate' has no instance with datasetId 'urn:goal:1' in entity 'urn:R:1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

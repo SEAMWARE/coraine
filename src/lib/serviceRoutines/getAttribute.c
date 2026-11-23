@@ -54,7 +54,7 @@ bool getAttribute(void)
 
   if (db.attrList == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
             "attribute discovery not supported by this DB plugin");
     return true;
   }
@@ -99,7 +99,7 @@ bool getAttribute(void)
 
   if (entry == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
             "attribute '%s' not found", attrWild);
     return true;
   }

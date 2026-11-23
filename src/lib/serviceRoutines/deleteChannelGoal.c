@@ -43,7 +43,7 @@ bool deleteChannelGoal(void)
 
   if ((alias == NULL) || (bridgeGoalCancel((Tenant*) corNgsild.tenantP, channelP->entityId, channelP->attrName, alias, &rc) == false))
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "goal '%s' is not in progress on this channel", goalId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Goal not in progress", "goal '%s' is not in progress on this channel", goalId);
     return true;
   }
 
@@ -52,7 +52,7 @@ bool deleteChannelGoal(void)
   else if (rc == BRIDGE_UNSUPPORTED)
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported", "the bridge carrying this channel cannot cancel a goal");
   else
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable", "the cancellation of goal '%s' could not be sent (%d) - nothing was cancelled", goalId, rc);
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Goal cancellation not sent", "the cancellation of goal '%s' could not be sent (%d) - nothing was cancelled", goalId, rc);
 
   return true;
 }

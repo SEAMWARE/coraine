@@ -42,7 +42,7 @@ bool getSnapshot(void)
 
   if (tenantP->snapshotCacheP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return true;
   }
@@ -57,7 +57,7 @@ bool getSnapshot(void)
   if (itemP == NULL)
   {
     ldSnapshotCacheUnlock(cacheP);
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return true;
   }

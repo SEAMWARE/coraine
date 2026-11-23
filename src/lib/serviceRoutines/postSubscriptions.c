@@ -389,7 +389,7 @@ bool postSubscriptions(void)
   //
   if (db.subscriptionCreate == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "subscription CRUD not supported by this DB plugin");
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database", "subscription CRUD not supported by this DB plugin");
     return true;
   }
 

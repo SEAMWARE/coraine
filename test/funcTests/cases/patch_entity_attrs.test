@@ -171,7 +171,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "entity 'urn:DoesNotExist' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

@@ -258,12 +258,12 @@ Content-Length: 22
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 179
+Content-Length: 189
 
 {
   "detail": "attribute 'nope' not found in entity 'urn:ngsi-ld:E1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

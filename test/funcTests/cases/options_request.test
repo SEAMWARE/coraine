@@ -104,7 +104,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "OPTIONS /nonexistent is not a recognized resource",
   "status": 404,
-  "title": "Not Found",
+  "title": "Unknown resource",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

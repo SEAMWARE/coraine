@@ -128,7 +128,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 301
+Content-Length: 308
 
 {
   "errors": [
@@ -137,7 +137,7 @@ Content-Length: 301
       "error": {
         "detail": "entity does not exist",
         "status": 404,
-        "title": "Not Found",
+        "title": "Entity not found",
         "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
       }
     }

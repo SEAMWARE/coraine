@@ -148,12 +148,12 @@ Content-Length: 212
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 186
+Content-Length: 199
 
 {
   "detail": "entity 'urn:po:E1' has no members after pick/omit projection",
   "status": 404,
-  "title": "Not Found",
+  "title": "Nothing left to return",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

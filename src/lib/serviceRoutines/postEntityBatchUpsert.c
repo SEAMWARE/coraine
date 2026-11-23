@@ -180,7 +180,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
              csrRegId ? csrRegId : "?", status);
     for (int i = 0; i < N; i++)
       addBatchError(errorsP, idV[i], (status >= 400) ? status : 502,
-                    LD_ERROR_INTERNAL_ERROR, "Bad Gateway", detail, csrRegId);
+                    LD_ERROR_INTERNAL_ERROR, "Forward failed", detail, csrRegId);
     return;
   }
 
@@ -206,7 +206,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
       const char* eid = (idP != NULL && idP->type == CorString) ? idP->value.s : "";
 
       const char* type   = LD_ERROR_INTERNAL_ERROR;
-      const char* title  = "Bad Gateway";
+      const char* title  = "Forward failed";
       const char* detail = "forward error";
       int         status = 502;
       if (errP != NULL && errP->type == CorObject)
@@ -583,7 +583,7 @@ bool postEntityBatchUpsert(void)
       if (cRegId != NULL)
       {
         addBatchError(errorsP, idP->value.s, 409,
-                      LD_ERROR_ALREADY_EXISTS, "Conflict",
+                      LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
                       "local write overlaps with registration (§ 9.3.3 — no local data for an exclusive/redirect scope)",
                       cRegId);
         continue;
@@ -1227,7 +1227,7 @@ bool postEntityBatchUpsert(void)
                                : "redirect registration does not support upsertBatch";
           for (int i = 0; i < a->count; i++)
             addBatchError(errorsP, a->idV[i], 409,
-                          LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+                          LD_ERROR_CONFLICT, "Operation not supported by the registration", detail, csr->regId);
         }
         continue;
       }
@@ -1296,7 +1296,7 @@ bool postEntityBatchUpsert(void)
   {
     if (db.entityBulkCreate == NULL)
     {
-      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
               "Batch Entity Upsert (create path) not supported by this DB plugin");
       return true;
     }
@@ -1352,7 +1352,7 @@ bool postEntityBatchUpsert(void)
 
     if ((asChanges == false) && (db.entityBulkUpdate == NULL))
     {
-      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
               "Batch Entity Upsert (update path) not supported by this DB plugin");
       return true;
     }
@@ -1383,7 +1383,7 @@ bool postEntityBatchUpsert(void)
         case DB_NOT_FOUND:
           // Rare race: entity disappeared between retrieve and bulk-update.
           addBatchError(errorsP, eid, 404,
-                        LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                        LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
                         "entity vanished between retrieve and bulk update", NULL);
           break;
         case DB_GEO_TYPE_CONFLICT:

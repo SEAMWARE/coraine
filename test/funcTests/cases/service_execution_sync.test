@@ -227,7 +227,7 @@ HTTP/1.1 404 Not Found
 {
   "detail": "entity 'urn:L1' has no service 'dim'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Service or entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -235,7 +235,7 @@ HTTP/1.1 404 Not Found
 {
   "detail": "entity 'urn:Nobody' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Service or entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

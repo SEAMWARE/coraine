@@ -223,7 +223,7 @@ bool deleteEntityAttr(void)
       ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
               "the bridge carrying '%s' cannot cancel a goal", attrWild);
     else
-      ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
+      ldError(503, LD_ERROR_INTERNAL_ERROR, "Goal cancellation not sent",
               "the cancellation of goal '%s' could not be sent (%d) - nothing was deleted", corNgsild.datasetId, cancelRc);
 
     return true;
@@ -299,7 +299,7 @@ bool deleteEntityAttr(void)
       }
       else if (sc != 404)
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
-                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                              LD_ERROR_INTERNAL_ERROR, "Forward failed",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
     }
@@ -326,7 +326,7 @@ bool deleteEntityAttr(void)
     {
       if (!anySucceeded)
       {
-        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
                 "entity '%s' not found", entityId);
         return true;
       }
@@ -343,7 +343,7 @@ bool deleteEntityAttr(void)
       {
         if (!anySucceeded)
         {
-          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
                   "attribute '%s' not found in entity '%s'", attrWild, entityId);
           return true;
         }
@@ -368,11 +368,11 @@ bool deleteEntityAttr(void)
           // that only has datasetId-bearing instances. A bare "entity not
           // found" would be misleading — report the missing instance.
           if (corNgsild.datasetId != NULL)
-            ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+            ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute instance not found",
                     "attribute '%s' has no instance with datasetId '%s' in entity '%s'",
                     attrWild, corNgsild.datasetId, entityId);
           else
-            ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+            ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute instance not found",
                     "attribute '%s' has no default instance in entity '%s'",
                     attrWild, entityId);
           return true;
@@ -389,7 +389,7 @@ bool deleteEntityAttr(void)
 
           if ((db.entityChangesApply == NULL) && (db.entityReplace == NULL))
           {
-            ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+            ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
                     "Delete Attribute not supported by this DB plugin");
             return true;
           }
@@ -531,7 +531,7 @@ bool deleteEntityAttr(void)
 
   if (!anySucceeded && errorsCount == 0)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
             "entity '%s' not found", entityId);
     return true;
   }

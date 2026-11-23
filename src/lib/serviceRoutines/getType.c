@@ -64,7 +64,7 @@ bool getType(void)
 
   if (db.typeList == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
             "type discovery not supported by this DB plugin");
     return true;
   }
@@ -115,7 +115,7 @@ bool getType(void)
 
   if (entry == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity type not found",
             "entity type '%s' not found", typeWild);
     return true;
   }

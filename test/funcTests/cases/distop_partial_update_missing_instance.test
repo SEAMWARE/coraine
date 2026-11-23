@@ -93,7 +93,7 @@ HTTP/1.1 404 Not Found
 {
   "detail": "no default instance of attribute 'speed' on entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

@@ -246,12 +246,12 @@ Content-Length: 0
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 169
+Content-Length: 180
 
 {
   "detail": "goal '1' is not in progress on this channel",
   "status": 404,
-  "title": "Not Found",
+  "title": "Goal not in progress",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -302,12 +302,12 @@ Content-Length: 0
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 169
+Content-Length: 180
 
 {
   "detail": "goal '3' is not in progress on this channel",
   "status": 404,
-  "title": "Not Found",
+  "title": "Goal not in progress",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -344,12 +344,12 @@ Content-Length: 249
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 177
+Content-Length: 185
 
 {
   "detail": "channel 'urn:ngsi-ld:Channel:loopback:A9' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Channel not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

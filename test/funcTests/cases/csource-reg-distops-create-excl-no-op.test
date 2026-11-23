@@ -96,7 +96,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 426
+Content-Length: 461
 
 {
   "errors": [
@@ -105,7 +105,7 @@ Content-Length: 426
       "error": {
         "detail": "exclusive registration does not support createEntity; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
         "status": 409,
-        "title": "Conflict",
+        "title": "Operation not supported by the registration",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
       "registrationId": "urn:CSR:NoCreate"

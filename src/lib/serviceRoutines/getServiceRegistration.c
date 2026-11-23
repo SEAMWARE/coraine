@@ -33,7 +33,7 @@ bool getServiceRegistration(void)
 
   if (r == DB_NOT_FOUND)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Service Registration '%s' not found", regId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Service Registration not found", "Service Registration '%s' not found", regId);
     return true;
   }
   else if (r != DB_OK)

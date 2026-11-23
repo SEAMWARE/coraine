@@ -812,7 +812,7 @@ static void forwardBridge(CorNode* execP, bool cancel, SeForward* resultP)
     else if (r == BRIDGE_UNSUPPORTED)
     {
       resultP->clientStatus = 409;
-      resultP->errorP       = problem(LD_ERROR_CONFLICT, "Conflict", 409, "the bridge cannot pre-empt it");
+      resultP->errorP       = problem(LD_ERROR_CONFLICT, "Cannot pre-empt", 409, "the bridge cannot pre-empt it");
     }
     else
     {
@@ -1483,9 +1483,9 @@ static bool execute(SeOrigin origin, const char* entityId, const char* serviceNa
   if (execP == NULL)
   {
     if (status == 404)
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "%s", why);
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Service or entity not found", "%s", why);
     else if (status == 409)
-      ldError(409, LD_ERROR_CONFLICT, "Conflict", "%s", why);
+      ldError(409, LD_ERROR_CONFLICT, "Service Execution refused", "%s", why);
     else
       ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "%s", why);
     return true;
@@ -1503,7 +1503,7 @@ static bool execute(SeOrigin origin, const char* entityId, const char* serviceNa
 
     if ((db.docRetrieve != NULL) && (db.docRetrieve(tenantP, "serviceExecutions", callerId, &existingP) == DB_OK))
     {
-      ldError(409, LD_ERROR_CONFLICT, "Conflict", "Service Execution '%s' is already here", callerId);
+      ldError(409, LD_ERROR_CONFLICT, "Service Execution already exists", "Service Execution '%s' is already here", callerId);
       return true;
     }
 
@@ -1614,7 +1614,7 @@ CorNode* seExecutionRetrieve(const char* execId)
 
   if (r == DB_NOT_FOUND)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Service Execution '%s' not found", execId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Service Execution not found", "Service Execution '%s' not found", execId);
     return NULL;
   }
   else if (r != DB_OK)
@@ -1639,7 +1639,7 @@ bool seExecutionUpdate(CorNode* execP, CorNode* updateP)
 
   if (terminal(status))
   {
-    ldError(409, LD_ERROR_CONFLICT, "Conflict", "the Service Execution is %s - it changes no more", status);
+    ldError(409, LD_ERROR_CONFLICT, "Service Execution ended", "the Service Execution is %s - it changes no more", status);
     return true;
   }
 
@@ -1769,7 +1769,7 @@ bool seExecutionCancel(CorNode* execP)
     if (result.accepted == false)
     {
       if (result.clientStatus == 409)
-        ldError(409, LD_ERROR_CONFLICT, "Conflict", "the service's executor cannot cancel Service Execution '%s' - it goes on", execId);
+        ldError(409, LD_ERROR_CONFLICT, "Service Execution not cancellable", "the service's executor cannot cancel Service Execution '%s' - it goes on", execId);
       else
         answerError(result.clientStatus, result.errorP, execId);
 

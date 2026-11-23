@@ -215,7 +215,7 @@ Content-Length: 0
 HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 322
+Content-Length: 324
 
 {
   "errors": [
@@ -224,7 +224,7 @@ Content-Length: 322
       "error": {
         "detail": "forward failed: Request timeout",
         "status": 504,
-        "title": "Gateway Timeout",
+        "title": "Forward timed out",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:W1"
@@ -240,7 +240,7 @@ Content-Length: 322
 HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 322
+Content-Length: 324
 
 {
   "errors": [
@@ -249,7 +249,7 @@ Content-Length: 322
       "error": {
         "detail": "forward failed: Request timeout",
         "status": 504,
-        "title": "Gateway Timeout",
+        "title": "Forward timed out",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:W1"
@@ -275,7 +275,7 @@ Content-Length: 0
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 314
+Content-Length: 317
 
 {
   "errors": [
@@ -284,7 +284,7 @@ Content-Length: 314
       "error": {
         "detail": "forward returned status 500",
         "status": 500,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:W2"
@@ -310,7 +310,7 @@ Content-Length: 0
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 320
+Content-Length: 323
 
 {
   "errors": [
@@ -319,7 +319,7 @@ Content-Length: 320
       "error": {
         "detail": "forward failed: Connection failed",
         "status": 502,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:W3"
@@ -345,7 +345,7 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 330
+Content-Length: 365
 
 {
   "errors": [
@@ -354,7 +354,7 @@ Content-Length: 330
       "error": {
         "detail": "exclusive registration does not support mergeEntity",
         "status": 409,
-        "title": "Conflict",
+        "title": "Operation not supported by the registration",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
       "registrationId": "urn:CSR:NU"
@@ -387,7 +387,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 600
+Content-Length: 606
 
 {
   "errors": [
@@ -396,7 +396,7 @@ Content-Length: 600
       "error": {
         "detail": "forward failed: Connection failed",
         "status": 502,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:X1"
@@ -406,7 +406,7 @@ Content-Length: 600
       "error": {
         "detail": "forward failed: Connection failed",
         "status": 502,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:X2"
@@ -422,7 +422,7 @@ Content-Length: 600
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 600
+Content-Length: 606
 
 {
   "errors": [
@@ -431,7 +431,7 @@ Content-Length: 600
       "error": {
         "detail": "forward failed: Connection failed",
         "status": 502,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:X1"
@@ -441,7 +441,7 @@ Content-Length: 600
       "error": {
         "detail": "forward failed: Connection failed",
         "status": 502,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:X2"

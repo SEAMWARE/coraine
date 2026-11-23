@@ -157,12 +157,12 @@ Content-Length: 246
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 175
+Content-Length: 182
 
 {
   "detail": "bridge 'urn:ngsi-ld:ContextBridge:nope' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Bridge not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -261,12 +261,12 @@ Content-Length: 496
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 177
+Content-Length: 185
 
 {
   "detail": "channel 'urn:ngsi-ld:Channel:loopback:A9' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Channel not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

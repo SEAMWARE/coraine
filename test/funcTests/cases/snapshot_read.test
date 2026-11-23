@@ -210,7 +210,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:V2' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -276,7 +276,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:NoSuch' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Snapshot not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -293,7 +293,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:Other' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

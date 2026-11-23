@@ -561,12 +561,12 @@ Content-Length: 1150
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 185
+Content-Length: 197
 
 {
   "detail": "DataChannel 'urn:ngsi-ld:DataChannel:loopback:D9' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "DataChannel not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

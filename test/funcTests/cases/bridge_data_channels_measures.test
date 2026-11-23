@@ -247,12 +247,12 @@ Content-Length: 121
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: 179
 
 {
   "detail": "entity 'urn:ngsi-ld:Thermometer:th4' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

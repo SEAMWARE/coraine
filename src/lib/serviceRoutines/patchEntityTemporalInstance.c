@@ -304,7 +304,7 @@ bool patchEntityTemporalInstance(void)
         if (sc == 404) continue;
         if (sc < 200 || sc >= 300)
           ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                LD_ERROR_INTERNAL_ERROR, "Forward failed",
                                 ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                                 items[i].csr->regId);
         else
@@ -343,7 +343,7 @@ bool patchEntityTemporalInstance(void)
 
   if (!anySucceeded && localNotFound)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Temporal data not found",
             "no temporal instance '%s' for entity '%s' / attribute '%s'",
             instanceId, entityId, attrWild);
     return true;

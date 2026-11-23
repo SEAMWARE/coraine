@@ -117,11 +117,11 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 108
+Content-Length: 143
 
 {
   "entityId": "urn:V1",
-  "title": "Conflict",
+  "title": "Operation not supported by the registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
 }
 
@@ -148,7 +148,7 @@ Content-Length: 60
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 346
+Content-Length: 381
 
 {
   "errors": [
@@ -157,7 +157,7 @@ Content-Length: 346
       "error": {
         "detail": "exclusive registration does not support updateBatch",
         "status": 409,
-        "title": "Conflict",
+        "title": "Operation not supported by the registration",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
       "registrationId": "urn:CSR:EX"

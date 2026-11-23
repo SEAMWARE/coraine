@@ -77,12 +77,12 @@ HTTP/1.1 201 Created
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 193
+Content-Length: 212
 
 {
   "detail": "attribute 'temp' has no default instance in entity 'urn:ngsi-ld:E1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -93,12 +93,12 @@ Content-Length: 193
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 211
+Content-Length: 230
 
 {
   "detail": "attribute 'temp' has no instance with datasetId 'urn:ds:9' in entity 'urn:ngsi-ld:E1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -109,12 +109,12 @@ Content-Length: 211
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 161
+Content-Length: 168
 
 {
   "detail": "entity 'urn:ngsi-ld:NOPE' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -125,12 +125,12 @@ Content-Length: 161
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 191
 
 {
   "detail": "attribute 'nosuch' not found in entity 'urn:ngsi-ld:E1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

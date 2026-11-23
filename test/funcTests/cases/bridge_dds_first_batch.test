@@ -137,7 +137,7 @@ Content-Length: 350
       "error": {
         "detail": "'A1' on bridge 'loopback' could not be reached - not written",
         "status": 503,
-        "title": "Service Unavailable",
+        "title": "Bridge write failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       }
     }
@@ -164,7 +164,7 @@ Content-Length: 318
       "error": {
         "detail": "'A1' on bridge 'loopback' could not be reached - not written",
         "status": 503,
-        "title": "Service Unavailable",
+        "title": "Bridge write failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       }
     }
@@ -188,7 +188,7 @@ Content-Length: 335
       "error": {
         "detail": "'A1' on bridge 'loopback' could not be reached - not written",
         "status": 503,
-        "title": "Service Unavailable",
+        "title": "Bridge write failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       }
     }
@@ -228,7 +228,7 @@ Content-Length: 180
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 569
+Content-Length: 576
 
 {
   "errors": [
@@ -237,7 +237,7 @@ Content-Length: 569
       "error": {
         "detail": "'A1' on bridge 'loopback' could not be reached - not written",
         "status": 503,
-        "title": "Service Unavailable",
+        "title": "Bridge write failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       }
     },
@@ -246,7 +246,7 @@ Content-Length: 569
       "error": {
         "detail": "entity does not exist",
         "status": 404,
-        "title": "Not Found",
+        "title": "Entity not found",
         "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
       }
     }

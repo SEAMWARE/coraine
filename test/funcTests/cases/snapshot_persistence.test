@@ -371,7 +371,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:Fast' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Snapshot not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -391,7 +391,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "Snapshot 'urn:ngsi-ld:Snapshot:All' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Snapshot not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

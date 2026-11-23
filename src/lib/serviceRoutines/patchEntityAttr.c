@@ -209,7 +209,7 @@ bool patchEntityAttr(void)
                                                           entityId, entityFrag, &corRest.kalloc);
     if (cRegId != NULL)
     {
-      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
               "local update overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
               cRegId);
       return true;
@@ -307,7 +307,7 @@ bool patchEntityAttr(void)
       }
       else if (sc != 404)
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, (sc >= 400) ? sc : 502,
-                              LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                              LD_ERROR_INTERNAL_ERROR, "Forward failed",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
     }
@@ -333,7 +333,7 @@ bool patchEntityAttr(void)
     {
       if (!anySucceeded)
       {
-        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
                 "entity '%s' not found", entityId);
         return true;
       }
@@ -351,7 +351,7 @@ bool patchEntityAttr(void)
       {
         if (!anySucceeded)
         {
-          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
                   "attribute '%s' not found in entity '%s'", attrWild, entityId);
           return true;
         }
@@ -395,11 +395,11 @@ bool patchEntityAttr(void)
             if (!anySucceeded)
             {
               if (dsP != NULL && dsP->type == CorString)
-                ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute instance not found",
                         "no instance of attribute '%s' with datasetId '%s' on entity '%s'",
                         attrWild, dsP->value.s, entityId);
               else
-                ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute instance not found",
                         "no default instance of attribute '%s' on entity '%s'",
                         attrWild, entityId);
               return true;
@@ -512,7 +512,7 @@ bool patchEntityAttr(void)
 
   if (!anySucceeded && errorsCount == 0)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
             "entity '%s' not found", entityId);
     return true;
   }

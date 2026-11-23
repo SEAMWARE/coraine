@@ -119,12 +119,12 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 237
+Content-Length: 261
 
 {
   "detail": "local create overlaps with registration 'urn:CSR:Excl' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
   "status": 409,
-  "title": "Conflict",
+  "title": "Inside an exclusive registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 
@@ -135,12 +135,12 @@ Content-Length: 237
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: 158
 
 {
   "detail": "entity 'urn:V1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -171,7 +171,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 411
+Content-Length: 414
 
 {
   "errors": [
@@ -180,7 +180,7 @@ Content-Length: 411
       "error": {
         "detail": "forward failed: Connection failed; affected attributes: https://uri.etsi.org/ngsi-ld/default-context/speed",
         "status": 502,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:Dead"

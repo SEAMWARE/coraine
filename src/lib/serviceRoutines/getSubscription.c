@@ -91,7 +91,7 @@ static bool subscriptionRender(const char* subId, LdSubCacheItem* cacheItem, LdP
 
   if (srcTree == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "subscription '%s' not found", subId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Subscription not found", "subscription '%s' not found", subId);
     return true;
   }
 
