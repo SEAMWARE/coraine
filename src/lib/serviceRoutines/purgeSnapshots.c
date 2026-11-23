@@ -14,7 +14,9 @@
 // are removed from the cache.
 //
 // q is MANDATORY (§ 16.7.4) — a missing or empty q is a BadRequestData,
-// not a licence to purge the whole tenant.
+// not a licence to purge the whole tenant - and it names members of the Snapshot
+// data type only (else BadRequestData). No Snapshot matching it: 404
+// ResourceNotFound (TS 104-176 table 13.2.3.2-2).
 //
 #include <stdbool.h>                                     // bool
 #include <string.h>                                      // strcmp
@@ -167,6 +169,76 @@ static bool matchSnapshot(CorNode* tree, LdQNode* nodeP)
 
 
 //
+// snapshotMember - is the q term's attribute a member of the Snapshot data type (§ 5.2.6.5.4)?
+//
+// The term arrives expanded: a core term as "https://uri.etsi.org/ngsi-ld/<member>", a term the context does
+// not know as the default-context IRI - which no member is.
+//
+static bool snapshotMember(const char* attr)
+{
+  static const char* members[] =
+  {
+    "id", "type", "snapshotQueries", "snapshotTemporalQueries", "snapshotLifetime", "snapshotPriority", "endpoint",
+    "receiverInfo", "snapshotStatus", "snapshotQueriesDetails", "snapshotTemporalQueriesDetails", "createdAt",
+    "modifiedAt", "expiresAt", "lastUsedAt", NULL
+  };
+
+  if (attr == NULL)
+    return false;
+
+  if (strncmp(attr, "https://uri.etsi.org/ngsi-ld/", sizeof("https://uri.etsi.org/ngsi-ld/") - 1) == 0)
+    attr = &attr[sizeof("https://uri.etsi.org/ngsi-ld/") - 1];
+  else if (attr[0] == '@')        // @id, @type
+    attr = &attr[1];
+
+  for (int i = 0; members[i] != NULL; i++)
+  {
+    if (strcmp(attr, members[i]) == 0)
+      return true;
+  }
+
+  return false;
+}
+
+
+
+//
+// qSnapshotMembersOnly - § 16.7.4: the query is "restricted to members of the Snapshot data type"
+//
+// Returns the first attribute of the q that is not one (as the client sent it - short name), NULL if all are.
+// A relationship-follow term never names a member.
+//
+static const char* qSnapshotMembersOnly(LdQNode* nodeP)
+{
+  if (nodeP == NULL)
+    return NULL;
+
+  switch (nodeP->type)
+  {
+  case LdQTermNode:
+    return snapshotMember(nodeP->term.attr) ? NULL : shortNameFromIri(nodeP->term.attr);
+
+  case LdQLinkedNode:
+    return "a relationship";
+
+  case LdQAndNode:
+  case LdQOrNode:
+    for (int i = 0; i < nodeP->group.count; i++)
+    {
+      const char* notMember = qSnapshotMembersOnly(nodeP->group.childV[i]);
+
+      if (notMember != NULL)
+        return notMember;
+    }
+    return NULL;
+  }
+
+  return NULL;
+}
+
+
+
+//
 // readQParam - find ?q=... in the parsed URL params (no decoding here;
 // the framework already URL-decoded the value).
 //
@@ -206,14 +278,6 @@ bool purgeSnapshots(void)
     return true;
   }
 
-  if (tenantP->snapshotCacheP == NULL)
-  {
-    corRest.out.httpStatusCode = 204;
-    return true;
-  }
-
-  LdSnapshotCache* cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
-
   LdQNode* qP = ldQParse(qStr, &corRest.kalloc);
   if (qP == NULL)
   {
@@ -221,6 +285,26 @@ bool purgeSnapshots(void)
             "invalid q expression: '%s'", qStr);
     return true;
   }
+
+  const char* notMember = qSnapshotMembersOnly(qP);
+  if (notMember != NULL)
+  {
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid q-expression",
+            "Purge Snapshots: the q may only name members of the Snapshot data type, not '%s'", notMember);
+    return true;
+  }
+
+  //
+  // TS 104-176 table 13.2.3.2-2: no Snapshot matching the query is 404 ResourceNotFound - on a tenant
+  // without Snapshots too
+  //
+  if (tenantP->snapshotCacheP == NULL)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshots Not Found", "no Snapshot matches the q '%s'", qStr);
+    return true;
+  }
+
+  LdSnapshotCache* cacheP = (LdSnapshotCache*) tenantP->snapshotCacheP;
 
   //
   // Walk the snapshot list. Collect ids of matching snapshots first to
@@ -245,6 +329,12 @@ bool purgeSnapshots(void)
       victims[n++] = corAllocStrdup(&corRest.kalloc, p->id);
   }
   ldSnapshotCacheUnlock(cacheP);
+
+  if (n == 0)
+  {
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshots Not Found", "no Snapshot matches the q '%s'", qStr);
+    return true;
+  }
 
   //
   // Each as DELETE /snapshots/{id} does it: pinned for the notification, unlinked, metadata

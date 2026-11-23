@@ -1,0 +1,215 @@
+#
+# FILE            snapshot_output_only_members.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 5.2.6.5.4 - the output only members of the Snapshot data type (snapshotStatus,
+# snapshotQueriesDetails, snapshotTemporalQueriesDetails, createdAt, modifiedAt, expiresAt, lastUsedAt):
+# "In the event that they are provided (in update or create operations), NGSI-LD implementations shall
+# ignore them." Create (POST /snapshots) and Update Snapshot Status (PATCH /snapshots/{id}) accept a
+# body carrying them, and the Snapshot keeps the broker's values. The members that are not output only
+# but cannot change after creation (id, snapshotQueries) are still refused: snapshot_lifecycle.test.
+#
+--NAME--
+Snapshot output only members are ignored in create and update (§ 5.2.6.5.4)
+
+--TAGS--
+snapshot
+
+--INIT--
+corDbDrop
+corSnapDrop
+coraineStart
+
+--RUN--
+
+echo "01. Seed a Vehicle"
+echo "=================="
+payload='{"id":"urn:ngsi-ld:Vehicle:V1","type":"Vehicle","speed":{"type":"Property","value":42}}'
+corCurl --url /ngsi-ld/v1/entities --payload "$payload" | head -1
+echo
+echo
+
+
+echo "02. Create S1 with every output only member set by the client - 202"
+echo "==================================================================="
+payload='{
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "type": "Snapshot",
+  "snapshotPriority": 3,
+  "snapshotQueries": [ { "type": "Query", "entities": [ { "type": "Vehicle" } ] } ],
+  "snapshotStatus": "failure",
+  "snapshotQueriesDetails": [ { "resultStatus": "failure" }, { "resultStatus": "failure" } ],
+  "snapshotTemporalQueriesDetails": [ { "resultStatus": "failure" } ],
+  "createdAt": "2000-01-01T00:00:00Z",
+  "modifiedAt": "2000-01-01T00:00:00Z",
+  "expiresAt": "2000-01-01T00:00:00Z",
+  "lastUsedAt": "2000-01-01T00:00:00Z"
+}'
+corCurl --url /ngsi-ld/v1/snapshots --payload "$payload" | head -1
+echo
+echo
+
+
+echo "03. GET S1 - the broker's status, details and timestamps, none of the client's"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1'
+echo
+echo
+
+
+echo "04. PATCH S1 - snapshotStatus failure, details, timestamps, and a new priority - 200, only the priority changes"
+echo "=============================================================================================================="
+payload='{
+  "snapshotStatus": "failure",
+  "snapshotPriority": 7,
+  "snapshotQueriesDetails": [],
+  "snapshotTemporalQueriesDetails": [ { "resultStatus": "failure" } ],
+  "createdAt": "2000-01-01T00:00:00Z",
+  "modifiedAt": "2000-01-01T00:00:00Z",
+  "expiresAt": "2000-01-01T00:00:00Z",
+  "lastUsedAt": "2000-01-01T00:00:00Z"
+}'
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload "$payload"
+echo
+echo
+
+
+echo "05. PATCH S1 with snapshotStatus only - 200, nothing changes"
+echo "============================================================"
+corCurl -X PATCH --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1 --payload '{"snapshotStatus":"failure"}' | head -1
+echo
+echo
+
+
+echo "06. GET S1 - status success, priority 7, the broker's timestamps"
+echo "================================================================"
+corCurl --url '/ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S1'
+echo
+echo
+
+
+--EXPECT--
+01. Seed a Vehicle
+==================
+HTTP/1.1 201 Created
+
+
+02. Create S1 with every output only member set by the client - 202
+===================================================================
+HTTP/1.1 202 Accepted
+
+
+03. GET S1 - the broker's status, details and timestamps, none of the client's
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "lastUsedAt": "REGEX(20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "snapshotPriority": 3,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+04. PATCH S1 - snapshotStatus failure, details, timestamps, and a new priority - 200, only the priority changes
+==============================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "lastUsedAt": "REGEX(20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "snapshotPriority": 7,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+05. PATCH S1 with snapshotStatus only - 200, nothing changes
+============================================================
+HTTP/1.1 200 OK
+
+
+06. GET S1 - status success, priority 7, the broker's timestamps
+================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: REGEX(\d+)
+
+{
+  "expiresAt": "REGEX(20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "id": "urn:ngsi-ld:Snapshot:S1",
+  "lastUsedAt": "REGEX(20[2-9]\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z)",
+  "snapshotPriority": 7,
+  "snapshotQueries": [
+    {
+      "entities": [
+        {
+          "type": "Vehicle"
+        }
+      ],
+      "type": "Query"
+    }
+  ],
+  "snapshotQueriesDetails": [
+    {
+      "resultStatus": "success"
+    }
+  ],
+  "snapshotStatus": "success",
+  "type": "Snapshot"
+}
+
+
+
+--TEARDOWN--
+coraineStop
+corSnapDrop
+corDbDrop

@@ -275,6 +275,17 @@ bool postSnapshot(void)
       exp = now + (uint64_t) durNs;
   }
 
+  //
+  // § 5.2.6.5.4: the output only members a client provides are ignored - the timestamps and the status are
+  // set here, the query details are the broker's when the queries have run
+  //
+  CorNode* detailsP;
+
+  if ((detailsP = corTreeLookup(snapP, "snapshotQueriesDetails")) != NULL)
+    corTreeChildRemove(snapP, detailsP);
+  if ((detailsP = corTreeLookup(snapP, "snapshotTemporalQueriesDetails")) != NULL)
+    corTreeChildRemove(snapP, detailsP);
+
   replaceString(snapP, "createdAt",      nsToIso(now));
   replaceString(snapP, "modifiedAt",     nsToIso(now));
   replaceString(snapP, "expiresAt",      nsToIso(exp));
