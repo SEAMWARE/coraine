@@ -45,7 +45,7 @@ coraine/
 | Beyond NGSI-LD | `SERVICE_EXECUTION`, `DATA_CHANNELS`, `ASSET_CHANNELS`, `ASSET_CHANNEL_SERVICES`, `CHANNEL_STATUS_IN`, `CHANNEL_CHECKS`, `ADMIN_CONFIG`, `BRIDGE_INVENTORY`, `CHANNEL_WRITE_BACK`, `BRIDGE_HTTP_LISTEN` |
 | Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `HA_RUNS`, `SSE` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
-| Stores and tools | `MONGOC`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
+| Stores and tools | `MONGOC`, `TROE_CORDB`, `TROE_TIMESCALE`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
 
 All default ON except `ICU_COLLATION`. Eleven are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires` (each one is needed) and,
@@ -228,7 +228,7 @@ report, not for production.
 `--http-server mhd`, the default. libmicrohttpd 1.0.10, and GnuTLS behind it: nine libraries, 7.29 MiB.
 Everything builds.
 
-#### HTTP server: corHttp (built in)
+#### HTTP server: corHttp
 
 `--http-server builtin`. The broker's own epoll server, no external library. Size: **-7.3 MiB** - nine
 libraries less than libmicrohttpd, for 12 KiB of [corHttp](https://github.com/SEAMWARE-cor/corHttp). One listener: `POLICY_API` (a port of its own) is not built. Not with
@@ -243,6 +243,22 @@ built and its libraries not loaded. Size: **-6.8 MiB** - `mongoc.so` 145 KiB, li
 #### Store: corDB + mongoc
 
 The default: `--database mongoc` too, entities in a MongoDB.
+
+#### Temporal: corDB
+
+`--features TROE_CORDB=ON`, the default. corDB's own temporal history: `--troe corDB` with `--database corDB` -
+the history in the same store, under the same lock, in the same log. Off: `corDB.so` is built without it
+(corDB's `COR_WITH_TROE_CORDB=0`), keeps no history, and the broker does not offer `--troe corDB`.
+Size: @@SIZE_CORDB@@.
+
+#### Temporal: TimescaleDB
+
+`--features TROE_TIMESCALE=ON`, the default. `timescale.so`: the temporal history in PostgreSQL with
+TimescaleDB (`--troe timescale`), through libpq. Off: not built, the broker does not offer `--troe timescale`.
+Size: @@SIZE_TIMESCALE@@.
+
+With neither, the broker keeps no history of its own (`--troe none`, its default): a subscription carries it
+to wherever it is kept - QuantumLeap, Cygnus, Kafnus.
 
 #### Bridge: MQTT
 

@@ -368,6 +368,7 @@ MONGOC=ON
 ICU=0
 CORP=1
 GEOQ=1
+TROE_CORDB=1
 IFS=, read -r -a items <<< "$FEATURES"
 for item in "${items[@]}"; do
   [ -n "$item" ] || continue
@@ -391,6 +392,11 @@ for item in "${items[@]}"; do
   # GEOQ too: the makefile's COR_WITH_GEOQ builds corDB's geo matcher without GEOS as well as the broker's
   if [ "$name" = GEOQ ]; then
     [ "$value" = ON ] && GEOQ=1 || GEOQ=0
+    continue
+  fi
+  # TROE_CORDB too: the makefile's COR_WITH_TROE_CORDB builds corDB.so without its history as well
+  if [ "$name" = TROE_CORDB ]; then
+    [ "$value" = ON ] && TROE_CORDB=1 || TROE_CORDB=0
     continue
   fi
   CMAKE_FEATURES="$CMAKE_FEATURES -DCOR_FEATURE_$name=$value"
@@ -442,7 +448,7 @@ C=$DIR/coraine
 # builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
 # variable reaches every sub-make.
 #
-MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_OPTIMIZE="$OPTIMIZE" COR_WITH_ICU="$ICU" COR_WITH_COR_PROTOCOL="$CORP" COR_WITH_GEOQ="$GEOQ")
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_OPTIMIZE="$OPTIMIZE" COR_WITH_ICU="$ICU" COR_WITH_COR_PROTOCOL="$CORP" COR_WITH_GEOQ="$GEOQ" COR_WITH_TROE_CORDB="$TROE_CORDB")
 
 #
 # phase - one line per phase, for a front-end to show progress without parsing make's output

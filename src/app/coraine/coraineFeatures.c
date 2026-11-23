@@ -66,6 +66,8 @@ const CoraineFeature coraineFeatures[] =
   { "DB_INDEXES",        COR_FEATURE_DB_INDEXES        },
   { "PROBES",            COR_FEATURE_PROBES            },
   { "LOG_LINES",         COR_FEATURE_LOG_LINES         },
+  { "TROE_CORDB",        COR_FEATURE_TROE_CORDB        },
+  { "TROE_TIMESCALE",    COR_FEATURE_TROE_TIMESCALE    },
   { NULL,                false                         }
 };
 
@@ -86,8 +88,12 @@ const CorainePlugin coraineBuiltPlugins[] =
   { "currentState", "mongoc"    },
 #endif
   { "temporal",     "none"      },
+#if COR_FEATURE_TROE_CORDB
   { "temporal",     "corDB"     },
+#endif
+#if COR_FEATURE_TROE_TIMESCALE
   { "temporal",     "timescale" },
+#endif
 #if COR_FEATURE_ADMIN_API
   { "api",          "admin"     },
 #endif

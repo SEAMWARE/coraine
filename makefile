@@ -148,6 +148,20 @@ $(error COR_WITH_GEOQ is 1 or 0, not '$(COR_WITH_GEOQ)')
 endif
 
 #
+# COR_WITH_TROE_CORDB - 1 | 0. corDB's own temporal history (--troe corDB). ONE variable for two flags, as
+# COR_WITH_GEOQ: corDB's makefile leaves its TRoE part out of corDB.so, the broker's COR_FEATURE_TROE_CORDB
+# leaves --troe corDB out of what it says it has.
+#
+COR_WITH_TROE_CORDB ?= 1
+ifeq ($(COR_WITH_TROE_CORDB),1)
+CMAKE_TROE_CORDB = -DCOR_FEATURE_TROE_CORDB=ON
+else ifeq ($(COR_WITH_TROE_CORDB),0)
+CMAKE_TROE_CORDB = -DCOR_FEATURE_TROE_CORDB=OFF
+else
+$(error COR_WITH_TROE_CORDB is 1 or 0, not '$(COR_WITH_TROE_CORDB)')
+endif
+
+#
 # COR_OPTIMIZE - speed | size. What the broker's defaults spend RAM on (CMakeLists.txt, doc/building-details.md):
 # speed (the default) for throughput, size for small hardware at low request rates. The broker's own cmake
 # option for now - nothing in the libs differs yet.
@@ -175,7 +189,7 @@ endif
 #
 libs:
 	@for lib in $(SIBLING_LIBS); do \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) BUILD=debug di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) BUILD=debug di || exit 1; \
 	done
 
 #
@@ -187,7 +201,7 @@ libs:
 #
 libs-release:
 	@for lib in $(SIBLING_LIBS); do \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) BUILD=release install || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) BUILD=release install || exit 1; \
 	done
 
 #
@@ -205,7 +219,7 @@ libs-release:
 libs-rebuild:
 	@for lib in $(SIBLING_LIBS); do \
 	  $(MAKE) -C $(SIBLING_DIR)/$$lib clean >/dev/null || exit 1; \
-	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) BUILD=debug di || exit 1; \
+	  $(MAKE) -C $(SIBLING_DIR)/$$lib COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) BUILD=debug di || exit 1; \
 	done
 
 #
@@ -264,6 +278,9 @@ endif
 ifneq ($(findstring COR_FEATURE_GEOQ,$(CMAKE_FEATURES)),)
 $(error GEOQ goes in COR_WITH_GEOQ=0|1, not CMAKE_FEATURES: corDB compiles the geo matcher and links GEOS as well as the broker)
 endif
+ifneq ($(findstring COR_FEATURE_TROE_CORDB,$(CMAKE_FEATURES)),)
+$(error TROE_CORDB goes in COR_WITH_TROE_CORDB=0|1, not CMAKE_FEATURES: corDB's makefile leaves its history out as well as the broker)
+endif
 
 #
 # src/app/coraine/coraineBuild.h - what produced this binary.
@@ -290,7 +307,7 @@ src/app/coraine/coraineBuild.h: FORCE
 	 } > $@
 
 release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 	$(call no_debug_code,$(call RELEASE_FILES,$(BUILD_RELEASE)))
 
@@ -334,26 +351,26 @@ tune:
 pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	rm -rf $(PGO_PROFILE) BUILD_PGO
 	@for lib in $(PGO_LIBS); do \
-	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
 	done
-	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
 	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
 	cmake --build BUILD_PGO -j$(CPU_COUNT)
 	$(PGO_TRAIN) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
 	@for lib in $(PGO_LIBS); do \
-	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
 	done
-	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
 	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
 	$(call no_debug_code,$(call RELEASE_FILES,BUILD_PGO))
 	@if [ "$(PGO_RESTORE_DEBUG)" = 1 ]; then for lib in $(PGO_LIBS); do \
-	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=debug COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) di > /dev/null || exit 1; \
+	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=debug COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) di > /dev/null || exit 1; \
 	done; fi
 	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided (make install_pgo installs it)"
 
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
@@ -419,7 +436,7 @@ install_debug: etc/contextSourceExtras.json
 #
 install_pgo: etc/contextSourceExtras.json
 	$(call install_from,BUILD_PGO)
-	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) CC="gcc $(PGO_USE)" install > /dev/null
+	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) CC="gcc $(PGO_USE)" install > /dev/null
 
 test:
 	$(CORTEST)
@@ -474,11 +491,11 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	@for d in $(COV_LIBS); do \
 	   find $(SIBLING_DIR)/$$d -name '*.gcno' -delete; \
 	   $(MAKE) -C $(SIBLING_DIR)/$$d clean >/dev/null && \
-	   $(MAKE) -C $(SIBLING_DIR)/$$d COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) CORAINE=$(CURDIR) BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
+	   $(MAKE) -C $(SIBLING_DIR)/$$d COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) BUILD=coverage EXTRA_CFLAGS="--coverage -O0 -Wno-error" lib$$d.a >/dev/null || exit 1; \
 	 done
 	@rm -rf $(SIBLING_DIR)/corDB/obj/coverage
 	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=coverage >/dev/null
-	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_OPTIMIZE)
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE)
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
 # Stage the instrumented plugins in the INSTALLED layout. The harness composes
