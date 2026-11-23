@@ -7,7 +7,7 @@
 #
 # § 6.3.6 — when the client sends "Prefer: ngsi-ld=<x>", the broker
 # replies with "Preference-Applied: ngsi-ld=<conformant-version>".
-# We respond with our supported version (1.9.1) regardless of <x>;
+# We respond with our supported version, major.minor (1.9), regardless of <x>;
 # full version-degradation per § 4.3.6.8 is not implemented.
 #
 --NAME--
@@ -22,9 +22,9 @@ coraineStart
 
 --RUN--
 
-echo "01. With Prefer: ngsi-ld=1.9.1 → response carries Preference-Applied"
+echo "01. With Prefer: ngsi-ld=1.6 → Preference-Applied: ngsi-ld=1.9 (ours)"
 echo "===================================================================="
-corCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Prefer: ngsi-ld=1.9.1" 2>&1 | grep -i "^Preference-Applied:"
+corCurl --url /ngsi-ld/v1/info/sourceIdentity -H "Prefer: ngsi-ld=1.6" 2>&1 | grep -i "^Preference-Applied:"
 echo
 echo
 
@@ -46,9 +46,9 @@ echo
 
 
 --EXPECT--
-01. With Prefer: ngsi-ld=1.9.1 → response carries Preference-Applied
+01. With Prefer: ngsi-ld=1.6 → Preference-Applied: ngsi-ld=1.9 (ours)
 ====================================================================
-Preference-Applied: ngsi-ld=1.9.1
+Preference-Applied: ngsi-ld=1.9
 
 
 02. Without Prefer → no Preference-Applied
