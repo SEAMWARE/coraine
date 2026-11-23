@@ -3043,9 +3043,10 @@ static bool queryEntities(PagePosition* posP)
 
   //
   // § 7.6.2.2 sort-by-distance: an orderBy "<geoprop>;dist-asc|dist-desc" term
-  // ranks entities by distance from ?orderFrom to <geoprop>. It needs orderFrom
-  // (a reference Point) and, for now, a Point orderGeometry (default). The plugin
-  // computes each entity's geoDistance and orders geo-bearing entities first.
+  // ranks entities by distance from ?orderFrom to <geoprop>. It needs orderFrom, the
+  // coordinates of the reference geometry - of the type ?orderGeometry names, Point
+  // when absent (ldParamsValidate has checked the pair). The plugin computes each
+  // entity's geoDistance and orders geo-bearing entities first.
   //
   for (int i = 0; i < corNgsild.orderByCount; i++)
   {
@@ -3058,15 +3059,10 @@ static bool queryEntities(PagePosition* posP)
               "orderBy dist-asc/dist-desc requires the orderFrom parameter");
       return true;
     }
-    if (corNgsild.orderGeometry != NULL && strcmp(corNgsild.orderGeometry, "Point") != 0)
-    {
-      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
-              "sort by distance is only supported for a Point orderGeometry (got '%s')", corNgsild.orderGeometry);
-      return true;
-    }
 
     filter.distGeoproperty = (corNgsild.orderByV[i].pathSegN > 0) ? corNgsild.orderByV[i].pathSegV[0] : NULL;
     filter.distFrom        = corNgsild.orderFrom;
+    filter.distGeometry    = corNgsild.orderGeometry;
     filter.distDesc        = (corNgsild.orderByV[i].dir == LdOrderDesc);
     break;  // a single dist term drives the ranking
   }

@@ -43,9 +43,10 @@ typedef struct DbQueryFilter
   // to the geoRel filter. When distGeoproperty != NULL the plugin ranks entities by
   // distance from distFrom to that GeoProperty (nearest first, or farthest if
   // distDesc), attaching each entity's `geoDistance`; entities lacking the
-  // GeoProperty rank last. distFrom is always a Point (non-Point → 501 upstream).
+  // GeoProperty rank last. The reference geometry is distGeometry (at the end of
+  // the struct), Point when NULL.
   char*      distGeoproperty;  // expanded IRI of the GeoProperty to sort by (NULL = no dist-sort)
-  char*      distFrom;         // reference Point coordinates (JSON array string)
+  char*      distFrom;         // reference geometry coordinates (JSON array string)
   bool       distDesc;         // true → farthest first (dist-desc)
 
   int     limit;      // max entities to return; 0 = count only, no entities
@@ -135,6 +136,18 @@ typedef struct DbQueryFilter
   char*   seekId;
   bool    seekBefore;
   bool    seekable;     // OUTPUT: the plugin honours seekId (set on every query, with a position or not)
+
+  //
+  // distGeometry - the type of the reference geometry of a distance order (?orderGeometry, § 7.6.2)
+  //
+  // Any GeoJSON geometry but a GeometryCollection; NULL means Point. Its coordinates are distFrom.
+  // The distance of an entity is the shortest one between its GeoProperty and the reference.
+  //
+  // LAST in the struct (as seekable before it): a plugin built against an older header has the same
+  // layout up to here, and orders by the distance from a Point - which a reference of another
+  // geometry's coordinates does not parse as: every entity then lacks a distance.
+  //
+  char*   distGeometry;
 } DbQueryFilter;
 
 
@@ -155,5 +168,9 @@ typedef struct DbQueryFilter
 // -----------------------------------------------------------------------------
 // DB_QUERY_FILTER_SEEK - this header has DbQueryFilter.seekCreatedAt, seekId and seekBefore
 #define DB_QUERY_FILTER_SEEK
+
+// -----------------------------------------------------------------------------
+// DB_QUERY_FILTER_DIST_GEOMETRY - this header has DbQueryFilter.distGeometry
+#define DB_QUERY_FILTER_DIST_GEOMETRY
 
 #endif  // DB_DBQUERYFILTER_H_

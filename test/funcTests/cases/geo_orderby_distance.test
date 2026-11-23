@@ -9,8 +9,11 @@
 # ranks entities by distance from the ?orderFrom reference Point to that
 # GeoProperty. Entities that convey the GeoProperty rank ahead of those that do
 # not (which have no distance and sort last). Each result carries geoDistance
-# (metres). orderFrom is required and, for now, only a Point orderGeometry is
-# supported.
+# (metres). orderFrom is required: the coordinates of the reference geometry, of the
+# type orderGeometry names (any but a GeometryCollection; Point when absent). The
+# distance is the shortest one between the reference and the entity's GeoProperty.
+# A distance order beside a georel: the georel filters, the order's distances are
+# from orderFrom.
 #
 # On mongoc this is the $geoNear (index-backed) path for the geo-bearing
 # entities plus a $unionWith for the non-geo tail, paginated across both.
@@ -83,9 +86,51 @@ echo
 echo
 
 
-echo "07. dist-asc with a non-Point orderGeometry — 501 Not Implemented"
-echo "================================================================="
-corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B7,39%5D,%5B9,41%5D%5D&orderGeometry=LineString'
+echo "07. orderGeometry=LineString near B - B (on it), C, A, then D"
+echo "=============================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B9,40.9%5D,%5B9,41.1%5D%5D&orderGeometry=LineString&options=keyValues'
+echo
+echo
+
+
+echo "08. orderGeometry=Polygon around A - A (inside, 0 m), C, B, then D"
+echo "=================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B%5B%5B8.0,39.9%5D,%5B8.07,39.9%5D,%5B8.07,40.1%5D,%5B8.0,40.1%5D,%5B8.0,39.9%5D%5D%5D&orderGeometry=Polygon&options=keyValues'
+echo
+echo
+
+
+echo "09. dist-desc beside georel=within (A and C inside) - C, A: the georel filters, the order orders"
+echo "==============================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&georel=within&geometry=Polygon&coordinates=%5B%5B%5B7.9,39.9%5D,%5B8.2,39.9%5D,%5B8.2,40.1%5D,%5B7.9,40.1%5D,%5B7.9,39.9%5D%5D%5D&orderBy=location;dist-desc&orderFrom=%5B8,40%5D&options=keyValues'
+echo
+echo
+
+
+echo "10. dist-asc from [8,40] beside georel=near [9,41] - A, C, B: the distances are from orderFrom, not from the georel's point"
+echo "========================================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&georel=near;maxDistance==200000&geometry=Point&coordinates=%5B9,41%5D&orderBy=location;dist-asc&orderFrom=%5B8,40%5D&options=keyValues'
+echo
+echo
+
+
+echo "11. orderFrom=[8,invalid] - 400 BadRequestData (not JSON)"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderFrom=%5B8,invalid%5D'
+echo
+echo
+
+
+echo "12. orderGeometry=Point, orderFrom=[8] - 400 BadRequestData (a position has two or three numbers)"
+echo "================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderGeometry=Point&orderFrom=%5B8%5D'
+echo
+echo
+
+
+echo "13. orderGeometry=LineString, orderFrom=[8,40] - 400 BadRequestData (a position, not a LineString's)"
+echo "===================================================================================================="
+corCurl --url '/ngsi-ld/v1/entities?type=P&orderBy=location;dist-asc&orderGeometry=LineString&orderFrom=%5B8,40%5D'
 echo
 echo
 
@@ -292,18 +337,244 @@ Content-Length: 189
 
 
 
-07. dist-asc with a non-Point orderGeometry — 501 Not Implemented
-=================================================================
-HTTP/1.1 422 Unprocessable Content
+07. orderGeometry=LineString near B - B (on it), C, A, then D
+==============================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 224
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 636
+
+[
+  {
+    "geoDistance": 0,
+    "id": "urn:ngsi-ld:B",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 125754.495264929,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 128360.545579708,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "id": "urn:ngsi-ld:D",
+    "name": "noloc",
+    "type": "P"
+  }
+]
+
+
+
+08. orderGeometry=Polygon around A - A (inside, 0 m), C, B, then D
+==================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 634
+
+[
+  {
+    "geoDistance": 0,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 2555.407657712,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 127235.231797525,
+    "id": "urn:ngsi-ld:B",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "id": "urn:ngsi-ld:D",
+    "name": "noloc",
+    "type": "P"
+  }
+]
+
+
+
+09. dist-desc beside georel=within (A and C inside) - C, A: the georel filters, the order orders
+===============================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 384
+
+[
+  {
+    "geoDistance": 8518.025119207,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 4259.012727117,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+10. dist-asc from [8,40] beside georel=near [9,41] - A, C, B: the distances are from orderFrom, not from the georel's point
+=========================================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 574
+
+[
+  {
+    "geoDistance": 4259.012727117,
+    "id": "urn:ngsi-ld:A",
+    "location": {
+      "coordinates": [
+        8.05,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 8518.025119207,
+    "id": "urn:ngsi-ld:C",
+    "location": {
+      "coordinates": [
+        8.1,
+        40
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  },
+  {
+    "geoDistance": 139688.634546867,
+    "id": "urn:ngsi-ld:B",
+    "location": {
+      "coordinates": [
+        9,
+        41
+      ],
+      "type": "Point"
+    },
+    "type": "P"
+  }
+]
+
+
+
+11. orderFrom=[8,invalid] - 400 BadRequestData (not JSON)
+=========================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 168
 
 {
-  "detail": "sort by distance is only supported for a Point orderGeometry (got 'LineString')",
-  "status": 422,
-  "title": "Operation Not Supported",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported"
+  "detail": "orderFrom must be a valid JSON array",
+  "status": 400,
+  "title": "Invalid geo-query",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. orderGeometry=Point, orderFrom=[8] - 400 BadRequestData (a position has two or three numbers)
+=================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 190
+
+{
+  "detail": "GeoJSON position must have 2 or 3 elements (lon, lat[, alt])",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. orderGeometry=LineString, orderFrom=[8,40] - 400 BadRequestData (a position, not a LineString's)
+====================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 163
+
+{
+  "detail": "GeoJSON position must be an array",
+  "status": 400,
+  "title": "Invalid GeoJSON",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
 

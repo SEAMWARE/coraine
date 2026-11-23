@@ -42,6 +42,7 @@ void geoMatchClose(void) {}
 
 bool geoEntityValidate(CorNode* entityP)                                                         { (void) entityP; return true; }
 bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)                       { (void) entityP; (void) filterP; (void) distanceP; return false; }
+bool geoDistanceOrder(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)               { (void) entityP; (void) filterP; *distanceP = -1; return false; }
 bool csrGeoMatchOverlap(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates) { (void) csrGeoP; (void) geoRel; (void) geometry; (void) coordinates; return false; }
 bool csrGeoMatchExact(CorNode* csrGeoP, LdGeoRel* geoRel, const char* geometry, const char* coordinates)   { (void) csrGeoP; (void) geoRel; (void) geometry; (void) coordinates; return false; }
 
@@ -538,38 +539,40 @@ static double haversineDistance(double lon1, double lat1, double lon2, double la
 
 // -----------------------------------------------------------------------------
 //
-// geoMatch - check if an entity matches a geo-query filter
+// geoDistanceMeters - metres between two geometries (the shortest distance between them), or -1
 //
-// -----------------------------------------------------------------------------
+// Two Points: haversine. Otherwise the pair of points nearest each other (GEOSNearestPoints, zero apart
+// when the geometries meet) and the haversine distance between those two. GEOS finds the pair in the
+// lon/lat plane, so for geometries far apart at high latitude it may not be the geodesically nearest
+// pair; the distance between the pair it gives is exact.
 //
-// csrDistanceMeters - metres between two geometries, or -1
+// Used for every distance here: georel=near, a distance order (§ 7.6.2, any reference geometry), and the
+// CSR dispatch filter and exact matcher.
 //
-// Two Points → exact haversine. Otherwise convert GEOS planar distance to
-// metres: longitude shrinks as cos(latitude), so a flat 111320 m/° factor
-// over-reports at high latitudes, which *underreports* matches near
-// maxDistance. Exact for Point-Point, conservative enough for the
-// non-point coverage a CSR declares.
-//
-// Shared by the dispatch filter and the exact matcher, which need the same
-// arithmetic and disagree only about the topological relations.
-//
-static double csrDistanceMeters(GEOSContextHandle_t geosCtx, const GEOSGeometry* refGeom, const GEOSGeometry* csrGeom)
+static double geoDistanceMeters(GEOSContextHandle_t geosCtx, const GEOSGeometry* refGeom, const GEOSGeometry* targetGeom)
 {
-  double xRef, yRef, xCsr, yCsr;
+  double xRef, yRef, xTarget, yTarget;
 
   if (GEOSGeomTypeId_r(geosCtx, refGeom) == GEOS_POINT &&
-      GEOSGeomTypeId_r(geosCtx, csrGeom) == GEOS_POINT &&
+      GEOSGeomTypeId_r(geosCtx, targetGeom) == GEOS_POINT &&
       GEOSGeomGetX_r(geosCtx, refGeom, &xRef) == 1 &&
       GEOSGeomGetY_r(geosCtx, refGeom, &yRef) == 1 &&
-      GEOSGeomGetX_r(geosCtx, csrGeom, &xCsr) == 1 &&
-      GEOSGeomGetY_r(geosCtx, csrGeom, &yCsr) == 1)
-    return haversineDistance(xRef, yRef, xCsr, yCsr);
+      GEOSGeomGetX_r(geosCtx, targetGeom, &xTarget) == 1 &&
+      GEOSGeomGetY_r(geosCtx, targetGeom, &yTarget) == 1)
+    return haversineDistance(xRef, yRef, xTarget, yTarget);
 
-  double distanceDegrees = -1;
-  if (GEOSDistance_r(geosCtx, refGeom, csrGeom, &distanceDegrees) == 1)
-    return distanceDegrees * 111320.0;
+  GEOSCoordSequence* seqP = GEOSNearestPoints_r(geosCtx, refGeom, targetGeom);
 
-  return -1;
+  if (seqP == NULL)
+    return -1;
+
+  double distance = -1;
+
+  if ((GEOSCoordSeq_getXY_r(geosCtx, seqP, 0, &xRef, &yRef) == 1) && (GEOSCoordSeq_getXY_r(geosCtx, seqP, 1, &xTarget, &yTarget) == 1))
+    distance = haversineDistance(xRef, yRef, xTarget, yTarget);
+
+  GEOSCoordSeq_destroy_r(geosCtx, seqP);
+  return distance;
 }
 
 
@@ -647,42 +650,32 @@ static bool geoMatchWith(GeosCtx* ctxP, CorNode* entityP, DbQueryFilter* filterP
   LdGeoRelType rel = filterP->geoRel->rel;
 
   //
-  // "near" — haversine distance on Points
+  // "near" - the distance from the reference geometry to the entity's (geoDistanceMeters): for a georel=near,
+  // and for a distance order (§ 7.6.2 - the reference of any geometry, geoDistanceOrder)
   //
   if (rel == LdGeoNear)
   {
-    // Entity point
-    double entityLon = 0, entityLat = 0;
-    CorNode* typeP = corTreeLookup(geojsonP, "type");
-    CorNode* coordsP = corTreeLookup(geojsonP, "coordinates");
+    const GEOSPreparedGeometry* refPrep = NULL;
+    GEOSGeometry*               refGeom = refGet(ctxP, filterP->geometry, filterP->coordinates, &refPrep);
 
-    if (typeP == NULL || strcmp(typeP->value.s, "Point") != 0 || coordsP == NULL)
+    if (refGeom == NULL)
       return false;
 
-    CorNode* lonNode = coordsP->value.head;
-    CorNode* latNode = (lonNode != NULL) ? lonNode->next : NULL;
-    if (lonNode == NULL || latNode == NULL)
+    GEOSGeometry* entityGeom = entityGeoToGeos(geosCtx, geojsonP);
+
+    if (entityGeom == NULL)
+    {
+      refDone(ctxP, refGeom);
       return false;
+    }
 
-    entityLon = (lonNode->type == CorFloat) ? lonNode->value.f : (double) lonNode->value.i;
-    entityLat = (latNode->type == CorFloat) ? latNode->value.f : (double) latNode->value.i;
+    double distance = geoDistanceMeters(geosCtx, refGeom, entityGeom);
 
-    // Reference point from filter coordinates (JSON string like "[-3.703,40.417]")
-    double refLon = 0, refLat = 0;
+    GEOSGeom_destroy_r(geosCtx, entityGeom);
+    refDone(ctxP, refGeom);
 
-    // Parse coordinates string — simple extraction for Point: [lon, lat]
-    const char* s = filterP->coordinates;
-    if (s == NULL) return false;
-
-    // Skip '['
-    while (*s && *s != '[') s++;
-    if (*s == '[') s++;
-    refLon = strtod(s, (char**) &s);
-    while (*s == ',' || *s == ' ') s++;
-    refLat = strtod(s, NULL);
-
-    double distance = haversineDistance(entityLon, entityLat, refLon, refLat);
-
+    if (distance < 0)
+      return false;
     if (filterP->geoRel->maxDistance >= 0 && distance > filterP->geoRel->maxDistance)
       return false;
     if (filterP->geoRel->minDistance >= 0 && distance < filterP->geoRel->minDistance)
@@ -783,7 +776,7 @@ static bool csrGeoMatchOverlapWith(GeosCtx* ctxP, CorNode* csrGeoP, LdGeoRel* ge
     }
     else
     {
-      double distanceMeters = csrDistanceMeters(geosCtx, refGeom, csrGeom);
+      double distanceMeters = geoDistanceMeters(geosCtx, refGeom, csrGeom);
       if (distanceMeters >= 0)
         match = (distanceMeters <= geoRel->maxDistance);
     }
@@ -879,7 +872,7 @@ static bool csrGeoMatchExactWith(GeosCtx* ctxP, CorNode* csrGeoP, LdGeoRel* geoR
       match = true;
     else
     {
-      double d = csrDistanceMeters(geosCtx, refGeom, csrGeom);
+      double d = geoDistanceMeters(geosCtx, refGeom, csrGeom);
       match = (d >= 0) && (d <= geoRel->maxDistance);
     }
   }
@@ -928,6 +921,31 @@ bool geoMatch(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
 
   geosCtxGive(ctxP);
   return r;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// geoDistanceOrder - see header
+//
+bool geoDistanceOrder(CorNode* entityP, DbQueryFilter* filterP, double* distanceP)
+{
+  *distanceP = -1;
+
+  if ((filterP == NULL) || (filterP->distGeoproperty == NULL))
+    return false;
+
+  LdGeoRel      nearRel = { LdGeoNear, -1, -1 };
+  DbQueryFilter near;
+
+  memset(&near, 0, sizeof(near));
+  near.geoRel      = &nearRel;
+  near.geometry    = (filterP->distGeometry != NULL) ? filterP->distGeometry : (char*) "Point";
+  near.coordinates = filterP->distFrom;
+  near.geoproperty = filterP->distGeoproperty;
+
+  return geoMatch(entityP, &near, distanceP);
 }
 
 
