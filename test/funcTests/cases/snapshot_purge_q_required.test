@@ -97,6 +97,35 @@ echo
 echo
 
 
+echo "10. DELETE /snapshots?q=snapshotPriority>5 with no Snapshot left to match - 404 ResourceNotFound (TS 104-176 table 13.2.3.2-2)"
+echo "========================================================================================================================"
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E5'
+echo
+echo
+
+
+echo "11. Create S3, then DELETE /snapshots?q=temperature==20 - 400: the q may name Snapshot members only (§ 16.7.4)"
+echo "=============================================================================================================="
+corCurl --url /ngsi-ld/v1/snapshots --payload '{"id":"urn:ngsi-ld:Snapshot:S3","type":"Snapshot","snapshotPriority":4,"snapshotQueries":[{"type":"Query","entities":[{"type":"T"}]}]}' | head -1
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=temperature==20'
+echo
+echo
+
+
+echo "12. DELETE /snapshots?q=snapshotPriority==4;speed>1 - 400: one term that is not a member is enough"
+echo "================================================================================================="
+corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority==4;speed%3E1'
+echo
+echo
+
+
+echo "13. S3 survived both refused purges"
+echo "==================================="
+corCurl --url /ngsi-ld/v1/snapshots/urn:ngsi-ld:Snapshot:S3 | head -1
+echo
+echo
+
+
 --EXPECT--
 01. Create S1 (priority 3) + S2 (priority 8)
 ============================================
@@ -173,6 +202,60 @@ Date: REGEX(.*)
 09. S1 is gone too
 ==================
 HTTP/1.1 404 Not Found
+
+
+10. DELETE /snapshots?q=snapshotPriority>5 with no Snapshot left to match - 404 ResourceNotFound (TS 104-176 table 13.2.3.2-2)
+========================================================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 182
+
+{
+  "detail": "no Snapshot matches the q 'snapshotPriority>5'",
+  "status": 404,
+  "title": "Snapshots Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+11. Create S3, then DELETE /snapshots?q=temperature==20 - 400: the q may name Snapshot members only (§ 16.7.4)
+==============================================================================================================
+HTTP/1.1 202 Accepted
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 224
+
+{
+  "detail": "Purge Snapshots: the q may only name members of the Snapshot data type, not 'temperature'",
+  "status": 400,
+  "title": "Invalid q-expression",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+12. DELETE /snapshots?q=snapshotPriority==4;speed>1 - 400: one term that is not a member is enough
+=================================================================================================
+HTTP/1.1 400 Bad Request
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 218
+
+{
+  "detail": "Purge Snapshots: the q may only name members of the Snapshot data type, not 'speed'",
+  "status": 400,
+  "title": "Invalid q-expression",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
+}
+
+
+
+13. S3 survived both refused purges
+===================================
+HTTP/1.1 200 OK
 
 
 --TEARDOWN--

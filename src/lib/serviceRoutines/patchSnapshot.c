@@ -66,11 +66,24 @@ static char* nsToIso(uint64_t ns)
 
 
 //
-// IMMUTABLE_FIELDS - members the client must not include in a fragment.
+// IMMUTABLE_FIELDS - members the client must not include in a fragment: the id and type (§ 5.2.6.5.4: the id
+// "cannot be later modified"), and the queries ("can only be set when creating a snapshot, after that it
+// becomes read-only").
 //
 static const char* IMMUTABLE_FIELDS[] = {
   "id", "type",
   "snapshotQueries", "snapshotTemporalQueries",
+  NULL
+};
+
+
+
+//
+// OUTPUT_ONLY_FIELDS - § 5.2.6.5.4, the output only members: "In the event that they are provided (in update
+// or create operations), NGSI-LD implementations shall ignore them." Taken out of the fragment before it is
+// applied and persisted.
+//
+static const char* OUTPUT_ONLY_FIELDS[] = {
   "snapshotStatus",
   "snapshotQueriesDetails", "snapshotTemporalQueriesDetails",
   "createdAt", "modifiedAt", "expiresAt", "lastUsedAt",
@@ -127,6 +140,15 @@ bool patchSnapshot(void)
       ldSnapshotCacheItemUnpin(itemP);
       return true;
     }
+  }
+
+  // Ignore the output only members.
+  for (int i = 0; OUTPUT_ONLY_FIELDS[i] != NULL; i++)
+  {
+    CorNode* outputOnlyP = corTreeLookup(fragP, OUTPUT_ONLY_FIELDS[i]);
+
+    if (outputOnlyP != NULL)
+      corTreeChildRemove(fragP, outputOnlyP);
   }
 
   // Validate snapshotPriority if present.

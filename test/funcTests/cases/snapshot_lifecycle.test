@@ -144,9 +144,9 @@ echo
 echo
 
 
-echo "17. DELETE /snapshots with a match-all q → 204, purges remaining"
-echo "================================================================"
-# q is mandatory (§ 16.7.4); purging everything is asked for explicitly.
+echo "17. DELETE /snapshots with a match-all q, none left (step 14 purged the clone too) → 404 ResourceNotFound"
+echo "======================================================================================================="
+# q is mandatory (§ 16.7.4); purging everything is asked for explicitly. No Snapshot matching: 404 (TS 104-176 table 13.2.3.2-2).
 corCurl -X DELETE --url '/ngsi-ld/v1/snapshots?q=snapshotPriority%3E%3D0'
 echo
 echo
@@ -434,11 +434,19 @@ Content-Length: REGEX(\d+)
 
 
 
-17. DELETE /snapshots with a match-all q → 204, purges remaining
-================================================================
-HTTP/1.1 204 No Content
+17. DELETE /snapshots with a match-all q, none left (step 14 purged the clone too) → 404 ResourceNotFound
+=======================================================================================================
+HTTP/1.1 404 Not Found
 Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 183
 
+{
+  "detail": "no Snapshot matches the q 'snapshotPriority>=0'",
+  "status": 404,
+  "title": "Snapshots Not Found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
 
 
 

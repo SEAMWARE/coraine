@@ -25,7 +25,7 @@ a denominator that had changed underneath it. The figures live in
 [`coverage.md`](coverage.md), which is the one place they are measured and the one
 place they are kept.
 
-## Matrix: 2314 spec statements — 1055 asserted by a test, 373 partially, 886 unasserted; 245 high-priority
+## Matrix: 2314 spec statements — 1057 asserted by a test, 373 partially, 884 unasserted; 245 high-priority
 
 Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 
@@ -289,7 +289,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [ ] **[16.4]** Invalid (non-URI) Snapshot Id raises BadRequestData — No test does GET /snapshots/{non-URI id} expecting 400 BadRequestData; only valid-URI unknown ids are tested (which return 404).
 - [ ] **[16.5]** Update endpoint — No test PATCHes the endpoint member onto an existing snapshot; endpoint is only set at creation time (snapshot_notification.test step 03). Add a PATCH {"endpoint":...} and verify it is applied (subsequent status notification reaches the new endpoint).
 - [ ] **[16.5]** Update receiverInfo — No test PATCHes receiverInfo onto an existing snapshot; receiverInfo is only set at creation (snapshot_notification.test step 03). Add a PATCH {"receiverInfo":[...]} and verify the new headers appear on a status notification.
-- [ ] **[16.5]** Output-only members in fragment are ignored — No test sends an output-only member (snapshotStatus, snapshotQueriesDetails, createdAt, modifiedAt, expiresAt, lastUsedAt, etc.) in a PATCH fragment to verify it is silently ignored (no error, value not applied).
+- [x] **[16.5]** Output-only members in fragment are ignored — snapshot_output_only_members: a PATCH carrying every output only member and a priority answers 200 and changes the priority only; one with snapshotStatus alone changes nothing.
 - [ ] **[16.5]** snapshotTemporalQueries must be omitted on update -> BadRequestData — snapshotQueries-on-PATCH→400 is tested but the analogous snapshotTemporalQueries-on-PATCH→400 guard is not; add a PATCH {snapshotTemporalQueries:[...]} expecting 400 BadRequestData.
 - [ ] **[16.6]** Invalid (non-URI) Snapshot id → 400 BadRequestData — No DELETE /snapshots/<non-URI> test (e.g. 'not-a-uri' / 'no-colon'); the BadRequestData/Invalid-URI 400 path for snapshot delete is never asserted.
 
@@ -992,7 +992,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [~] **[16.2]** expiresAt set honoring snapshotLifetime within configured limit — expiresAt is masked with REGEX(.*) so the computed now+duration value (PT2H/P1D/etc.) is never actually checked; only the echoed snapshotLifetime is asserted.
 - [ ] **[16.2]** snapshotLifetime exceeding configured limit is capped — No test requests a snapshotLifetime larger than the system limit to verify expiresAt is capped to the configured maximum.
 - [ ] **[16.2]** Full pagination retrieval for paginated query results — No capture-time test uses a result set larger than one page to verify all pages are retrieved before storing; pagination is only tested on snapshot READ (snapshot_orderby_q.test).
-- [ ] **[16.2]** Output-only members provided by client are ignored — No test supplies output-only members (snapshotStatus, snapshotQueriesDetails, createdAt, modifiedAt, expiresAt) in the create body to verify they are ignored rather than honored.
+- [x] **[16.2]** Output-only members provided by client are ignored — snapshot_output_only_members: a create body carrying every output only member; the Snapshot has the broker's status, details and timestamps.
 - [~] **[16.2]** BadRequestData when data types/cardinalities/restrictions not met — Type and snapshotLifetime restrictions yield 400, but generic data-type/cardinality violations (e.g. snapshotQueries not an array, malformed Query objects) are not specifically asserted.
 - [~] **[16.2]** BadRequestData when snapshotPriority out of range (not 1..10) — Out-of-range priority (11) is only tested via PATCH, not at CREATE; values 0, negative, and non-integer are untested at any operation.
 - [ ] **[16.2]** BadRequestData when id is not a valid URI — No test creates a Snapshot with a non-URI id (e.g. plain string) to verify BadRequestData.
