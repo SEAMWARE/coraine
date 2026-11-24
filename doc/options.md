@@ -108,15 +108,20 @@ default value (`-` for none) - the default, not the value given on the same comm
 `-V` · `CORAINE_VERSION` · Bool · default: `false` (off)
 · values: a switch · plugin: core
 
-Prints five lines and exits with 0: the program and its version; `features:` with every
+Prints six lines and exits with 0: the program and its version; `features:` with every
 compile-time feature of this binary as `NAME=1` (in the build) or `NAME=0` (left out); `httpServer:`
 with the HTTP server it would run with the options and environment given (`mhd` - libmicrohttpd, or
 `builtin` - [corHttp](https://github.com/SEAMWARE-cor/corHttp); [`--httpServer`](#--httpserver)) and
-`httpServers:` with the ones it is built with; and `optimize:` with what its defaults spend RAM on (`speed`
-or `size`, [COR_OPTIMIZE](building-details.md#cor_optimize)).
+`httpServers:` with the ones it is built with; `optimize:` with what its defaults spend RAM on (`speed`
+or `size`, [COR_OPTIMIZE](building-details.md#cor_optimize)); and `plugins:` with the plugins it would find
+and take, per kind, as its options name them, comma-separated - `db=` (`--database`), `troe=` (`--troe`; `corDB`
+when `corDB.so` is there and the build has its history), `api=` (`--apiPlugins`), `auth=` (`--auth`), `bridges=`
+(`--bridges`), `transports=` (`--transports`); a kind with none is its name and `=`, and a store the broker is
+built without is not listed. The plugin directory is the one a start uses: `SEAMWARE_PLUGIN_DIR`, else
+`/opt/seamware/plugins`. A running broker says the same in `GET /build`'s `plugins.found`.
 It is answered before any plugin is loaded and before the other options are read - `--httpServer` and
-`CORAINE_HTTPSERVER` alone are looked at - so it works on an installation with a broken or missing plugin
-directory, and nothing else on the command line is checked.
+`CORAINE_HTTPSERVER` alone are looked at, and the plugin directory is only listed - so it works on an
+installation with a broken or missing plugin directory, and nothing else on the command line is checked.
 
 It is read from the command line only: `CORAINE_VERSION` is listed by `-U`, and setting it does
 nothing - the broker starts.
@@ -127,6 +132,7 @@ nothing - the broker starts.
     # httpServer: mhd
     # httpServers: mhd
     # optimize: speed
+    # plugins: db=corDB,mongoc,ramDB troe=corDB,none,ramDB,timescale api=admin auth=fdsc,oidc bridges=cep,loopback,modbus,mqtt transports=ws
 
 ### `--verbose`
 

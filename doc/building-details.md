@@ -149,7 +149,7 @@ and the run-time settings that change what a client gets:
   "version": "0.7.0",
   "build":    { "gitSha": "...", "builtAt": "...", "type": "Debug", "compiler": "GNU 15.2.0" },
   "features": { "REGISTRATIONS": false, ... },
-  "plugins":  { "directory": "/opt/seamware/plugins", "built": [...], "loaded": {...} },
+  "plugins":  { "directory": "/opt/seamware/plugins", "built": [...], "found": {...}, "loaded": {...} },
   "runtime":  { "distributed": false, "splitEntities": true, "httpEndpoint": "..." }
 }
 ```
@@ -157,6 +157,11 @@ and the run-time settings that change what a client gets:
 Three kinds of fact, kept apart because they change at three different moments —
 a feature is fixed when the source was compiled, `loaded` is decided at startup
 from a directory the binary does not own, and `runtime` changes with a restart.
+`built` is what the cmake run that produced the binary also produced; `found` is what the plugin directory holds
+now that this broker would take, per kind, as its options name them - `db` (`--database`), `troe` (`--troe`,
+`corDB` when `corDB.so` is there and the build has its history), `api` (`--apiPlugins`), `auth` (`--auth`),
+`bridges` (`--bridges`), `transports` (`--transports`) - less a store it is built without. The same as
+[`coraine -V`](options.md#--version)'s `plugins:` line, which answers before a broker is started.
 That last one earns its place: a broker with `REGISTRATIONS` compiled **in** and
 `--distributed` off accepts registrations and forwards nothing, and this is the
 only place both switches are visible at once.

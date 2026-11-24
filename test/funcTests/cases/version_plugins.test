@@ -1,0 +1,98 @@
+#
+# FILE            version_plugins.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# coraine --version's sixth line, plugins: - the plugins the broker would find in its plugin directory and take,
+# per kind, as its options name them (db --database, troe --troe, api --apiPlugins, auth --auth, bridges
+# --bridges, transports --transports): what a start of it can be given. The directory is the one a start uses,
+# SEAMWARE_PLUGIN_DIR here. --troe corDB is corDB.so's own history: listed when db/currentState/corDB.so is
+# there. GET /build's plugins.found says the same of a running broker.
+#
+# The plugins are found by their names: empty files stand in for them.
+#
+# REQUIRE_FEATURE: CORDB TROE_CORDB MONGOC AUTH TRANSPORTS
+#
+--NAME--
+coraine --version: the plugins line, and GET /build's plugins.found
+
+--TAGS--
+cli build plugins
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest-versionPlugins
+rm -rf $D
+mkdir -p $D/all/db/currentState $D/all/troe/temporal $D/all/api $D/all/auth $D/all/bridge $D/all/transport $D/empty
+for f in db/currentState/corDB db/currentState/mongoc db/currentState/ramDB troe/temporal/none troe/temporal/timescale \
+         api/admin auth/fdsc auth/oidc bridge/mqtt bridge/loopback transport/ws; do
+  : > $D/all/$f.so
+done
+
+echo "01. A plugin of every kind - six lines, plugins: the last"
+echo "==========================================================="
+SEAMWARE_PLUGIN_DIR=$D/all $COR_BROKER --version | wc -l
+SEAMWARE_PLUGIN_DIR=$D/all $COR_BROKER --version | tail -1
+echo
+echo
+
+
+echo "02. No corDB.so - no --troe corDB"
+echo "=================================="
+rm $D/all/db/currentState/corDB.so
+SEAMWARE_PLUGIN_DIR=$D/all $COR_BROKER --version | tail -1
+echo
+echo
+
+
+echo "03. An empty plugin directory - every kind, nothing after its ="
+echo "================================================================"
+SEAMWARE_PLUGIN_DIR=$D/empty $COR_BROKER --version | tail -1
+echo
+echo
+
+
+echo "04. A running broker - GET /build's plugins.found is --version's plugins: line"
+echo "=============================================================================="
+coraineStart
+V=$($COR_BROKER --version | tail -1)
+curl -s "localhost:$CB_PORT/build" | V="$V" python3 -c '
+import json, os, sys
+found = json.load(sys.stdin)["plugins"]["found"]
+line  = dict(kv.split("=", 1) for kv in os.environ["V"].split()[1:])
+print("kinds:", " ".join(found))
+print("the same:", all(",".join(found[k]) == line[k] for k in found) and sorted(found) == sorted(line))'
+echo
+echo
+
+
+--EXPECT--
+01. A plugin of every kind - six lines, plugins: the last
+===========================================================
+6
+plugins: db=corDB,mongoc,ramDB troe=corDB,none,timescale api=admin auth=fdsc,oidc bridges=loopback,mqtt transports=ws
+
+
+02. No corDB.so - no --troe corDB
+==================================
+plugins: db=mongoc,ramDB troe=none,timescale api=admin auth=fdsc,oidc bridges=loopback,mqtt transports=ws
+
+
+03. An empty plugin directory - every kind, nothing after its =
+================================================================
+plugins: db= troe= api= auth= bridges= transports=
+
+
+04. A running broker - GET /build's plugins.found is --version's plugins: line
+==============================================================================
+kinds: db troe api auth bridges transports
+the same: True
+
+
+--TEARDOWN--
+coraineStop
+rm -rf /tmp/corTest-versionPlugins
