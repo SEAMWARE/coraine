@@ -196,16 +196,6 @@ The `;v1.9` parameter on the core context's Link header, and § 13.4's `?core=`.
 Machine-readable errors and per-item outcomes that NGSI-LD does not define yet - taken to the ETSI
 TC DATA face-to-face in Athens; not implemented. The drafts are not public.
 
-### Our own string collation, replacing ICU
-
-§ 7.6.2.1 makes ICU "root" collation the default order for `orderBy` on strings, and libicu costs
-three shared libraries and 39.2 MiB - `libicudata` alone is 31.6 MiB, nine times the broker, for a
-table. An MVP of root collation in [corNgsild](https://github.com/SEAMWARE-cor/corNgsild): UTF-8 to code points, a primary/secondary/tertiary
-weight table for the Latin ranges real deployments use, the category order (punctuation < digits <
-letters) the current ASCII approximation gets wrong; locale tailorings added on demand, one at a
-time. ICU stays behind `COR_FEATURE_ICU_COLLATION=ON`. `orderby_collation_locale.test` is the
-discriminator the MVP has to turn green without ICU.
-
 ### Array reduction in corJsonld
 
 One JSON-LD normalisation applied once at the input boundary rather than at each call site.

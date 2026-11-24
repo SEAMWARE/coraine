@@ -25,7 +25,7 @@ a denominator that had changed underneath it. The figures live in
 [`coverage.md`](coverage.md), which is the one place they are measured and the one
 place they are kept.
 
-## Matrix: 2314 spec statements — 1057 asserted by a test, 373 partially, 884 unasserted; 245 high-priority
+## Matrix: 2314 spec statements — 1059 asserted by a test, 372 partially, 883 unasserted; 245 high-priority
 
 Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 
@@ -42,7 +42,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - **distops**: 136 / 60 / 32 / 44
 - **snapshots**: 116 / 55 / 18 / 43
 - **context**: 71 / 36 / 13 / 22
-- **ordering**: 28 / 5 / 5 / 18
+- **ordering**: 28 / 7 / 4 / 17
 - **query-filter**: 90 / 59 / 17 / 14
 - **pagination**: 44 / 30 / 4 / 10
 - **multi-attr-datasetId**: 40 / 28 / 2 / 10
@@ -877,7 +877,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 
 - [ ] **[7.6]** orderBy single attribute, explicit ascending (;asc) — No test exercises the explicit ;asc direction term; only default-ascending and ;desc are asserted. Add orderBy=name;asc and assert equivalence to default.
 - [ ] **[7.6]** orderBy mixed per-element directions — No test uses per-element directions like orderBy=name,age;desc (primary asc, secondary desc); only uniform directions are tested.
-- [~] **[7.6]** orderBy on a Property value of string type using ICU root collation — String ordering is asserted (alpha/bravo/charlie; Alice/Bob/Charlie) but all values are same-case lowercase/leading-cap ASCII, so ICU root collation is indistinguishable from raw ASCII sort. No test proves ICU root behaviour (e.g. accented/diacritic ordering).
+- [x] **[7.6]** orderBy on a Property value of string type using ICU root collation — orderby_collation_locale (punctuation before digits, äpple beside apple) and orderby_collation_own (ärter between apple and Banana), on every build.
 - [ ] **[7.6]** orderBy on a DateTime Property value — No test orders entities by a DateTime Property value to verify chronological sort.
 - [ ] **[7.6]** orderBy on a Relationship (target object) ascending/descending — No test orders entities by a Relationship's target object URI.
 - [ ] **[7.6]** orderBy by sub-item within a complex JSON Property value using bracket path — No test uses orderBy=address[city] bracket-path into a complex JSON value.
@@ -889,7 +889,7 @@ Legend: `[ ]` no test asserts it, `[~]` partially asserted. Tick as covered.
 - [ ] **[7.6]** orderFrom coordinates conform to RFC 7946 §3.1.2 — No test exercises orderFrom coordinate parsing ([lon,lat] GeoJSON semantics).
 - [ ] **[7.6]** Distance sort limited to GeoProperties; non-GeoProperty attributes ranked after GeoProperties — No test verifies that under distance sort, non-GeoProperty entities are ranked after GeoProperty-holding ones.
 - [ ] **[7.6]** collation parameter selects case-insensitive ordering (und-u-ks-identic) — No test uses the collation parameter (und-u-ks-identic) for case-insensitive ordering.
-- [ ] **[7.6]** collation parameter selects locale-specific ordering (de-u-co-phonebk) — No test uses a locale-specific collation (de-u-co-phonebk) to alter sort order.
+- [x] **[7.6]** collation parameter selects locale-specific ordering (de-u-co-phonebk) — orderby_collation_own: de-u-co-phonebk puts Müller before muffin, de after it; sv, und-u-kn too.
 
 ### pagination (7)
 

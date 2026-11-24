@@ -1,0 +1,152 @@
+#
+# FILE            orderby_collation_own.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# TS 104-175 § 7.6.2.1: strings order by ICU's "root" collation, and `collation` (RFC 6067) selects another.
+# This test runs on the DEFAULT build - no ICU: corBase's corCollate is the root order for the letters of ASCII,
+# Latin-1 and Latin Extended-A, plus what the ETSI suite asks for (019_36_02, whose twelve names these are):
+#
+#   root             case and accents are ignored at the first level: ärter between apple and Banana
+#   sv               å and ä are letters of their own after z, å first
+#   und-u-kn         digits by their numeric value: item2 < item9 < item10 (root: item10 first)
+#   de-u-co-phonebk  ü is ue: Müller before muffin
+#   de               ü is u with an accent: muffin before Müller
+#
+# The order of every pair of these names is the one ICU 78 gives (corBase/corCollate.c was checked against it
+# pair by pair, 41.7 million pairs over every Latin letter of the table).
+#
+--NAME--
+collation without ICU - root, sv, und-u-kn, de-u-co-phonebk, de (§ 7.6.2.1, ETSI 019_36_02)
+
+--TAGS--
+orderBy collation query
+
+--INIT--
+corDbDrop
+coraineStart
+
+--RUN--
+
+ordered()
+{
+  echo "collation=${1:-(none)}: $(curl -s -G "http://localhost:$CB_PORT/ngsi-ld/v1/entities" --data-urlencode "type=T" --data-urlencode "orderBy=name" \
+    --data-urlencode "local=true" ${1:+--data-urlencode "collation=$1"} --data-urlencode "options=keyValues" | jq -r '.[].name' | paste -sd ' ')"
+}
+
+echo "01. Seed 12 entities - the names of ETSI 019_36_02"
+echo "=================================================="
+n=0
+for name in apple Banana cherry Zebra ärter åsna Item2 item9 item10 Müller muffin Mzz; do
+  n=$((n + 1))
+  corCurl --url /ngsi-ld/v1/entities --payload '{"id":"urn:ngsi-ld:C'$n'","type":"T","name":{"type":"Property","value":"'$name'"}}' | head -1
+done
+echo
+echo
+
+
+echo "02. root (no collation): ärter between apple and Banana, item10 before Item2 (digit by digit)"
+echo "============================================================================================="
+ordered ""
+echo
+echo
+
+
+echo "03. sv: åsna and ärter after Zebra, å before ä"
+echo "=============================================="
+ordered "sv"
+echo
+echo
+
+
+echo "04. und-u-kn: Item2 item9 item10 - by value"
+echo "==========================================="
+ordered "und-u-kn"
+echo
+echo
+
+
+echo "05. de-u-co-phonebk: ä is ae and ü is ue - ärter (aerter) before apple, Müller (mueller) before muffin"
+echo "======================================================================================================"
+ordered "de-u-co-phonebk"
+echo
+echo
+
+
+echo "06. de: muffin before Müller (ü is an accented u)"
+echo "================================================="
+ordered "de"
+echo
+echo
+
+
+echo "07. und-u-kn-false: numeric off again - as root"
+echo "==============================================="
+ordered "und-u-kn-false"
+echo
+echo
+
+
+echo "08. sv-SE-u-kn: a region, and the numeric key on top of Swedish"
+echo "==============================================================="
+ordered "sv-SE-u-kn"
+echo
+echo
+
+
+--EXPECT--
+01. Seed 12 entities - the names of ETSI 019_36_02
+==================================================
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+HTTP/1.1 201 Created
+
+
+02. root (no collation): ärter between apple and Banana, item10 before Item2 (digit by digit)
+=============================================================================================
+collation=(none): apple ärter åsna Banana cherry item10 Item2 item9 muffin Müller Mzz Zebra
+
+
+03. sv: åsna and ärter after Zebra, å before ä
+==============================================
+collation=sv: apple Banana cherry item10 Item2 item9 muffin Müller Mzz Zebra åsna ärter
+
+
+04. und-u-kn: Item2 item9 item10 - by value
+===========================================
+collation=und-u-kn: apple ärter åsna Banana cherry Item2 item9 item10 muffin Müller Mzz Zebra
+
+
+05. de-u-co-phonebk: ä is ae and ü is ue - ärter (aerter) before apple, Müller (mueller) before muffin
+======================================================================================================
+collation=de-u-co-phonebk: ärter apple åsna Banana cherry item10 Item2 item9 Müller muffin Mzz Zebra
+
+
+06. de: muffin before Müller (ü is an accented u)
+=================================================
+collation=de: apple ärter åsna Banana cherry item10 Item2 item9 muffin Müller Mzz Zebra
+
+
+07. und-u-kn-false: numeric off again - as root
+===============================================
+collation=und-u-kn-false: apple ärter åsna Banana cherry item10 Item2 item9 muffin Müller Mzz Zebra
+
+
+08. sv-SE-u-kn: a region, and the numeric key on top of Swedish
+===============================================================
+collation=sv-SE-u-kn: apple Banana cherry Item2 item9 item10 muffin Müller Mzz Zebra åsna ärter
+
+
+--TEARDOWN--
+coraineStop
