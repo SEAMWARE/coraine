@@ -108,20 +108,25 @@ default value (`-` for none) - the default, not the value given on the same comm
 `-V` · `CORAINE_VERSION` · Bool · default: `false` (off)
 · values: a switch · plugin: core
 
-Prints three lines and exits with 0: the program and its version, `features:` with every
-compile-time feature of this binary as `NAME=1` (in the build) or `NAME=0` (left out), and
-`httpServer:` with the HTTP server it was built with (`mhd` - libmicrohttpd, or `builtin` - [corHttp](https://github.com/SEAMWARE-cor/corHttp)).
-It is answered before any plugin is loaded and before any other option is read, so it works on an
-installation with a broken or missing plugin directory, and nothing else on the command line is
-checked.
+Prints five lines and exits with 0: the program and its version; `features:` with every
+compile-time feature of this binary as `NAME=1` (in the build) or `NAME=0` (left out); `httpServer:`
+with the HTTP server it would run with the options and environment given (`mhd` - libmicrohttpd, or
+`builtin` - [corHttp](https://github.com/SEAMWARE-cor/corHttp); [`--httpServer`](#--httpserver)) and
+`httpServers:` with the ones it is built with; and `optimize:` with what its defaults spend RAM on (`speed`
+or `size`, [COR_OPTIMIZE](building-details.md#cor_optimize)).
+It is answered before any plugin is loaded and before the other options are read - `--httpServer` and
+`CORAINE_HTTPSERVER` alone are looked at - so it works on an installation with a broken or missing plugin
+directory, and nothing else on the command line is checked.
 
 It is read from the command line only: `CORAINE_VERSION` is listed by `-U`, and setting it does
 nothing - the broker starts.
 
     coraine -V
-    # coraine 0.6.0
+    # coraine 0.7.0
     # features: SUBSCRIPTIONS=1 REGISTRATIONS=1 GEOQ=1 ... ICU_COLLATION=0 ...
     # httpServer: mhd
+    # httpServers: mhd
+    # optimize: speed
 
 ### `--verbose`
 
