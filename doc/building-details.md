@@ -336,6 +336,11 @@ admin` when the build has them, else `--database corDB`. With docker, else podma
 Ubuntu only. Size: **67 MiB** for the default bridges, of which 39.7 MiB is the base image (release, 22 Nov 2026,
 Ubuntu 26.04); the context it was built from stays in `<dir>/image`.
 
+`--image-file` saves it as a file too, for a machine without a registry: `<dir>/image.tar.gz`, the engine's `save`
+gzipped, with the image's name and tag inside - `docker load -i image.tar.gz` (or `podman load -i`) on the other
+machine, then `docker run` that name. Written under a temporary name and renamed when complete: a failed or
+interrupted save leaves no `image.tar.gz`. Needs `--image`. Size: **66 MiB** (69,292,705 bytes) for the default bridges - the image itself is 66 MiB too: this docker keeps its layers compressed already, and gzip takes 1.3 % off its `save` (release, 24 Nov 2026, Ubuntu 26.04).
+
 #### `SUBSCRIPTIONS`
 
 Subscriptions and their notifications. Off: the 7 subscription routes answer 501, the

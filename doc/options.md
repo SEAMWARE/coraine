@@ -59,7 +59,7 @@ repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/
 ## The programs beside the broker
 
 - [coraine-import](#coraine-import) - 17
-- [coraine-build](#coraine-build) - 17
+- [coraine-build](#coraine-build) - 18
 
 ---
 
@@ -2613,6 +2613,23 @@ may this user use it?`, `the image's packages are named by dpkg - Debian and Ubu
 characters (`[registry[:port]/]repository[:tag] - the repository lower-case a-z 0-9 . _ / -`).
 
     coraine-build --source ~/git --image localhost/coraine:mine /tmp/cb
+    docker run --rm -p 1026:1026 localhost/coraine:mine --database corDB
+
+### `--image-file`
+
+no short form · no environment variable · Bool · default: off
+· values: a flag · tool: coraine-build
+
+`--image`'s image saved as a file too, for a machine without a registry: `<dir>/image.tar.gz` - the engine's
+`save`, gzipped, the image's name and tag inside it. `docker load -i` and `podman load -i` read it as it is.
+Written under a temporary name and renamed when complete, so a save that fails or is interrupted leaves no
+`image.tar.gz`. The summary gives its path, its size and how to load it. Without `--image` it is refused before
+anything is compiled: `coraine-build: --image-file needs --image (the image is saved under its name)`. Size:
+**66 MiB** (69,292,705 bytes) for the default bridges - the image itself is 66 MiB too: this docker keeps its layers compressed already, and gzip takes 1.3 % off its `save` (release, 24 Nov 2026, Ubuntu 26.04) ([Output: Docker image](building-details.md#output-docker-image)).
+
+    coraine-build --source ~/git --image localhost/coraine:mine --image-file /tmp/cb
+    scp /tmp/cb/image.tar.gz edge:                    # then, on that machine:
+    docker load -i image.tar.gz
     docker run --rm -p 1026:1026 localhost/coraine:mine --database corDB
 
 ### `--source`

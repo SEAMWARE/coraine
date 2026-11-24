@@ -1,0 +1,58 @@
+#
+# FILE            coraine_build_image_file.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# coraine-build --image-file: --image's image saved as <dir>/image.tar.gz too. It needs --image, which names
+# the image saved - refused without it, before anything is compiled (no --source given here: nothing is
+# read). And --help lists it: c³ looks for it there to know whether a source has the option.
+#
+# The save itself needs a container engine and a full build (~15 minutes): done by hand, the file loaded back
+# with docker load -i and run (doc/building-details.md, "Output: Docker image").
+#
+--NAME--
+coraine-build --image-file - needs --image, and --help lists it
+
+--TAGS--
+cli build
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest-imageFile
+rm -rf $D
+
+echo "01. --image-file without --image - refused, nothing written"
+echo "============================================================"
+"$REPO_ROOT"/packaging/deb/coraine-build --image-file $D/cb 2>&1
+echo "exit: $?"
+echo "image.tar.gz: $([ -e $D/cb/image.tar.gz ] && echo yes || echo no)"
+echo
+echo
+
+
+echo "02. --help lists --image-file"
+echo "============================="
+"$REPO_ROOT"/packaging/deb/coraine-build --help | grep -c -- "--image-file"
+echo
+echo
+
+
+--EXPECT--
+01. --image-file without --image - refused, nothing written
+============================================================
+coraine-build: --image-file needs --image (the image is saved under its name)
+exit: 1
+image.tar.gz: no
+
+
+02. --help lists --image-file
+=============================
+2
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest-imageFile
