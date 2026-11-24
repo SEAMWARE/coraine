@@ -110,6 +110,26 @@ int pluginLoadDb(const char* shortName, char* errorBuf, int errorBufSize)
 
   memset(&db, 0, sizeof(DbDriver));
 
+  //
+  // A store this broker is built without is refused by its name, whatever .so of that name the plugin
+  // directory holds - one left there by another build would load and run (a path is the operator's own)
+  //
+  const char* without = NULL;
+#if COR_FEATURE_CORDB == 0
+  if ((strcmp(shortName, "corDB") == 0) || (strcmp(shortName, "ramDB") == 0))
+    without = "corDB (COR_FEATURE_CORDB) - corDB and ramDB are its; --database mongoc";
+#endif
+#if COR_FEATURE_MONGOC == 0
+  if (strcmp(shortName, "mongoc") == 0)
+    without = "mongoc (COR_FEATURE_MONGOC); --database corDB";
+#endif
+  if (without != NULL)
+  {
+    if (errorBuf != NULL)
+      snprintf(errorBuf, errorBufSize, "DB plugin '%s': this broker was built without %s", shortName, without);
+    return -1;
+  }
+
   corPluginResolve(corPluginBaseDir(), "db", "currentState", shortName, path, sizeof(path));
 
   char openErr[512];
@@ -216,6 +236,15 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
   memset(&troe, 0, sizeof(TroeDriver));
 
+#if COR_FEATURE_CORDB == 0
+  if (strcmp(shortName, "ramDB") == 0)                 // corDB's repository builds it, as the stores corDB and ramDB
+  {
+    if (errorBuf != NULL)
+      snprintf(errorBuf, errorBufSize, "TRoE 'ramDB': this broker was built without corDB (COR_FEATURE_CORDB) - ramDB is its; --troe none or timescale");
+    return -1;
+  }
+#endif
+
   //
   // --troe corDB is not a plugin of its own: corDB keeps history in its store - the same lock, the same
   // log - so the TRoE driver is the current-state plugin's own troeRegister. Which needs that plugin to
@@ -268,6 +297,70 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
 // -----------------------------------------------------------------------------
 //
+// argValuesDrop - the values an option offers (its description, "a|b|c", from corPluginArgUpdate), less those of
+// dropV (NULL-terminated): a store this broker is built without - its .so, left by another build, is refused
+// (pluginLoadDb, pluginLoadTroe), so it is not offered
+//
+static void argValuesDrop(const char* longName, const char* const* dropV, char* buf, int bufSize)
+{
+  for (int i = 0; corArgInfoV[i].type != CorArgEnd; i++)
+  {
+    if ((corArgInfoV[i].longName == NULL) || (strcmp(corArgInfoV[i].longName, longName) != 0) || (corArgInfoV[i].description == NULL))
+      continue;
+
+    char   copy[256];
+    char*  saveP = NULL;
+    int    len   = 0;
+
+    snprintf(copy, sizeof(copy), "%s", corArgInfoV[i].description);
+    buf[0] = 0;
+
+    for (char* nameP = strtok_r(copy, "|", &saveP); (nameP != NULL) && (len < bufSize); nameP = strtok_r(NULL, "|", &saveP))
+    {
+      bool dropped = false;
+      for (int d = 0; dropV[d] != NULL; d++)
+      {
+        if (strcmp(nameP, dropV[d]) == 0)
+          dropped = true;
+      }
+
+      if (dropped == false)
+        len += snprintf(&buf[len], bufSize - len, "%s%s", (len > 0) ? "|" : "", nameP);
+    }
+
+    corArgInfoV[i].description = buf;
+    return;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginDbArgUpdate - the stores --database offers: those in db/currentState that this broker is built with
+//
+static void pluginDbArgUpdate(void)
+{
+  static char              buf[256];
+  static const char* const dropV[] =
+  {
+#if COR_FEATURE_CORDB == 0
+    "corDB", "ramDB",
+#endif
+#if COR_FEATURE_MONGOC == 0
+    "mongoc",
+#endif
+    NULL
+  };
+
+  corPluginArgUpdate("--database", "db/currentState");
+  argValuesDrop("--database", dropV, buf, sizeof(buf));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // pluginTroeArgUpdate -
 //
 static int nameCompare(const void* a, const void* b)
@@ -283,6 +376,12 @@ static int nameCompare(const void* a, const void* b)
 void pluginTroeArgUpdate(void)
 {
   corPluginArgUpdate("--troe", "troe/temporal");
+
+#if COR_FEATURE_CORDB == 0
+  static char              buf[256];
+  static const char* const dropV[] = { "ramDB", NULL };  // corDB's repository builds it - not, without corDB
+  argValuesDrop("--troe", dropV, buf, sizeof(buf));
+#endif
 
 #if COR_FEATURE_TROE_CORDB == 0
   return;
@@ -521,7 +620,7 @@ bool pluginStoresLoad(const char* dbName, const char* troeName)
   if ((abiRefused == true) || (corPluginRefused() == true))
     exit(1);
 
-  corPluginArgUpdate("--database", "db/currentState");
+  pluginDbArgUpdate();
   pluginTroeArgUpdate();
 
   return error;

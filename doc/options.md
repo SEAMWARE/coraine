@@ -1175,15 +1175,16 @@ added to the command line only when the plugin is loaded: `coraine --database co
 
 ### `--database`
 
-`-db` · `CORAINE_DATABASE` · String · default: `mongoc`
-· values: `mongoc`, `corDB`, `ramDB` (the plugins installed in `<plugin dir>/db/currentState/`), or a path to a `.so` · plugin: core
+`-db` · `CORAINE_DATABASE` · String · default: `mongoc`; `corDB` in a broker built without mongoc
+· values: `mongoc`, `corDB`, `ramDB` (the plugins installed in `<plugin dir>/db/currentState/` that the broker is built with), or a path to a `.so` · plugin: core
 
 The current-state store. A short name is resolved to `<plugin dir>/db/currentState/<name>.so`; the plugin
 dir is `/opt/seamware/plugins` unless `SEAMWARE_PLUGIN_DIR` says otherwise. An argument with a `/` in it is
 taken as the path of the plugin itself. `coraine -u` lists the short names it finds in the plugin dir.
 
 - `mongoc` - MongoDB ([Plugin: mongoc](#plugin-mongoc-loaded-by-database-mongoc-the-default)).
-  The default, so a broker started without the option needs a MongoDB server.
+  The default, so a broker started without the option needs a MongoDB server - unless it is built without
+  mongoc (`MONGOC=OFF`, [Store: corDB only](building-details.md#store-cordb-only)): its default is then `corDB`.
 - `corDB` - the store in the broker's own memory, in RAM or also on disk with `--dbDir`
   ([Plugin: corDB](#plugin-cordb-loaded-by-database-cordb)).
 - `ramDB` - corDB built without the disk: a restart starts empty
@@ -1193,6 +1194,15 @@ A plugin that is not there stops the start, with the usage after the error:
 
     $ coraine --database bogus
     DB plugin 'bogus' (/opt/seamware/plugins/db/currentState/bogus.so): not found
+
+So does a store the broker is built without, whatever `.so` of that name the plugin directory holds (one left
+by another build), and `-u` does not offer it - corDB and ramDB in a broker built with `CORDB=OFF`, mongoc
+with `MONGOC=OFF` ([Store: mongoc only](building-details.md#store-mongoc-only)):
+
+    $ coraine --database corDB
+    DB plugin 'corDB': this broker was built without corDB (COR_FEATURE_CORDB) - corDB and ramDB are its; --database mongoc
+    $ coraine --database mongoc
+    DB plugin 'mongoc': this broker was built without mongoc (COR_FEATURE_MONGOC); --database corDB
 
 An option of another plugin is an unknown option: `coraine --database ramDB --dbDir /x` answers
 `coraine: unrecognized option: --dbDir`.
@@ -1220,7 +1230,9 @@ The temporal history (TRoE - Temporal Representation of Entities): what the Temp
       TRoE 'corDB' keeps the history inside the corDB store - it needs --database corDB (not 'ramDB')
 
 - `ramDB` - a ring of the latest 256 TRoE events in RAM, read through `GET /admin/troe/dump`; a test
-  instrument, not a history the Temporal API serves.
+  instrument, not a history the Temporal API serves. The corDB repository builds it: a broker built without
+  corDB (`CORDB=OFF`) refuses it, `TRoE 'ramDB': this broker was built without corDB (COR_FEATURE_CORDB) -
+  ramDB is its; --troe none or timescale`, and has no `--troe corDB` either.
 
 A plugin that is not there stops the start:
 `TRoE plugin 'bogus' (/opt/seamware/plugins/troe/temporal/bogus.so): not found`.
@@ -2214,8 +2226,8 @@ and with `--database corDB` the program then crashes (SIGSEGV). Always give it.
 
 ### `--database`
 
-`-db` · `CORAINE_DATABASE` · String · default: `mongoc`
-· values: `mongoc`, `corDB`, `ramDB` (the plugins in `<plugin dir>/db/currentState/`), or a path to a `.so` · plugin: coraine-import
+`-db` · `CORAINE_DATABASE` · String · default: `mongoc`; `corDB` in a build without mongoc
+· values: `mongoc`, `corDB`, `ramDB` (the plugins in `<plugin dir>/db/currentState/` that it is built with), or a path to a `.so` · plugin: coraine-import
 
 The current-state store the entities, subscriptions and registrations are written into - the broker's
 `--database`, with the same plugins and the same resolution (`/opt/seamware/plugins`, or
@@ -2461,7 +2473,10 @@ The feature switches: what is compiled into the broker and its plugins, and what
 out answers 501 (`'GET /ngsi-ld/v1/csourceRegistrations' is not included in this build of coraine`). A name
 that is not a switch: `coraine-build: --features: no feature 'FOO' (--list-features)`; a value that is not
 ON or OFF is refused too. `MONGOC=OFF` builds without the mongo-c driver, which is otherwise needed (v2 -
-`pkg-config mongoc2`, or the one `coraine-dev` bundles in `/opt/seamware`); `ICU_COLLATION=ON` needs ICU
+`pkg-config mongoc2`, or the one `coraine-dev` bundles in `/opt/seamware`); `CORDB=OFF` without the corDB
+repository - one of the two stays ON (`coraine-build: --features MONGOC=OFF,CORDB=OFF: no current-state store -
+the broker keeps its entities in mongoc (MongoDB) or corDB; build at least one`), and `--pgo` / `--tune` refuse
+`CORDB=OFF` (their training runs corDB); `ICU_COLLATION=ON` needs ICU
 (`libicu-dev`). Switches that need another one are turned off without it (`--list-features --json` names
 them, `requires`) ([Compiling out what you don't need](building-details.md#compiling-out-what-you-dont-need)).
 

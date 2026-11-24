@@ -79,7 +79,7 @@ all:        release
 # links, and before corRest, which links it.
 #
 FOUNDATION_LIBS = corBase corLog corAlloc corArgs corHash corTree corJson corProm
-SIBLING_LIBS    = $(FOUNDATION_LIBS) $(HTTP_LIB) corBridge corPlugin corRest corJsonld corNgsild corDB
+SIBLING_LIBS    = $(FOUNDATION_LIBS) $(HTTP_LIB) corBridge corPlugin corRest corJsonld corNgsild $(CORDB_LIB)
 
 #
 # COR_HTTP_SERVER - mhd | builtin | both. Passed DOWN to the libs, not only to cmake.
@@ -162,6 +162,24 @@ $(error COR_WITH_TROE_CORDB is 1 or 0, not '$(COR_WITH_TROE_CORDB)')
 endif
 
 #
+# COR_WITH_CORDB - 1 | 0. The corDB current-state store (--database corDB, and ramDB - corDB in RAM only).
+# ONE variable for two flags, as COR_WITH_TROE_CORDB: corDB is a repo of its own, built here or not at all
+# (CORDB_LIB in SIBLING_LIBS and PGO_LIBS), and the broker's COR_FEATURE_CORDB says whether it has it -
+# without, it refuses --database corDB and ramDB whatever corDB.so is in the plugin directory. Off turns
+# TROE_CORDB off too (CMakeLists.txt), and `make pgo` refuses it: its training runs corDB.
+#
+COR_WITH_CORDB ?= 1
+ifeq ($(COR_WITH_CORDB),1)
+CMAKE_CORDB = -DCOR_FEATURE_CORDB=ON
+CORDB_LIB   = corDB
+else ifeq ($(COR_WITH_CORDB),0)
+CMAKE_CORDB = -DCOR_FEATURE_CORDB=OFF
+CORDB_LIB   =
+else
+$(error COR_WITH_CORDB is 1 or 0, not '$(COR_WITH_CORDB)')
+endif
+
+#
 # COR_OPTIMIZE - speed | size. What the broker's defaults spend RAM on (CMakeLists.txt, doc/building-details.md):
 # speed (the default) for throughput, size for small hardware at low request rates. The broker's own cmake
 # option for now - nothing in the libs differs yet.
@@ -241,7 +259,7 @@ define no_debug_code
 endef
 
 # What a release build in <build-dir> consists of: the broker, its plugins, corDB's release plugins
-RELEASE_FILES = $(1)/src/app/coraine/coraine $$(find $(1)/src/plugins $(SIBLING_DIR)/corDB/obj/release -name '*.so' 2>/dev/null)
+RELEASE_FILES = $(1)/src/app/coraine/coraine $$(find $(1)/src/plugins $(if $(CORDB_LIB),$(SIBLING_DIR)/corDB/obj/release) -name '*.so' 2>/dev/null)
 
 #
 # src/app/coraine/coraineStack.h - the resolved commit of every library linked in.
@@ -281,6 +299,9 @@ endif
 ifneq ($(findstring COR_FEATURE_TROE_CORDB,$(CMAKE_FEATURES)),)
 $(error TROE_CORDB goes in COR_WITH_TROE_CORDB=0|1, not CMAKE_FEATURES: corDB's makefile leaves its history out as well as the broker)
 endif
+ifneq ($(findstring COR_FEATURE_CORDB,$(CMAKE_FEATURES)),)
+$(error CORDB goes in COR_WITH_CORDB=0|1, not CMAKE_FEATURES: corDB is built by this makefile or not at all, as well as the broker's switch)
+endif
 
 #
 # src/app/coraine/coraineBuild.h - what produced this binary.
@@ -307,7 +328,7 @@ src/app/coraine/coraineBuild.h: FORCE
 	 } > $@
 
 release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_RELEASE) -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_RELEASE) -j$(CPU_COUNT)
 	$(call no_debug_code,$(call RELEASE_FILES,$(BUILD_RELEASE)))
 
@@ -322,7 +343,7 @@ release: libs-release etc/contextSourceExtras.json src/app/coraine/coraineStack.
 # one, so they are rebuilt as debug at the end: a `make di` after this must not link them.
 # Against the same source without it: +1-10 % per core, +4-15 % on the chain (doc/performance.md).
 #
-PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild corDB
+PGO_LIBS      = corBase corAlloc corHash corLog corArgs corTree corJson corProm corHttp corRest corJsonld corNgsild $(CORDB_LIB)
 PGO_PROFILE   = $(CURDIR)/BUILD_PGO_PROFILE
 PGO_GEN       = -fprofile-generate=$(PGO_PROFILE) -fprofile-update=atomic
 PGO_USE       = -fprofile-use=$(PGO_PROFILE) -fprofile-partial-training -fprofile-correction -Wno-missing-profile
@@ -349,18 +370,19 @@ tune:
 	@python3 -c "import json; r=json.load(open('tune-result.json')); b=r['best']; print('tune: best', b['brokerOptions'], ' '.join('%s=%s' % kv for kv in b['env'].items()), '-', b['rps'], 'requests/s,', b['vsDefault'], 'against the out-of-the-box settings - tune-result.json')"
 
 pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
+	@[ "$(COR_WITH_CORDB)" = 1 ] || { echo "make pgo: COR_WITH_CORDB=0 - the training (test/perf/pgoTrain.sh) runs the broker on corDB"; exit 1; }
 	rm -rf $(PGO_PROFILE) BUILD_PGO
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) CC="gcc $(PGO_GEN)" install > /dev/null || exit 1; \
 	done
-	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
 	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_GEN)" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate" -DCMAKE_SHARED_LINKER_FLAGS="-fprofile-generate"
 	cmake --build BUILD_PGO -j$(CPU_COUNT)
 	$(PGO_TRAIN) BUILD_PGO/src/app/coraine/coraine BUILD_PGO/src/plugins
 	@for lib in $(PGO_LIBS); do \
 	  $(MAKE) -B -C $(SIBLING_DIR)/$$lib BUILD=release COR_HTTP_SERVER=$(COR_HTTP_SERVER) COR_WITH_ICU=$(COR_WITH_ICU) COR_WITH_COR_PROTOCOL=$(COR_WITH_COR_PROTOCOL) COR_WITH_GEOQ=$(COR_WITH_GEOQ) COR_WITH_TROE_CORDB=$(COR_WITH_TROE_CORDB) CORAINE=$(CURDIR) CC="gcc $(PGO_USE)" install > /dev/null || exit 1; \
 	done
-	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
+	cmake -B BUILD_PGO -DCMAKE_BUILD_TYPE=Release -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES) \
 	  -DCOR_C_FLAGS_RELEASE="-O2 -g $(PGO_USE)" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_SHARED_LINKER_FLAGS=""
 	cmake --build BUILD_PGO -j$(CPU_COUNT) --clean-first
 	$(call no_debug_code,$(call RELEASE_FILES,BUILD_PGO))
@@ -370,7 +392,7 @@ pgo: etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine
 	@echo "pgo: BUILD_PGO/src/app/coraine/coraine - profile-guided (make install_pgo installs it)"
 
 debug: libs etc/contextSourceExtras.json src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
-	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
+	cmake -B $(BUILD_DEBUG) -DCMAKE_BUILD_TYPE=Debug -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_CORDB) $(CMAKE_OPTIMIZE) $(CMAKE_FEATURES)
 	cmake --build $(BUILD_DEBUG) -j$(CPU_COUNT)
 
 clean:
@@ -412,12 +434,12 @@ define install_from
 	mkdir -p $(PREFIX)/bin $(PLUGIN_DIR)/db/currentState $(PLUGIN_DIR)/troe/temporal $(PLUGIN_DIR)/api $(PLUGIN_DIR)/bridge $(PLUGIN_DIR)/transport $(PLUGIN_DIR)/auth $(ETC_DIR)
 	$(call installFile,$(1)/src/app/coraine/coraine,$(PREFIX)/bin/coraine)
 	if [ -f $(1)/src/app/coraineImport/coraine-import ]; then $(call installFile,$(1)/src/app/coraineImport/coraine-import,$(PREFIX)/bin/coraine-import); fi   # COR_FEATURE_MIGRATE
-	$(call installFile,$(1)/src/plugins/currentState/mongoc/mongoc.so,$(PLUGIN_DIR)/db/currentState/mongoc.so)
+	if [ -f $(1)/src/plugins/currentState/mongoc/mongoc.so ]; then $(call installFile,$(1)/src/plugins/currentState/mongoc/mongoc.so,$(PLUGIN_DIR)/db/currentState/mongoc.so); fi   # COR_FEATURE_MONGOC
 	$(call installFile,$(1)/src/plugins/temporal/none/none.so,$(PLUGIN_DIR)/troe/temporal/none.so)
-	$(call installFile,$(1)/src/plugins/temporal/timescale/timescale.so,$(PLUGIN_DIR)/troe/temporal/timescale.so)
-	$(call installFile,$(1)/src/plugins/api/admin/admin.so,$(PLUGIN_DIR)/api/admin.so)
+	if [ -f $(1)/src/plugins/temporal/timescale/timescale.so ]; then $(call installFile,$(1)/src/plugins/temporal/timescale/timescale.so,$(PLUGIN_DIR)/troe/temporal/timescale.so); fi   # COR_FEATURE_TROE_TIMESCALE
+	if [ -f $(1)/src/plugins/api/admin/admin.so ]; then $(call installFile,$(1)/src/plugins/api/admin/admin.so,$(PLUGIN_DIR)/api/admin.so); fi   # COR_FEATURE_ADMIN_API
 	$(call installFile,$(1)/src/plugins/bridge/loopback/loopback.so,$(PLUGIN_DIR)/bridge/loopback.so)
-	$(call installFile,$(1)/src/plugins/transport/ws/ws.so,$(PLUGIN_DIR)/transport/ws.so)
+	if [ -f $(1)/src/plugins/transport/ws/ws.so ]; then $(call installFile,$(1)/src/plugins/transport/ws/ws.so,$(PLUGIN_DIR)/transport/ws.so); fi   # COR_FEATURE_TRANSPORTS
 	if [ -f $(1)/src/plugins/auth/fdsc/fdsc.so ]; then $(call installFile,$(1)/src/plugins/auth/fdsc/fdsc.so,$(PLUGIN_DIR)/auth/fdsc.so); fi   # COR_FEATURE_AUTH
 	if [ -f $(1)/src/plugins/auth/oidc/oidc.so ]; then $(call installFile,$(1)/src/plugins/auth/oidc/oidc.so,$(PLUGIN_DIR)/auth/oidc.so); fi   # COR_FEATURE_AUTH_OIDC
 	$(call installFile,etc/contextSourceExtras.json,$(ETC_DIR)/contextSourceExtras.json)
@@ -495,7 +517,7 @@ coverage: src/app/coraine/coraineStack.h src/app/coraine/coraineBuild.h
 	 done
 	@rm -rf $(SIBLING_DIR)/corDB/obj/coverage
 	$(MAKE) -C $(SIBLING_DIR)/corDB BUILD=coverage >/dev/null
-	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_OPTIMIZE)
+	cmake -B $(BUILD_COVERAGE) -DCMAKE_BUILD_TYPE=Coverage -DCOR_HTTP_SERVER=$(COR_HTTP_SERVER) $(CMAKE_ICU) $(CMAKE_COR) $(CMAKE_GEOQ) $(CMAKE_TROE_CORDB) $(CMAKE_CORDB) $(CMAKE_OPTIMIZE)
 	cmake --build $(BUILD_COVERAGE) -j$(CPU_COUNT)
 #
 # Stage the instrumented plugins in the INSTALLED layout. The harness composes

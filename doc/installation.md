@@ -33,7 +33,9 @@ the kernel is the host's, so `mongo:8.0` fails the same way on such a host. 8.2 
 
 The mongo-c **v2** driver is the most common build snag — it is packaged by few
 distributions and is normally compiled from source. Build without MongoDB support
-with `cmake -DCOR_FEATURE_MONGOC=OFF` and run with `--database corDB`.
+with `cmake -DCOR_FEATURE_MONGOC=OFF` (`coraine-build --features MONGOC=OFF`): the broker then runs corDB,
+its `--database` default. The other way round, `make release COR_WITH_CORDB=0` (`--features CORDB=OFF`) builds
+mongoc alone ([Store: mongoc only](building-details.md#store-mongoc-only)).
 
 ## Install from source
 
