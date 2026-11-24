@@ -107,6 +107,7 @@ POLICY_API               requires ["HTTP_SERVER=mhd"]              requiresAny [
 PROBES                   requires ["ADMIN_API"]                    requiresAny []
 SNAPSHOT_SUBSCRIPTIONS   requires ["SUBSCRIPTIONS", "SNAPSHOT_WRITE"] requiresAny []
 SSE                      requires ["SUBSCRIPTIONS"]                requiresAny []
+TROE_CORDB               requires ["CORDB"]                        requiresAny []
 
 
 02. A condition with a switch that is ON in it - refused, the line named
