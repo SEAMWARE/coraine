@@ -152,7 +152,7 @@ jobs:
     if: needs.relevant.outputs.run == 'true'
     runs-on: ubuntu-latest
     #
-    # The slowest shard takes ~7 min (corDB 670-end); corTest has no time limit per test, so a test that hangs
+    # The slowest shard takes ~7.5 min (corDB 748-end); corTest has no time limit per test, so a test that hangs
     # held its runner - one of the org's 20 - to GitHub's 6 h default (run 40238194223)
     #
     timeout-minutes: 40
@@ -213,28 +213,32 @@ jobs:
       matrix:
         shard:
           #
-          # Split by TIME, not by count (re-cut 2026-10-26, from the per-test costs of two full runs,
-          # 40307761420 and 40311884737, averaged - the gap between consecutive test lines, broker start
-          # and stop included): mongoc 874 tests, 1278 test-seconds, ~256 s a shard; every job pays
-          # ~135 s of setup and build first - so each lands near 6.5 min. The last of each has no upper
+          # Split by TIME, not by count (re-cut 2026-11-24, from the per-test costs of two full runs,
+          # 45370050846 and 45358551667, averaged - the gap between consecutive test lines, broker start
+          # and stop included): mongoc 945 tests, 1465 test-seconds, ~295 s a shard; every job pays
+          # ~110-170 s of setup and build first - so each lands near 7.1 min. The last of each has no upper
           # bound: tests added later go there, and it is the one to watch when the next rebalance is due
-          # (it had grown to 482 s of tests, the others 183-223).
+          # (it had grown to 382-415 s of tests, the others 208-359).
           #
-          - { db: mongoc, name: '1-181',   from: 1,   to: 181 }
-          - { db: mongoc, name: '182-377', from: 182, to: 377 }
-          - { db: mongoc, name: '378-587', from: 378, to: 587 }
-          - { db: mongoc, name: '588-743', from: 588, to: 743 }
-          - { db: mongoc, name: '744-end', from: 744, to: 0 }
-          # corDB, the same runs and measure: 887 tests, 892 test-seconds, ~297 s a shard (~7.2 min a
-          # job; the last had grown to 395 s, the others 243-254).
+          # Five shards, not six: reduced-builds (one test, feature_builds, 282-400 s) ends at 7-8.6 min
+          # whatever the cut, so a sixth mongoc shard (~6.2 min) or a fourth corDB one (~6.1) would finish
+          # early and wait for it.
+          #
+          - { db: mongoc, name: '1-196',   from: 1,   to: 196 }
+          - { db: mongoc, name: '197-439', from: 197, to: 439 }
+          - { db: mongoc, name: '440-597', from: 440, to: 597 }
+          - { db: mongoc, name: '598-797', from: 598, to: 797 }
+          - { db: mongoc, name: '798-end', from: 798, to: 0 }
+          # corDB, the same runs and measure: 957 tests, 939 test-seconds, ~313 s a shard (~7.4 min a
+          # job; the last had grown to 420-438 s, the others 201-290).
           #
           # The corDB shards run on corHttp (COR_HTTP_SERVER=builtin), the mongoc shards on libmicrohttpd:
           # the whole suite on each HTTP server on every PR - the headline build (corHttp + corDB) among them -
           # without one more job (the free plan runs 20 at a time). corDB + libmicrohttpd: the nightly.
           #
-          - { db: corDB,  name: '1-294',   from: 1,   to: 294, http: builtin }
-          - { db: corDB,  name: '295-669', from: 295, to: 669, http: builtin }
-          - { db: corDB,  name: '670-end', from: 670, to: 0, http: builtin }
+          - { db: corDB,  name: '1-339',   from: 1,   to: 339, http: builtin }
+          - { db: corDB,  name: '340-747', from: 340, to: 747, http: builtin }
+          - { db: corDB,  name: '748-end', from: 748, to: 0, http: builtin }
           #
           # The reduced builds. Its own shard rather than a share of one,
           # because it is the only case that COMPILES rather than requesting -

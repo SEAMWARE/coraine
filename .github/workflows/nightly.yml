@@ -363,11 +363,15 @@ jobs:
     # does, so those uneven ends cost two and a half minutes of wall clock for
     # nothing.
     #
-    # Re-cut 2026-10-26 from run 40286724004 (both HTTP servers averaged, the gap between
-    # consecutive test lines): 857 tests, 4125 test-seconds under valgrind; the last shard
-    # had grown to 1715-2293 s of tests (31-41 min), the others 619-866 s. Now ~1030 s each,
-    # ~19 min a job with its setup. The ranges are mhd's index - builtin runs four tests
-    # fewer, so its cuts land up to four tests earlier, a few seconds.
+    # Re-cut 2026-11-24 from runs 45156613368 and 45037926999 (both HTTP servers averaged, the gap
+    # between consecutive test lines; the 9 tests added since costed at their PR-CI time x 3.77,
+    # the median valgrind/plain ratio): 945 tests, 4587 test-seconds under valgrind; the last shard
+    # had grown to 1631 s of tests (25-30.5 min a job), the others 927-1090 s. Now ~1150 s each,
+    # ~22 min a job with its ~2.5 min of setup. Four shards, not five: the nightly ends with
+    # coverage (~53 min) and performance (~45 min), so a fifth would only finish earlier and wait.
+    # The ranges are mhd's index - corTest numbers a test marked SKIP_VALGRIND (7) before skipping
+    # it, and builtin's list differs from mhd's by a few HTTP-server-specific tests, so its cuts
+    # land a few tests off, a few seconds.
     #
     # The last shard has NO upper bound (corTest treats --toIx 0 as "to the end"), and
     # that is not tidiness: hardcode 612 there and test 613 is never run by anybody,
@@ -390,10 +394,10 @@ jobs:
       matrix:
         httpServer: [mhd, builtin]
         shard:
-          - { name: '1-227',   from: 1,   to: 227 }
-          - { name: '228-470', from: 228, to: 470 }
-          - { name: '471-696', from: 471, to: 696 }
-          - { name: '697-end', from: 697, to: 0 }
+          - { name: '1-259',   from: 1,   to: 259 }
+          - { name: '260-531', from: 260, to: 531 }
+          - { name: '532-766', from: 532, to: 766 }
+          - { name: '767-end', from: 767, to: 0 }
     container:
       image: quay.io/seamware/coraine-ci-nightly:2026-11-18-30e070f
     services:
