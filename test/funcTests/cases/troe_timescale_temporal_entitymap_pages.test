@@ -238,12 +238,12 @@ Content-Length: 195
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 232
+Content-Length: 246
 
 {
   "detail": "URL parameter 'timeAt' differs from the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[0-9a-f]+)'",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not the EntityMap's query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -254,12 +254,12 @@ Content-Length: 232
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 186
+Content-Length: 196
 
 {
   "detail": "entity map 'urn:ngsi-ld:EntityMap:nope' not found or expired",
   "status": 404,
-  "title": "Not Found",
+  "title": "EntityMap not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

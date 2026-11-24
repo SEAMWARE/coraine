@@ -287,7 +287,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "attribute 'scope' not found in entity 'urn:E1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

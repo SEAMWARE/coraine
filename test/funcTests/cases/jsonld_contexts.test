@@ -211,12 +211,12 @@ Content-Length: 261
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 184
+Content-Length: 193
 
 {
   "detail": "JSON-LD context 'http://nope.example/ctx.jsonld' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "@context not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

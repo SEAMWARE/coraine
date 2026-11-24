@@ -32,7 +32,7 @@ bool getAssetChannel(void)
 
   if (acP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "AssetChannel '%s' not found", id);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "AssetChannel not found", "AssetChannel '%s' not found", id);
     return true;
   }
 

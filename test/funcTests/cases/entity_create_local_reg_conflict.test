@@ -96,12 +96,12 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 235
+Content-Length: 259
 
 {
   "detail": "local create overlaps with registration 'urn:CSR:V1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
   "status": 409,
-  "title": "Conflict",
+  "title": "Inside an exclusive registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 
@@ -132,12 +132,12 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 235
+Content-Length: 259
 
 {
   "detail": "local create overlaps with registration 'urn:CSR:V2' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
   "status": 409,
-  "title": "Conflict",
+  "title": "Inside an exclusive registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 

@@ -494,24 +494,24 @@ Date: REGEX(.*)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 194
+Content-Length: 215
 
 {
   "detail": "Service Registration 'urn:ngsi-ld:ServiceRegistration:SR1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Service Registration not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 194
+Content-Length: 215
 
 {
   "detail": "Service Registration 'urn:ngsi-ld:ServiceRegistration:SR1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Service Registration not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

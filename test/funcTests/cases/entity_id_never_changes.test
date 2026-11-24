@@ -190,11 +190,11 @@ Content-Length: 194
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 117
+Content-Length: 124
 
 {
   "entityId": "urn:E2",
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -202,11 +202,11 @@ Content-Length: 117
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 117
+Content-Length: 124
 
 {
   "entityId": "urn:E2",
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

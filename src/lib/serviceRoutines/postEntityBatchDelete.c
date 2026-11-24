@@ -200,7 +200,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
              csrRegId ? csrRegId : "?", status);
     for (int i = 0; i < N; i++)
       addBatchError(errorsP, idV[i], (status >= 400) ? status : 502,
-                    LD_ERROR_INTERNAL_ERROR, "Bad Gateway", detail, csrRegId);
+                    LD_ERROR_INTERNAL_ERROR, "Forward failed", detail, csrRegId);
     return;
   }
 
@@ -226,7 +226,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
       const char* eid = (idP != NULL && idP->type == CorString) ? idP->value.s : "";
 
       const char* type   = LD_ERROR_INTERNAL_ERROR;
-      const char* title  = "Bad Gateway";
+      const char* title  = "Forward failed";
       const char* detail = "forward error";
       int         status = 502;
       if (errP != NULL && errP->type == CorObject)
@@ -409,7 +409,7 @@ bool postEntityBatchDelete(void)
                                : "redirect registration does not support deleteBatch";
           for (int i = 0; i < a->count; i++)
             addBatchError(errorsP, a->idV[i], 409,
-                          LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+                          LD_ERROR_CONFLICT, "Operation not supported by the registration", detail, csr->regId);
         }
         continue;
       }
@@ -474,7 +474,7 @@ bool postEntityBatchDelete(void)
   //
   if (db.entityBulkDelete == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
             "Batch Entity Delete not supported by this DB plugin");
     return true;
   }
@@ -529,7 +529,7 @@ bool postEntityBatchDelete(void)
         // If a distop already succeeded for this id, don't surface a local 404.
         if (!anySuccessV[i])
           addBatchError(errorsP, eid, 404,
-                        LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+                        LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
                         "entity does not exist", NULL);
         break;
       default:

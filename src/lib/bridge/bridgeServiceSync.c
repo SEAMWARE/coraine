@@ -386,7 +386,7 @@ static void sendError(int r, const char* attrName, const char* endpoint, const c
     ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Operation Not Supported",
             "bridge '%s' cannot send the %s of '%s'", bridgeName, what, endpoint);
   else
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable",
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Bridge endpoint unreachable",
             "'%s' on bridge '%s' could not be reached - nothing was written", endpoint, bridgeName);
 }
 
@@ -404,7 +404,7 @@ static void sendFailedOne(BridgeSyncDone* doneP, CorNode* fragmentP, CorNode* at
 {
   char        reason[512];
   int         status;
-  const char* title = "Service Unavailable";
+  const char* title = "Bridge write failed";
   const char* type  = LD_ERROR_INTERNAL_ERROR;
 
   if (r == BRIDGE_BAD_INPUT)
@@ -1249,7 +1249,7 @@ bool bridgeRequestsBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* f
 
     if (replyP == NULL)
     {
-      ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+      ldError(502, LD_ERROR_INTERNAL_ERROR, "Service answered non-JSON",
               "service '%s' on bridge '%s' answered with something that is not JSON",
               channelP->endpoint, channelP->bridgeName);
       waiterFree(wP);

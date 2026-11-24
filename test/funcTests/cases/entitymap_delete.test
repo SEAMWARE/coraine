@@ -156,7 +156,7 @@ HTTP/1.1 404 Not Found
 07. DELETE it again - still 404, deletion is not idempotent-silent
 ==================================================================
 HTTP/1.1 404 Not Found
-  "title": "Not Found",
+  "title": "EntityMap not found",
 
 
 --TEARDOWN--

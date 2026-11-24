@@ -720,12 +720,12 @@ Content-Length: 318
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 175
+Content-Length: 189
 
 {
   "detail": "no temporal data for entity 'urn:ngsi-ld:Room:R6'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Temporal data not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

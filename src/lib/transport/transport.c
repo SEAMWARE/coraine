@@ -646,7 +646,7 @@ static void hostMessage(int connId, const char* text, int len)
 
   if ((treeP == NULL) || (treeP->type != CorObject) || (metaP == NULL) || (metaP->type != CorObject))
   {
-    replyError(connId, requestId, 400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Bad Request",
+    replyError(connId, requestId, 400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Invalid message",
                "a message is a JSON object with \"metadata\" (an object) and \"body\"");
     corAllocBufferReset(&ka, false);
     return;
@@ -654,7 +654,7 @@ static void hostMessage(int connId, const char* text, int len)
 
   if ((methodP == NULL) || (methodP->type != CorString) || (pathP == NULL) || (pathP->type != CorString))
   {
-    replyError(connId, requestId, 400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Bad Request",
+    replyError(connId, requestId, 400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Invalid message",
                "a request names its \"method\" and \"path\" in \"metadata\"");
     corAllocBufferReset(&ka, false);
     return;
@@ -817,7 +817,7 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
 {
   if (strcmp(corRest.in.urlPath, WS_PATH) != 0)
   {
-    corRestProblem(404, "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", "Not Found", "an upgrade is served on " WS_PATH " only");
+    corRestProblem(404, "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", "Not the upgrade path", "an upgrade is served on " WS_PATH " only");
     return NULL;
   }
 
@@ -831,7 +831,7 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
 
   if (driverP == NULL)
   {
-    corRestProblem(400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Bad Request", "no transport for the upgrade '%s'", protocol);
+    corRestProblem(400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Unknown transport", "no transport for the upgrade '%s'", protocol);
     return NULL;
   }
 
@@ -840,7 +840,7 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
 
   if (driverP->handshake(headerLookup, respHeader, &status, &detail) == false)
   {
-    corRestProblem(status, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Bad Request", "%s", detail);
+    corRestProblem(status, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Invalid upgrade request", "%s", detail);
     return NULL;
   }
 
@@ -855,7 +855,7 @@ static CorRestUpgradeTake upgradeHook(const char* protocol, void** ctxP)
   {
     if (headerLookup(ngsildHeaderV[i]) != NULL)
     {
-      corRestProblem(400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "Bad Request",
+      corRestProblem(400, "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", "NGSI-LD header on the upgrade",
                      "'%s' in the upgrade request - NGSI-LD headers go in each message's metadata, the connection has none", ngsildHeaderV[i]);
       return NULL;
     }

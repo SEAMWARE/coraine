@@ -218,7 +218,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "no temporal data for entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Temporal data not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

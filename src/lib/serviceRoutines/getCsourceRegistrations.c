@@ -228,7 +228,7 @@ bool getCsourceRegistrations(void)
     const char* key = corRest.in.uriParamV[i].key;
     if (paramSupported(key) == false)
     {
-      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Filter not supported",
               "Context Source Registration discovery filter '%s' is not implemented; supported: type, id, idPattern, pick, omit, attrs (deprecated), q, csf, scopeQ, lang, geometryProperty, limit, offset, count",
               key);
       return true;

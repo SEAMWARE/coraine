@@ -83,7 +83,7 @@ bool patchCsourceSubscription(void)
   // timeInterval not supported for CSR subs (defer to follow-up)
   if (corTreeLookup(fragment, "timeInterval") != NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Periodic CSR subscriptions not supported",
             "periodic CSR subscriptions ('timeInterval') are not supported");
     return true;
   }
@@ -102,7 +102,7 @@ bool patchCsourceSubscription(void)
   if (itemP == NULL || itemP->subTree == NULL)
   {
     ldSubCacheUnlock(cacheP);
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Subscription not found",
             "CSR subscription '%s' not found", subId);
     return true;
   }

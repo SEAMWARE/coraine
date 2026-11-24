@@ -169,7 +169,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "registration overlaps with locally-stored entity 'urn:ngsi-ld:Vehicle:V1'",
   "status": 409,
-  "title": "Conflict",
+  "title": "Registration overlap",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 
@@ -201,7 +201,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "registration overlaps with existing registration 'urn:ngsi-ld:CSR:R2' on entity 'urn:ngsi-ld:Vehicle:V2'",
   "status": 409,
-  "title": "Conflict",
+  "title": "Registration overlap",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 

@@ -654,7 +654,7 @@ bool sseCreateCheck(CorNode* subP, bool* streamP)
 
   if (streamAcceptable() == false)
   {
-    ldError(406, LD_ERROR_INVALID_REQUEST, "Not Acceptable",
+    ldError(406, LD_ERROR_INVALID_REQUEST, "Event stream required",
             "the response to a subscription on the endpoint 'urn:ngsi-ld:self' is its event stream: text/event-stream");
     return false;
   }
@@ -690,7 +690,7 @@ bool sseCreateCheck(CorNode* subP, bool* streamP)
 
   if (refusal != NULL)
   {
-    ldError(503, LD_ERROR_INTERNAL_ERROR, "Service Unavailable", "%s", refusal);
+    ldError(503, LD_ERROR_INTERNAL_ERROR, "Event stream refused", "%s", refusal);
     return false;
   }
 

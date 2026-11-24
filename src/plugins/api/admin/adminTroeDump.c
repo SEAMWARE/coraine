@@ -28,7 +28,7 @@ bool adminGetTroeDump(void)
   if (troe.dumpInfo == NULL)
   {
     ldError(422, "https://uri.etsi.org/ngsi-ld/errors/OperationNotSupported",
-            "Not Implemented",
+            "Not supported by the TRoE plugin",
             "active TRoE plugin does not support dump (use --troe=corDB)");
     return true;
   }

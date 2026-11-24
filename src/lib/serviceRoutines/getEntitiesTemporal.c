@@ -628,7 +628,7 @@ static bool temporalWindowBind(LdEntityMap* mapP)
       *valueP = bound;
     else if (strcmp(*valueP, bound) != 0)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not the EntityMap's query",
               "URL parameter '%s' differs from the query that created entity map '%s'", windowKeyV[ix], corNgsild.entityMapId);
       return true;
     }
@@ -955,7 +955,7 @@ static bool temporalMapOpen(LdEntityMap** mapPP)
 
     if (complete == false)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found", "entity map '%s' not found or expired", corNgsild.entityMapId);
       return true;
     }
 
@@ -1376,7 +1376,7 @@ static bool temporalQuery(bool mapCreate)
   {
     if (snapItem != NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "EntityMap with a Snapshot",
               "an EntityMap is not used with NGSILD-Snapshot - a Snapshot is a frozen set of its own");
       return true;
     }

@@ -125,13 +125,13 @@ Content-Length: 0
 HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 207
+Content-Length: 209
 
 {
   "detail": "forwarded request failed: Request timeout",
   "registrationId": "urn:CSR:Redir",
   "status": 504,
-  "title": "Gateway Timeout",
+  "title": "Forward timed out",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
@@ -152,13 +152,13 @@ Content-Length: 0
 HTTP/1.1 504 Gateway Timeout
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 206
+Content-Length: 208
 
 {
   "detail": "forwarded request failed: Request timeout",
   "registrationId": "urn:CSR:Excl",
   "status": 504,
-  "title": "Gateway Timeout",
+  "title": "Forward timed out",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
@@ -179,13 +179,13 @@ Content-Length: 0
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 204
+Content-Length: 207
 
 {
   "detail": "forwarded request failed: Connection failed",
   "registrationId": "urn:CSR:Dead",
   "status": 502,
-  "title": "Bad Gateway",
+  "title": "Forward failed",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 

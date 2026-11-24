@@ -42,7 +42,7 @@ bool deleteSnapshot(void)
 
   if (tenantP->snapshotCacheP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return true;
   }
@@ -51,7 +51,7 @@ bool deleteSnapshot(void)
   LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookupPinned(cacheP, id);
   if (itemP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return true;
   }

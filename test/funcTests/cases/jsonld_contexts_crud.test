@@ -311,7 +311,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "JSON-LD context 'urn:ngsi-ld:Context:does-not-exist' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "@context not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -391,7 +391,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "JSON-LD context 'not_even_a_uri' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "@context not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

@@ -291,12 +291,12 @@ Date: REGEX(.*)
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 220
+Content-Length: 230
 
 {
   "detail": "supported response media types: application/json, application/ld+json, application/geo+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 

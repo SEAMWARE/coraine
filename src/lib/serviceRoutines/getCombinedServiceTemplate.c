@@ -43,7 +43,7 @@ bool getCombinedServiceTemplate(void)
 
   if (r == DB_NOT_FOUND)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Combined Service Template '%s' not found", id);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Combined Service Template not found", "Combined Service Template '%s' not found", id);
     return true;
   }
   else if (r != DB_OK)

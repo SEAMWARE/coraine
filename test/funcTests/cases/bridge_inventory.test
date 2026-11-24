@@ -117,12 +117,12 @@ Content-Length: 69
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 171
+Content-Length: 178
 
 {
   "detail": "bridge 'loopback': the loopback has no 'nope'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Bridge not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -133,12 +133,12 @@ Content-Length: 171
 HTTP/1.1 503 Service Unavailable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 184
+Content-Length: 193
 
 {
   "detail": "bridge 'loopback': the loopback's transport is down",
   "status": 503,
-  "title": "Service Unavailable",
+  "title": "Bridge inventory unavailable",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
@@ -149,12 +149,12 @@ Content-Length: 184
 HTTP/1.1 400 Bad Request
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 184
+Content-Length: 186
 
 {
   "detail": "depth is a number from 0 to 16 (a bridge may cap it lower)",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Invalid depth",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 
@@ -165,12 +165,12 @@ Content-Length: 184
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 154
+Content-Length: 161
 
 {
   "detail": "no bridge 'nosuch' is loaded",
   "status": 404,
-  "title": "Not Found",
+  "title": "Bridge not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

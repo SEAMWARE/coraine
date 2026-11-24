@@ -210,7 +210,7 @@ bool replaceEntity(void)
                                                           entityId, entityP, &corRest.kalloc);
     if (cRegId != NULL)
     {
-      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
               "local update overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
               cRegId);
       return true;
@@ -397,7 +397,7 @@ bool replaceEntity(void)
       {
         bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
-                              LD_ERROR_INTERNAL_ERROR, to ? "Gateway Timeout" : "Bad Gateway",
+                              LD_ERROR_INTERNAL_ERROR, to ? "Forward timed out" : "Forward failed",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
         forwardFailCount++;
@@ -423,7 +423,7 @@ bool replaceEntity(void)
   //
   if (localExists && db.entityReplace == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
             "Replace Entity not supported by this DB plugin");
     return true;
   }
@@ -569,7 +569,7 @@ bool replaceEntity(void)
 
   if (!anySucceeded && errorsCount == 0)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 

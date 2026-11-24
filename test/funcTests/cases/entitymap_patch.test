@@ -220,12 +220,12 @@ Content-Length: 172
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 159
+Content-Length: 169
 
 {
   "detail": "entity map 'urn:NoSuch' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "EntityMap not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

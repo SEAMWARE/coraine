@@ -286,7 +286,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "local update overlaps with registration 'urn:CSR:R1' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
   "status": 409,
-  "title": "Conflict",
+  "title": "Inside an exclusive registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"
 }
 

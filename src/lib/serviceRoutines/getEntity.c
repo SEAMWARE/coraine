@@ -889,7 +889,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
 
       if ((rmP->make == true) || (rmP->mapP != NULL))
       {
-        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+        ldError(400, LD_ERROR_BAD_REQUEST_DATA, "EntityMap with a Snapshot",
                 "an EntityMap is not used with NGSILD-Snapshot - a Snapshot is a frozen set of its own");
         return true;
       }
@@ -932,7 +932,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
     {
       if (err.noEndpoint)
       {
-        ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+        ldError(502, LD_ERROR_INTERNAL_ERROR, "Registration has no endpoint",
                 "exclusive registration '%s' has no endpoint", err.regId);
         return true;
       }
@@ -942,7 +942,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
         // source failed to respond in time, else 502 Bad Gateway. The
         // registrationId / upstream status ride along as structured
         // ProblemDetails members (RFC 9457 §3.2).
-        const char* title = (err.status == 504) ? "Gateway Timeout" : "Bad Gateway";
+        const char* title = (err.status == 504) ? "Forward timed out" : "Forward failed";
         if (err.upstreamDetail)
           ldError(err.status, LD_ERROR_INTERNAL_ERROR, title, "forwarded request failed: %s", err.upstreamDetail);
         else
@@ -956,7 +956,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
       // § 10.4.2.4: the assembled entity must carry a requested type - an auxiliary source is matched by id only
       if ((destP == NULL) || ((corNgsild.typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(destP, "type"), corNgsild.typeExpr)))
       {
-        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
                 "entity '%s' not found", entityId);
         return true;
       }
@@ -980,7 +980,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
 
   if (r == DB_NOT_FOUND)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 
@@ -994,7 +994,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
   // is a not-found, like an unknown id
   if ((corNgsild.typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(entityP, "type"), corNgsild.typeExpr))
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 
@@ -1044,7 +1044,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
       // ResourceNotFound — the test reads "no projectable members"
       // as equivalent to "endpoint doesn't know about this entity
       // (with this projection)". We defer to that interpretation.
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Nothing left to return",
               "entity '%s' has no members after pick/omit projection", entityId);
       return true;
     }
@@ -1072,7 +1072,7 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
     }
     if (!hasUserAttr)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
               "entity '%s' has none of the requested attributes", entityId);
       return true;
     }

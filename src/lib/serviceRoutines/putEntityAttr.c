@@ -211,7 +211,7 @@ bool putEntityAttr(void)
                                                           entityId, entityFrag, &corRest.kalloc);
     if (cRegId != NULL)
     {
-      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
               "local update overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
               cRegId);
       return true;
@@ -313,7 +313,7 @@ bool putEntityAttr(void)
       {
         bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
-                              LD_ERROR_INTERNAL_ERROR, to ? "Gateway Timeout" : "Bad Gateway",
+                              LD_ERROR_INTERNAL_ERROR, to ? "Forward timed out" : "Forward failed",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
         forwardFailCount++;
@@ -345,7 +345,7 @@ bool putEntityAttr(void)
       // (504/502/409/207) rather than masking it as a local 404.
       if (!anySucceeded && errorsArrayP->value.head == NULL)
       {
-        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
                 "entity '%s' not found", entityId);
         return true;
       }
@@ -366,7 +366,7 @@ bool putEntityAttr(void)
         // the § 6.3.5 decision rather than masking it as a local 404.
         if (!anySucceeded && errorsArrayP->value.head == NULL)
         {
-          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+          ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
                   "attribute '%s' not found in entity '%s'", attrWild, entityId);
           return true;
         }
@@ -377,7 +377,7 @@ bool putEntityAttr(void)
 
         if (db.entityAttrsSet == NULL)
         {
-          ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+          ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
                   "Replace Attribute not supported by this DB plugin");
           return true;
         }
@@ -479,7 +479,7 @@ bool putEntityAttr(void)
 
   if (!anySucceeded && errorsCount == 0)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
             "entity '%s' not found", entityId);
     return true;
   }

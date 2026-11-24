@@ -393,7 +393,7 @@ bool postEntities(void)
                                                                  entityId, entityP, &corRest.kalloc);
     if (conflictRegId != NULL)
     {
-      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
               "local create overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
               conflictRegId);
       return true;
@@ -529,7 +529,7 @@ bool postEntities(void)
             // isn't usable as a forward target.
             if (g == 0)
             {
-              ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+              ldError(502, LD_ERROR_INTERNAL_ERROR, "Registration has no endpoint",
                       "exclusive registration '%s' has no endpoint", csr->regId);
               ldRegCacheMatchRelease(exclV,  exclN);
               ldRegCacheMatchRelease(redirV, redirN);
@@ -561,7 +561,7 @@ bool postEntities(void)
                        "%s registration does not support createEntity; affected attributes: %s",
                        modeTag[g], fragmentAttrList(fragP));
               ldBatchErrorListAdd(&errors, entityId, 409,
-                                  LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+                                  LD_ERROR_CONFLICT, "Operation not supported by the registration", detail, csr->regId);
               continue;
             }
 
@@ -638,7 +638,7 @@ bool postEntities(void)
                      fragmentAttrList(itemFrag[i]));
             ldBatchErrorListAdd(&errors, entityId,
                                 (upCode >= 400) ? upCode : 502,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                LD_ERROR_INTERNAL_ERROR, "Forward failed",
                                 detail, items[i].csr->regId);
           }
         }

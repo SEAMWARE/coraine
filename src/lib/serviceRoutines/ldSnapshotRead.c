@@ -71,7 +71,7 @@ LdSnapshotCacheItem* ldSnapshotItemFromHeader(bool* seenP)
   LdSnapshotCache* cacheP = (tP != NULL) ? (LdSnapshotCache*) tP->snapshotCacheP : NULL;
   if (cacheP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return NULL;
   }
@@ -85,7 +85,7 @@ LdSnapshotCacheItem* ldSnapshotItemFromHeader(bool* seenP)
   LdSnapshotCacheItem* itemP = ldSnapshotCacheItemLookupPinned(cacheP, id);
   if (itemP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return NULL;
   }
@@ -105,7 +105,7 @@ bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId)
   Tenant* snapTenantP = (Tenant*) itemP->snapTenantP;
   if (snapTenantP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
             "entity '%s' not found", entityId);
     return true;
   }
@@ -114,7 +114,7 @@ bool snapshotGetEntity(LdSnapshotCacheItem* itemP, const char* entityId)
   int rc = db.entityRetrieve(snapTenantP, entityId, &entityP);
   if (rc == DB_NOT_FOUND || entityP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found",
             "entity '%s' not found", entityId);
     return true;
   }
@@ -282,7 +282,7 @@ static bool snapshotRoute(void)
 
   if (itemP->snapTenantP == NULL)
   {
-    ldError(409, LD_ERROR_CONFLICT, "Conflict", "Snapshot '%s' has no information to update yet", itemP->id);
+    ldError(409, LD_ERROR_CONFLICT, "Snapshot not ready", "Snapshot '%s' has no information to update yet", itemP->id);
     return false;
   }
 

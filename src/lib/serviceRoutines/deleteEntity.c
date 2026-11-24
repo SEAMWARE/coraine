@@ -163,7 +163,7 @@ bool deleteEntity(void)
         //
         bool to = items[i].timedOut;   // § 6.3.5: honest per-source 504 on timeout
         ldDistOpBatchErrorAdd(errorsArrayP, entityId, to ? 504 : ((sc >= 400) ? sc : 502),
-                              LD_ERROR_INTERNAL_ERROR, to ? "Gateway Timeout" : "Bad Gateway",
+                              LD_ERROR_INTERNAL_ERROR, to ? "Forward timed out" : "Forward failed",
                               ldDistOpForwardFailureReason(sc, items[i].errorDetail),
                               items[i].csr->regId);
         forwardFailCount++;
@@ -237,7 +237,7 @@ bool deleteEntity(void)
 
   if (!anySucceeded && errorsCount == 0)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 

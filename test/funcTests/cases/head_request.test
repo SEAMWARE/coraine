@@ -109,7 +109,7 @@ Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="h
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: 179
 
 
 05. HEAD /version - not the NGSI-LD API: 200 and the GET's Content-Length, no body

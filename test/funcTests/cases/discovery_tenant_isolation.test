@@ -191,12 +191,12 @@ HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Tenant: t2
-Content-Length: 153
+Content-Length: 163
 
 {
   "detail": "attribute 'speed' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

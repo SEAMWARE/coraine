@@ -80,7 +80,7 @@ static bool entityAttrValueRetrieve(const char* entityId)
 
   if (r == DB_NOT_FOUND || entityP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 
@@ -95,14 +95,14 @@ static bool entityAttrValueRetrieve(const char* entityId)
   // is a not-found, like an unknown id
   if ((corNgsild.typeExpr != NULL) && !ldEntityMatchType(corTreeLookup(entityP, "type"), corNgsild.typeExpr))
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 
   CorNode* attrWrapperP = corTreeLookup(entityP, attrIri);
   if (attrWrapperP == NULL || attrWrapperP->type != CorObject)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
             "attribute '%s' not found in entity '%s'", attrWild, entityId);
     return true;
   }
@@ -136,10 +136,10 @@ static bool entityAttrValueRetrieve(const char* entityId)
   if (attrWrapperP->value.head == NULL)
   {
     if (corNgsild.datasetIdV != NULL)
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute instance not found",
               "no matching datasetId for attribute '%s' in entity '%s'", attrWild, entityId);
     else
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute instance not found",
               "attribute '%s' in entity '%s' has no default instance", attrWild, entityId);
     return true;
   }

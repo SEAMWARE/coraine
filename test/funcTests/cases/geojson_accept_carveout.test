@@ -165,12 +165,12 @@ Content-Type: application/geo+json
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 208
 
 {
   "detail": "supported response media types: application/json, application/ld+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
@@ -181,12 +181,12 @@ Content-Length: 198
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 208
 
 {
   "detail": "supported response media types: application/json, application/ld+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
@@ -197,12 +197,12 @@ Content-Length: 198
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 208
 
 {
   "detail": "supported response media types: application/json, application/ld+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
@@ -213,12 +213,12 @@ Content-Length: 198
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 208
 
 {
   "detail": "supported response media types: application/json, application/ld+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
@@ -229,12 +229,12 @@ Content-Length: 198
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 208
 
 {
   "detail": "supported response media types: application/json, application/ld+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 
@@ -245,12 +245,12 @@ Content-Length: 198
 HTTP/1.1 406 Not Acceptable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 198
+Content-Length: 208
 
 {
   "detail": "supported response media types: application/json, application/ld+json",
   "status": 406,
-  "title": "Not Acceptable",
+  "title": "No acceptable media type",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest"
 }
 

@@ -171,7 +171,7 @@ GET urn:E<first 503> (the first 503): 404
 GET urn:X1:         404
 GET urn:E1 (no q):  {
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
-  "title": "Not Found",
+  "title": "Attribute not found",
   "status": 404,
   "detail": "entity 'urn:E1' has none of the requested attributes"
 }

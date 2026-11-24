@@ -116,7 +116,7 @@ bool patchSnapshot(void)
 
   if (tenantP->snapshotCacheP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return true;
   }
@@ -125,7 +125,7 @@ bool patchSnapshot(void)
   LdSnapshotCacheItem* itemP  = ldSnapshotCacheItemLookupPinned(cacheP, id);   // unpinned on every return below
   if (itemP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", id);
     return true;
   }

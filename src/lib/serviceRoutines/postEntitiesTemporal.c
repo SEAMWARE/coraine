@@ -287,7 +287,7 @@ bool postEntitiesTemporal(void)
             snprintf(detail, sizeof(detail),
                      "%s registration does not support upsertTemporal", modeTag[g]);
             ldDistOpBatchErrorAdd(errorsArrayP, entityId, 409,
-                                  LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+                                  LD_ERROR_CONFLICT, "Operation not supported by the registration", detail, csr->regId);
             continue;
           }
 
@@ -342,7 +342,7 @@ bool postEntitiesTemporal(void)
         int upCode = results[i].statusCode;
         if (upCode < 200 || upCode >= 300)
           ldDistOpBatchErrorAdd(errorsArrayP, entityId, (upCode >= 400) ? upCode : 502,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                LD_ERROR_INTERNAL_ERROR, "Forward failed",
                                 ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
                                 items[i].csr->regId);
         else

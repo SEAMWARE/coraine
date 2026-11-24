@@ -30,7 +30,7 @@ Channel* actionChannelOfRequest(void)
 
   if (channelP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "channel '%s' not found", channelId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Channel not found", "channel '%s' not found", channelId);
     return NULL;
   }
 

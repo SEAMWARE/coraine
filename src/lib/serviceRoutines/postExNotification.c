@@ -210,7 +210,7 @@ bool postExNotification(void)
   Tenant* tenantP = (Tenant*) corNgsild.tenantP;
   if (tenantP->subCacheP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no subscription cache for this tenant");
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Tenant has no subscriptions", "no subscription cache for this tenant");
     return true;
   }
 
@@ -230,7 +230,7 @@ bool postExNotification(void)
 
   if (itemP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Subscription not found",
             "parent subscription '%s' not found", parentSubId);
     return true;
   }

@@ -459,16 +459,36 @@ jobs:
               --fromIx ${{ matrix.shard.from }} $to ${{ matrix.shard.only }}
 
       #
-      # The cep-plugin shard: corCep's main, beside the stack - cep.so links no cor-lib, it uses coraine's, so it is
+      # The cep-plugin shard: corCep (main, or this PR's branch of it - below), beside the stack - cep.so links no cor-lib, it uses coraine's, so it is
       # built against these very ones - and its tests in the plugin form (CEP_PLUGIN=1: the coraine just installed,
       # restarted with --bridges cep by each test; corCep's test/funcTests/corTestFunctions.sh). The tests of the
       # standalone only (/dry-run, its notification port) are left out by corCep's makefile.
       #
+      #
+      # Which corCep: the branch of this PR's name when corCep has one, else main. A coraine change that corCep's
+      # tests see (an error body they quote, say) comes with a corCep branch of the same name; this PR is tested
+      # with it, and corCep's PR merges after this one. The name goes through the environment, never into the
+      # script: a fork's branch name is anyone's text.
+      #
+      - name: corCep's branch
+        if: matrix.shard.cep == 'yes'
+        id: cepref
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if git ls-remote --exit-code --heads https://github.com/SEAMWARE/corCep "refs/heads/$BRANCH" > /dev/null 2>&1
+          then
+            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out corCep
         if: matrix.shard.cep == 'yes'
         uses: actions/checkout@v4
         with:
           repository: SEAMWARE/corCep
+          ref: ${{ steps.cepref.outputs.ref }}
           path: stack/corCep
 
       - name: corCep's plugin tests (cep.so in this coraine)

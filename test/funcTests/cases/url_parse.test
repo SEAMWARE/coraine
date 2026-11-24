@@ -172,12 +172,12 @@ Content-Length: 3
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 188
 
 {
   "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -200,12 +200,12 @@ Content-Length: 3
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 157
+Content-Length: 170
 
 {
   "detail": "subscription 'urn:S1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Subscription not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -232,12 +232,12 @@ Content-Length: 238
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 157
+Content-Length: 170
 
 {
   "detail": "registration 'urn:R1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Registration not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -248,12 +248,12 @@ Content-Length: 157
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 156
+Content-Length: 165
 
 {
   "detail": "JSON-LD context 'C1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "@context not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -274,12 +274,12 @@ Content-Length: 0
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 188
 
 {
   "detail": "entity 'http://a.b.c/list/of/entities/E9.xxx' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -300,12 +300,12 @@ HTTP/1.1 201 Created
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 188
 
 {
   "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -348,12 +348,12 @@ Content-Length: 149
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 188
 
 {
   "detail": "entity 'http://a.b.c/list/of/entities/E9.xxx' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -364,12 +364,12 @@ Content-Length: 181
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 188
 
 {
   "detail": "entity 'http://a.b.c/list/of/entities/E1.xxx' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -380,12 +380,12 @@ Content-Length: 181
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 157
+Content-Length: 170
 
 {
   "detail": "subscription 'urn:S1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Subscription not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -396,12 +396,12 @@ Content-Length: 157
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 157
+Content-Length: 170
 
 {
   "detail": "registration 'urn:R1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Registration not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -412,12 +412,12 @@ Content-Length: 157
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: 179
 
 {
   "detail": "GET /ngsi-ld/nada is not a recognized resource",
   "status": 404,
-  "title": "Not Found",
+  "title": "Unknown resource",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

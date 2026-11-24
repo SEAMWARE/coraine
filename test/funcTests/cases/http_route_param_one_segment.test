@@ -178,12 +178,12 @@ Content-Length: 215
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 196
+Content-Length: 203
 
 {
   "detail": "GET /ngsi-ld/v1/entities/urn:E1/attrs/a/b is not a recognized resource",
   "status": 404,
-  "title": "Not Found",
+  "title": "Unknown resource",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -194,12 +194,12 @@ Content-Length: 196
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 201
+Content-Length: 208
 
 {
   "detail": "GET /ngsi-ld/v1/entities/a/b/attrs/speed/value is not a recognized resource",
   "status": 404,
-  "title": "Not Found",
+  "title": "Unknown resource",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

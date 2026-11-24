@@ -53,6 +53,6 @@ bool getBridge(void)
     }
   }
 
-  ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "bridge '%s' not found", bridgeId);
+  ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Bridge not found", "bridge '%s' not found", bridgeId);
   return true;
 }

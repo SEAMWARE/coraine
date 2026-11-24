@@ -409,7 +409,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "CSR subscription 'urn:no:such' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Subscription not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -425,7 +425,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "CSR subscription 'urn:ngsi-ld:Subscription:CSR1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Subscription not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

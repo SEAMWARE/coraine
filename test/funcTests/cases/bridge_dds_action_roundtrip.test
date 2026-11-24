@@ -220,12 +220,12 @@ Content-Length: 124
 HTTP/1.1 503 Service Unavailable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 200
+Content-Length: 208
 
 {
   "detail": "'nobody' on bridge 'dds' could not be reached - nothing was written",
   "status": 503,
-  "title": "Service Unavailable",
+  "title": "Bridge endpoint unreachable",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 

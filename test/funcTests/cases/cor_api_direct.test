@@ -152,7 +152,7 @@ Content-Type: application/json
 
 {
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
-  "title": "Not Found",
+  "title": "Entity not found",
   "status": 404,
   "detail": "entity 'urn:NOPE' not found"
 }

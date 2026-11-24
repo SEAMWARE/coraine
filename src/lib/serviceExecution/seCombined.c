@@ -133,7 +133,7 @@ static bool methodOk(CorNode* methodP)
 
   if ((strcmp(m, "conditional") == 0) || (strcmp(m, "timetriggered") == 0) || (strcmp(m, "recurring") == 0))
   {
-    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "combinationMethod '%s' is still to be specified (GR CIM-055 § 6.3.5.2)", m);
+    ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Combination method not specified", "combinationMethod '%s' is still to be specified (GR CIM-055 § 6.3.5.2)", m);
     return false;
   }
 
@@ -162,9 +162,9 @@ typedef struct Built
 static CorNode* buildRefused(int status, const char* why)
 {
   if (status == 404)
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "%s", why);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Combined service or entity not found", "%s", why);
   else if (status == 409)
-    ldError(409, LD_ERROR_CONFLICT, "Conflict", "%s", why);
+    ldError(409, LD_ERROR_CONFLICT, "Combined service refused", "%s", why);
   else
     ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request Data", "%s", why);
 
@@ -648,7 +648,7 @@ static CorNode* buildGrouped(Built* bP, CorNode* bodyP)
 
   if (corTreeLookup(execP, "_children")->value.head == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "no entity of the selection offers the service '%s'", corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc));
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Combined service or entity not found", "no entity of the selection offers the service '%s'", corLdCompact(corNgsild.contextP, serviceName, &corRest.kalloc));
     return NULL;
   }
 
@@ -822,7 +822,7 @@ bool seCombinedCreate(CorNode* bodyP)
 
     if ((templateId == NULL) || (db.docRetrieve(tenantP, "serviceTemplates", templateId, &templateP) != DB_OK))
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Combined Service Template '%s' not found", (templateId != NULL) ? templateId : "");
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Combined service or entity not found", "Combined Service Template '%s' not found", (templateId != NULL) ? templateId : "");
       return true;
     }
 
@@ -966,7 +966,7 @@ bool seCombinedCancel(CorNode* execP)
 
   if (cancelTree(execP) == false)
   {
-    ldError(409, LD_ERROR_CONFLICT, "Conflict", "an executor cannot cancel a service execution of '%s' - it goes on", str(execP, "id"));
+    ldError(409, LD_ERROR_CONFLICT, "Combined service refused", "an executor cannot cancel a service execution of '%s' - it goes on", str(execP, "id"));
     return true;
   }
 

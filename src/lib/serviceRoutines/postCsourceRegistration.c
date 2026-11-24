@@ -120,7 +120,7 @@ bool postCsourceRegistration(void)
   // Create registration in the database
   if (db.registrationCreate == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "registration CRUD not supported by this DB plugin");
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database", "registration CRUD not supported by this DB plugin");
     ldRegCacheUnlock(regCacheP);
     return true;
   }

@@ -29,7 +29,7 @@ bool deleteServiceRegistration(void)
   int         r     = (db.docDelete != NULL) ? db.docDelete((Tenant*) corNgsild.tenantP, "serviceRegistrations", regId) : DB_NOT_FOUND;
 
   if (r == DB_NOT_FOUND)
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Service Registration '%s' not found", regId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Service Registration not found", "Service Registration '%s' not found", regId);
   else if (r != DB_OK)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error deleting Service Registration '%s'", regId);
   else

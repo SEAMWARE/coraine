@@ -638,7 +638,7 @@ bool getEntityTemporal(void)
 
   if (result == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Temporal data not found",
             "no temporal data for entity '%s'", entityId);
     return true;
   }
@@ -673,7 +673,7 @@ bool getEntityTemporal(void)
     }
     if (!hasUserAttr)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Temporal data not found",
               "no instances match the temporal query for entity '%s'", entityId);
       return true;
     }
@@ -705,7 +705,7 @@ bool getEntityTemporal(void)
     }
     if (!hasMembers)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Nothing left to return",
               "entity '%s' has no members after pick/omit projection", entityId);
       return true;
     }

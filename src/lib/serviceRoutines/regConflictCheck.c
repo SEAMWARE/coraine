@@ -291,7 +291,7 @@ bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, C
 
     if ((endpointP != NULL) && (endpointP->type == CorString) && ldDistOpEndpointIsSelf(endpointP->value.s))
     {
-      ldError(409, LD_ERROR_CONFLICT, "Conflict",
+      ldError(409, LD_ERROR_CONFLICT, "Redirect to this broker",
               "a redirect registration must point at another broker, not at this one ('%s')", endpointP->value.s);
       return true;
     }
@@ -338,7 +338,7 @@ bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, C
       const char* conflictingRegId = cacheConflict(cacheP, newMode, entityId, entityType, newAttrs, selfRegId);
       if (conflictingRegId != NULL)
       {
-        ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+        ldError(409, LD_ERROR_ALREADY_EXISTS, "Registration overlap",
                 "registration overlaps with existing registration '%s' on entity '%s'",
                 conflictingRegId, entityId);
         return true;
@@ -347,7 +347,7 @@ bool regConflictCheck(CorNode* regP, LdRegMode newMode, const char* selfRegId, C
       // Check 2: local entity overlap
       if (localEntityConflict(tenantP, entityId, newAttrs))
       {
-        ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+        ldError(409, LD_ERROR_ALREADY_EXISTS, "Registration overlap",
                 "registration overlaps with locally-stored entity '%s'", entityId);
         return true;
       }

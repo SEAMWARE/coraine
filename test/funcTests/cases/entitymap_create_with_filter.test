@@ -242,7 +242,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "URL parameter 'q' differs from the query that created entity map 'REGEX(urn:ngsi-ld:EntityMap:[a-f0-9]+)'",
   "status": 400,
-  "title": "Bad Request",
+  "title": "Not the EntityMap's query",
   "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData"
 }
 

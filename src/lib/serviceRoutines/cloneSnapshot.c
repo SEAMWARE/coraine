@@ -97,7 +97,7 @@ bool cloneSnapshot(void)
 
   if (tenantP->snapshotCacheP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", sourceId);
     return true;
   }
@@ -111,7 +111,7 @@ bool cloneSnapshot(void)
   LdSnapshotCacheItem* sourceP  = ldSnapshotCacheItemLookupPinned(cacheP, sourceId);
   if (sourceP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Snapshot not found",
             "Snapshot '%s' not found", sourceId);
     return true;
   }

@@ -62,7 +62,7 @@ bool getCsourceRegistration(void)
 
   if (regP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "registration '%s' not found", regId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Registration not found", "registration '%s' not found", regId);
     return true;
   }
 

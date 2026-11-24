@@ -39,7 +39,7 @@ bool deleteCsourceSubscription(void)
   if (cacheP == NULL || ldSubCacheItemLookup(cacheP, subId) == NULL)
   {
     ldSubCacheUnlock(cacheP);
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Subscription not found",
             "CSR subscription '%s' not found", subId);
     return true;
   }

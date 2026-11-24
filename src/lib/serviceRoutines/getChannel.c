@@ -44,6 +44,6 @@ bool getChannel(void)
     return true;
   }
 
-  ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "channel '%s' not found", channelId);
+  ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Channel not found", "channel '%s' not found", channelId);
   return true;
 }

@@ -274,12 +274,12 @@ Date: REGEX(.*)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: 182
 
 {
   "detail": "attribute 'brand' not found in entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -290,12 +290,12 @@ Content-Length: 172
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 174
+Content-Length: 184
 
 {
   "detail": "attribute 'unknown' not found in entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -306,12 +306,12 @@ Content-Length: 174
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 172
+Content-Length: 182
 
 {
   "detail": "attribute 'brand' not found in entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -354,12 +354,12 @@ Content-Length: REGEX(\d+)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 155
+Content-Length: 162
 
 {
   "detail": "entity 'urn:NoSuch' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -370,12 +370,12 @@ Content-Length: 155
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 177
+Content-Length: 187
 
 {
   "detail": "attribute 'noSuchAttr' not found in entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
