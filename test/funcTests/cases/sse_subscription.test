@@ -227,7 +227,7 @@ event: notification - Notification urn:ngsi-ld:Subscription:S1 ['urn:ngsi-ld:Veh
 =======================================================
 {
   "type": "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest",
-  "title": "Not Acceptable",
+  "title": "Event stream required",
   "status": 406,
   "detail": "the response to a subscription on the endpoint 'urn:ngsi-ld:self' is its event stream: text/event-stream"
 }

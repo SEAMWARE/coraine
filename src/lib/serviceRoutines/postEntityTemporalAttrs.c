@@ -173,7 +173,7 @@ bool postEntityTemporalAttrs(void)
             if (!opSupported)
             {
               ldDistOpBatchErrorAdd(errorsArrayP, entityId, 409,
-                                    LD_ERROR_CONFLICT, "Conflict",
+                                    LD_ERROR_CONFLICT, "Operation not supported by the registration",
                                     "registration does not support appendAttrsTemporal",
                                     csr->regId);
               continue;
@@ -212,7 +212,7 @@ bool postEntityTemporalAttrs(void)
           int upCode = results[i].statusCode;
           if (upCode < 200 || upCode >= 300)
             ldDistOpBatchErrorAdd(errorsArrayP, entityId, (upCode >= 400) ? upCode : 502,
-                                  LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                  LD_ERROR_INTERNAL_ERROR, "Forward failed",
                                   ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
                                   items[i].csr->regId);
           else
@@ -237,7 +237,7 @@ bool postEntityTemporalAttrs(void)
     {
       if (!anySucceeded)
       {
-        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+        ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Temporal data not found",
                 "no temporal evolution for entity '%s'", entityId);
         return true;
       }

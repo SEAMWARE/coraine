@@ -41,7 +41,7 @@ bool deleteCombinedServiceTemplate(void)
   int         r  = (db.docDelete != NULL) ? db.docDelete((Tenant*) corNgsild.tenantP, "serviceTemplates", id) : DB_NOT_FOUND;
 
   if (r == DB_NOT_FOUND)
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "Combined Service Template '%s' not found", id);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Combined Service Template not found", "Combined Service Template '%s' not found", id);
   else if (r != DB_OK)
     ldError(500, LD_ERROR_INTERNAL_ERROR, "Internal Error", "database error deleting Combined Service Template '%s'", id);
   else

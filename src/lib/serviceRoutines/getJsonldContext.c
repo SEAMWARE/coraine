@@ -134,7 +134,7 @@ bool getJsonldContext(void)
 
   if (contextP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "@context not found",
             "JSON-LD context '%s' not found", contextId);
     return true;
   }
@@ -197,7 +197,7 @@ bool getJsonldContext(void)
 
   if (contextP->body == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "@context not found",
             "JSON-LD context '%s' body not available", contextId);
     return true;
   }

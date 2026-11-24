@@ -245,7 +245,7 @@ bool postEntityAttrs(void)
                                                           entityId, fragment, &corRest.kalloc);
     if (cRegId != NULL)
     {
-      ldError(409, LD_ERROR_ALREADY_EXISTS, "Conflict",
+      ldError(409, LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
               "local update overlaps with registration '%s' (§ 9.3.3 — no local data for an exclusive/redirect scope)",
               cRegId);
       return true;
@@ -485,7 +485,7 @@ bool postEntityAttrs(void)
       ldError(508, LD_ERROR_LOOP_DETECTED, "Loop Detected",
               "loop detected: entity '%s' is held by an exclusive/redirect registration that resolves back to this broker", entityId);
     else
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity '%s' not found", entityId);
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Entity not found", "entity '%s' not found", entityId);
     return true;
   }
 
@@ -496,7 +496,7 @@ bool postEntityAttrs(void)
 
     if (db.entityAttrsSet == NULL)
     {
-      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
               "Append Attributes not supported by this DB plugin");
       return true;
     }

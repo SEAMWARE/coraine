@@ -227,7 +227,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
              csrRegId ? csrRegId : "?", status);
     for (int i = 0; i < N; i++)
       addBatchError(errorsP, idV[i], (status >= 400) ? status : 502,
-                    LD_ERROR_INTERNAL_ERROR, "Bad Gateway", detail, csrRegId);
+                    LD_ERROR_INTERNAL_ERROR, "Forward failed", detail, csrRegId);
     return;
   }
 
@@ -253,7 +253,7 @@ static void applyRemoteBatchResult(int status, CorNode* respTreeP,
       const char* eid = (idP != NULL && idP->type == CorString) ? idP->value.s : "";
 
       const char* type   = LD_ERROR_INTERNAL_ERROR;
-      const char* title  = "Bad Gateway";
+      const char* title  = "Forward failed";
       const char* detail = "forward error";
       int         status = 502;
       if (errP != NULL && errP->type == CorObject)
@@ -426,7 +426,7 @@ static void dispatchOneMode(Tenant*       tenantP,
                    mode == LdRegModeExclusive ? "exclusive" :
                    mode == LdRegModeRedirect  ? "redirect"  : "inclusive");
           addBatchError(errorsP, idV[i], 409,
-                        LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+                        LD_ERROR_CONFLICT, "Operation not supported by the registration", detail, csr->regId);
         }
       }
       continue;
@@ -652,7 +652,7 @@ bool postEntityBatchCreate(void)
       if (cRegId != NULL)
       {
         addBatchError(errorsP, idP->value.s, 409,
-                      LD_ERROR_ALREADY_EXISTS, "Conflict",
+                      LD_ERROR_ALREADY_EXISTS, "Inside an exclusive registration",
                       "local write overlaps with registration (§ 9.3.3 — no local data for an exclusive/redirect scope)",
                       cRegId);
         inP = nextP;
@@ -827,7 +827,7 @@ bool postEntityBatchCreate(void)
   {
     if (db.entityBulkCreate == NULL)
     {
-      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented",
+      ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database",
               "Batch Entity Creation not supported by this DB plugin");
       return true;
     }

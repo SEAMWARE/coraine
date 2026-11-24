@@ -1383,14 +1383,14 @@ bool bindEntityMapFilters(LdEntityMap* mapP)
       continue;
     if (f[i].bound == NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not the EntityMap's query",
               "URL parameter '%s' was not part of the query that created entity map '%s'",
               f[i].name, corNgsild.entityMapId);
       return true;
     }
     if (strcmp(f[i].req, f[i].bound) != 0)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not the EntityMap's query",
               "URL parameter '%s' differs from the query that created entity map '%s'",
               f[i].name, corNgsild.entityMapId);
       return true;
@@ -1424,13 +1424,13 @@ bool bindEntityMapFilters(LdEntityMap* mapP)
 
     if (bound == NULL)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not the EntityMap's query",
               "URL parameter '%s' was not part of the query that created entity map '%s'", key, corNgsild.entityMapId);
       return true;
     }
     if (strcmp(bound, value) != 0)
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request",
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Not the EntityMap's query",
               "URL parameter '%s' differs from the query that created entity map '%s'", key, corNgsild.entityMapId);
       return true;
     }
@@ -2295,7 +2295,7 @@ static bool entityMapPaginate(void)
   Tenant* tP = (Tenant*) corNgsild.tenantP;
   if (tP == NULL || tP->entityMapStoreP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map not found");
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found", "entity map not found");
     return true;
   }
 
@@ -2320,7 +2320,7 @@ static bool entityMapPaginate(void)
 
     if (hasSelector == false)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found or expired", corNgsild.entityMapId);
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found", "entity map '%s' not found or expired", corNgsild.entityMapId);
       return true;
     }
 

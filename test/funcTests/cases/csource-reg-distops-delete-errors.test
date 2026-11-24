@@ -100,7 +100,7 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 334
+Content-Length: 369
 
 {
   "errors": [
@@ -109,7 +109,7 @@ Content-Length: 334
       "error": {
         "detail": "exclusive registration does not support deleteEntity",
         "status": 409,
-        "title": "Conflict",
+        "title": "Operation not supported by the registration",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
       "registrationId": "urn:CSR:NoDel"
@@ -142,7 +142,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 335
+Content-Length: 338
 
 {
   "errors": [
@@ -151,7 +151,7 @@ Content-Length: 335
       "error": {
         "detail": "forward returned status 503",
         "status": 503,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:DeadDel"

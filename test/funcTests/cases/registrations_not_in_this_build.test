@@ -436,12 +436,12 @@ Content-Length: 247
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 192
+Content-Length: 199
 
 {
   "detail": "GET /ngsi-ld/v1/csourceRegistrationsX is not a recognized resource",
   "status": 404,
-  "title": "Not Found",
+  "title": "Unknown resource",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

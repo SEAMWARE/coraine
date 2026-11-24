@@ -141,7 +141,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": "'P3' on bridge 'loopback' could not be reached - nothing was written",
   "status": 503,
-  "title": "Service Unavailable",
+  "title": "Bridge endpoint unreachable",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 

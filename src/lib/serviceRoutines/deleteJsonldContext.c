@@ -140,7 +140,7 @@ bool deleteJsonldContext(void)
     DbContextRow row = { NULL, NULL, 0, NULL };
     if (db.contextGet == NULL || db.contextGet(contextId, &corRest.kalloc, &row) != DB_OK)
     {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "@context not found",
               "JSON-LD context '%s' not found", contextId);
       return true;
     }

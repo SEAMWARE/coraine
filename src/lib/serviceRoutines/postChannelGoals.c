@@ -151,7 +151,7 @@ bool postChannelGoals(void)
 
   if (goalId == NULL)
   {
-    ldError(502, LD_ERROR_INTERNAL_ERROR, "Bad Gateway", "the transport accepted the goal without giving it an id");
+    ldError(502, LD_ERROR_INTERNAL_ERROR, "Goal without an id", "the transport accepted the goal without giving it an id");
     return true;
   }
 

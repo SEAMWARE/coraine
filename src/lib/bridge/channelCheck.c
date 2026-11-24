@@ -295,7 +295,7 @@ bool channelChecksBeforeWrite(Tenant* tenantP, const char* entityId, CorNode* fr
     bool        refused = (r == BRIDGE_BAD_INPUT);
     int         status  = refused ? 400 : 503;
     const char* type    = refused ? LD_ERROR_BAD_REQUEST_DATA : LD_ERROR_INTERNAL_ERROR;
-    const char* title   = refused ? "Invalid request" : "Service Unavailable";
+    const char* title   = refused ? "Invalid request" : "Payload check failed";
     const char* why     = (reason[0] != 0) ? reason : "no reason given";
 
     __atomic_add_fetch(refusedP, 1, __ATOMIC_RELAXED);

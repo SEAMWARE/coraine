@@ -113,7 +113,7 @@ bool patchEntityMap(void)
 
   if (tenantP->entityMapStoreP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found",
             "entity map '%s' not found", mapId);
     return true;
   }
@@ -121,7 +121,7 @@ bool patchEntityMap(void)
   LdEntityMap* mapP = ldEntityMapLookupPinned((LdEntityMapStore*) tenantP->entityMapStoreP, mapId);
   if (mapP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found",
             "entity map '%s' not found", mapId);
     return true;
   }

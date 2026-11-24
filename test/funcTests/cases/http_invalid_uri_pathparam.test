@@ -113,12 +113,12 @@ Content-Length: 154
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 173
+Content-Length: 180
 
 {
   "detail": "entity 'urn:ngsi-ld:T:does-not-exist' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

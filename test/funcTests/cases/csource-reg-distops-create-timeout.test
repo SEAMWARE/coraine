@@ -77,7 +77,7 @@ Content-Length: REGEX(\d+)
 {
   "detail": REGEX("forward failed: .*"),
   "status": 502,
-  "title": "Bad Gateway",
+  "title": "Forward failed",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 

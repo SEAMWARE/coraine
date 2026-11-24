@@ -352,12 +352,12 @@ Content-Length: 532
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 167
+Content-Length: 180
 
 {
   "detail": "subscription 'urn:doesnt:exist' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Subscription not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -368,12 +368,12 @@ Content-Length: 167
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 178
+Content-Length: 191
 
 {
   "detail": "subscription 'urn:ngsi-ld:Subscription:S1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Subscription not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

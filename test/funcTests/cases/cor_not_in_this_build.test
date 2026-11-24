@@ -99,12 +99,12 @@ HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
 NGSILD-Warning: 299 localhost:9 "The registration endpoint's scheme is not supported by this broker"
-Content-Length: 166
+Content-Length: 173
 
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

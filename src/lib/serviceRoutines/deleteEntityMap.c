@@ -33,14 +33,14 @@ bool deleteEntityMap(void)
 
   if (tP == NULL || tP->entityMapStoreP == NULL)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found", mapId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found", "entity map '%s' not found", mapId);
     return true;
   }
 
   bool removed = ldEntityMapRemove((LdEntityMapStore*) tP->entityMapStoreP, mapId);
   if (!removed)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "entity map '%s' not found", mapId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "EntityMap not found", "entity map '%s' not found", mapId);
     return true;
   }
 

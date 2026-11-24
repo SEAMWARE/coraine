@@ -115,7 +115,7 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 335
+Content-Length: 370
 
 {
   "errors": [
@@ -124,7 +124,7 @@ Content-Length: 335
       "error": {
         "detail": "exclusive registration does not support mergeEntity",
         "status": 409,
-        "title": "Conflict",
+        "title": "Operation not supported by the registration",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
       "registrationId": "urn:CSR:NoMerge"
@@ -157,7 +157,7 @@ Content-Length: 0
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 337
+Content-Length: 340
 
 {
   "errors": [
@@ -166,7 +166,7 @@ Content-Length: 337
       "error": {
         "detail": "forward returned status 503",
         "status": 503,
-        "title": "Bad Gateway",
+        "title": "Forward failed",
         "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
       },
       "registrationId": "urn:CSR:DeadMerge"

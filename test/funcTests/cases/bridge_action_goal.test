@@ -572,12 +572,12 @@ Content-Length: 134
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 210
+Content-Length: 229
 
 {
   "detail": "attribute 'navigate' has no instance with datasetId 'urn:goal:2' in entity 'urn:R:2'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -633,12 +633,12 @@ Content-Length: 0
 HTTP/1.1 503 Service Unavailable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 215
+Content-Length: 222
 
 {
   "detail": "the cancellation of goal 'urn:goal:4' could not be sent (-1) - nothing was deleted",
   "status": 503,
-  "title": "Service Unavailable",
+  "title": "Goal cancellation not sent",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 

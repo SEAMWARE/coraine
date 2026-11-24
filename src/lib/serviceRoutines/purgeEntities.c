@@ -346,7 +346,7 @@ bool purgeEntities(void)
           snprintf(detail, sizeof(detail),
                    "%s registration does not support purgeEntity", modeTag[g]);
           ldDistOpBatchErrorAdd(errorsArrayP, csr->regId, 409,
-                                LD_ERROR_CONFLICT, "Conflict", detail, csr->regId);
+                                LD_ERROR_CONFLICT, "Operation not supported by the registration", detail, csr->regId);
           continue;
         }
 
@@ -372,7 +372,7 @@ bool purgeEntities(void)
           corTreeChildAdd(successArrayP, corTreeString(corRest.kallocP, NULL, items[i].csr->regId));
         else if (upCode != 404)
           ldDistOpBatchErrorAdd(errorsArrayP, items[i].csr->regId, (upCode >= 400) ? upCode : 502,
-                                LD_ERROR_INTERNAL_ERROR, "Bad Gateway",
+                                LD_ERROR_INTERNAL_ERROR, "Forward failed",
                                 ldDistOpForwardFailureReason(upCode, results[i].errorDetail),
                                 items[i].csr->regId);
       }

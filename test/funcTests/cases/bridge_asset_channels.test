@@ -414,12 +414,12 @@ Content-Length: 482
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 189
+Content-Length: 202
 
 {
   "detail": "AssetChannel 'urn:ngsi-ld:AssetChannel:loopback:nope' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "AssetChannel not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

@@ -39,7 +39,7 @@ bool deleteCsourceRegistration(void)
 
   if (db.registrationDelete == NULL)
   {
-    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "registration CRUD not supported by this DB plugin");
+    ldError(422, LD_ERROR_OP_NOT_SUPPORTED, "Not supported by the database", "registration CRUD not supported by this DB plugin");
     return true;
   }
 
@@ -47,7 +47,7 @@ bool deleteCsourceRegistration(void)
 
   if (r == DB_NOT_FOUND)
   {
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "registration '%s' not found", regId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Registration not found", "registration '%s' not found", regId);
     return true;
   }
 

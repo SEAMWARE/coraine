@@ -72,12 +72,12 @@ Date: REGEX(.*)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 168
+Content-Length: 175
 
 {
   "detail": "entity 'urn:ngsi-ld:entities:E1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

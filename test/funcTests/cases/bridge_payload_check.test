@@ -235,12 +235,12 @@ Content-Length: 224
 HTTP/1.1 503 Service Unavailable
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 230
+Content-Length: 231
 
 {
   "detail": "bridge 'loopback' could not check the value of 'mode' (P3): no reason given - nothing was written",
   "status": 503,
-  "title": "Service Unavailable",
+  "title": "Payload check failed",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
@@ -251,7 +251,7 @@ Content-Length: 230
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 709
+Content-Length: 716
 
 {
   "errors": [
@@ -269,7 +269,7 @@ Content-Length: 709
       "error": {
         "detail": "entity does not exist",
         "status": 404,
-        "title": "Not Found",
+        "title": "Entity not found",
         "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
       }
     }

@@ -160,12 +160,12 @@ Date: REGEX(.*)
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: 158
 
 {
   "detail": "entity 'urn:V1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -176,12 +176,12 @@ Content-Length: 151
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: 158
 
 {
   "detail": "entity 'urn:V2' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -208,7 +208,7 @@ Content-Length: 57
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 287
+Content-Length: 294
 
 {
   "errors": [
@@ -217,7 +217,7 @@ Content-Length: 287
       "error": {
         "detail": "entity does not exist",
         "status": 404,
-        "title": "Not Found",
+        "title": "Entity not found",
         "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
       }
     }
@@ -234,12 +234,12 @@ Content-Length: 287
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: 158
 
 {
   "detail": "entity 'urn:V3' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -250,14 +250,14 @@ Content-Length: 151
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 154
+Content-Length: 161
 
 {
   "entityIds": [
     "urn:missingA",
     "urn:missingB"
   ],
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

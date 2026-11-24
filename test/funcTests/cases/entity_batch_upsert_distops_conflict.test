@@ -84,11 +84,11 @@ Content-Length: 0
 HTTP/1.1 409 Conflict
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 108
+Content-Length: 143
 
 {
   "entityId": "urn:V1",
-  "title": "Conflict",
+  "title": "Operation not supported by the registration",
   "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
 }
 
@@ -99,12 +99,12 @@ Content-Length: 108
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: 158
 
 {
   "detail": "entity 'urn:V1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -115,7 +115,7 @@ Content-Length: 151
 HTTP/1.1 207 Multi-Status
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 346
+Content-Length: 381
 
 {
   "errors": [
@@ -124,7 +124,7 @@ Content-Length: 346
       "error": {
         "detail": "exclusive registration does not support upsertBatch",
         "status": 409,
-        "title": "Conflict",
+        "title": "Operation not supported by the registration",
         "type": "https://uri.etsi.org/ngsi-ld/errors/Conflict"
       },
       "registrationId": "urn:CSR:EX"

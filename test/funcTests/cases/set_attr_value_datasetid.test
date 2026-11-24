@@ -167,12 +167,12 @@ Content-Length: 224
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 209
+Content-Length: 228
 
 {
   "detail": "no instance of attribute 'speed' with datasetId 'urn:ds:unknown' on entity 'urn:V1'",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

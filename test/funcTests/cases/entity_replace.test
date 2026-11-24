@@ -232,12 +232,12 @@ Content-Length: 170
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 179
+Content-Length: 186
 
 {
   "detail": "entity 'urn:ngsi-ld:Vehicle:DOES_NOT_EXIST' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

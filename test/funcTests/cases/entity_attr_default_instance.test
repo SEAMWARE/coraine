@@ -100,12 +100,12 @@ Content-Length: 0
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 194
+Content-Length: 213
 
 {
   "detail": "attribute 'speed' in entity 'urn:ngsi-ld:E1' has no default instance",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 
@@ -116,12 +116,12 @@ Content-Length: 194
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 194
+Content-Length: 213
 
 {
   "detail": "attribute 'speed' in entity 'urn:ngsi-ld:E1' has no default instance",
   "status": 404,
-  "title": "Not Found",
+  "title": "Attribute instance not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

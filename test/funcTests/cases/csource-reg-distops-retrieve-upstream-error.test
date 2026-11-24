@@ -92,14 +92,14 @@ HTTP/1.1 201 Created
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 218
+Content-Length: 221
 
 {
   "detail": "forwarded request failed (status 503)",
   "registrationId": "urn:CSR:Src",
   "status": 502,
   "statusCode": 503,
-  "title": "Bad Gateway",
+  "title": "Forward failed",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
@@ -112,14 +112,14 @@ HTTP/1.1 201 Created
 HTTP/1.1 502 Bad Gateway
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 218
+Content-Length: 221
 
 {
   "detail": "forwarded request failed (status 400)",
   "registrationId": "urn:CSR:Src",
   "status": 502,
   "statusCode": 400,
-  "title": "Bad Gateway",
+  "title": "Forward failed",
   "type": "https://uri.etsi.org/ngsi-ld/errors/InternalError"
 }
 
@@ -132,12 +132,12 @@ HTTP/1.1 201 Created
 HTTP/1.1 404 Not Found
 Date: REGEX(.*)
 Content-Type: application/json
-Content-Length: 151
+Content-Length: 158
 
 {
   "detail": "entity 'urn:V1' not found",
   "status": 404,
-  "title": "Not Found",
+  "title": "Entity not found",
   "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
 }
 

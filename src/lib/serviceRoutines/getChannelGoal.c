@@ -41,7 +41,7 @@ bool getChannelGoal(void)
   CorNode*    goalP  = bridgeGoalRender(channelP, goalId);
 
   if (goalP == NULL)
-    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found", "goal '%s' is not in progress on this channel", goalId);
+    ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Goal not in progress", "goal '%s' is not in progress on this channel", goalId);
   else
     corRest.out.responseTree = goalP;
 

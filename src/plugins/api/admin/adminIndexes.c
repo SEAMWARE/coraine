@@ -65,7 +65,7 @@ static bool storeHasIndexes(IndexStore* sP)
   if ((sP->list != NULL) && (sP->add != NULL) && (sP->del != NULL))
     return true;
 
-  ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Not Implemented", "the store '%s' has no declared indexes", (sP->alias != NULL)? sP->alias : "?");
+  ldError(501, LD_ERROR_OP_NOT_SUPPORTED, "Store has no declared indexes", "the store '%s' has no declared indexes", (sP->alias != NULL)? sP->alias : "?");
   return false;
 }
 
@@ -79,9 +79,9 @@ static void errorFromDb(int rc, const char* errorText)
 {
   switch (rc)
   {
-  case DB_NOT_FOUND:       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Not Found",   "%s", errorText); break;
+  case DB_NOT_FOUND:       ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Index not found",   "%s", errorText); break;
   case DB_ALREADY_EXISTS:  ldError(409, LD_ERROR_ALREADY_EXISTS,     "Already Exists", "%s", errorText); break;
-  case DB_BAD_INPUT:       ldError(409, LD_ERROR_CONFLICT,           "Conflict",    "%s", errorText); break;
+  case DB_BAD_INPUT:       ldError(409, LD_ERROR_CONFLICT,           "Index declaration refused",    "%s", errorText); break;
   default:                 ldError(500, LD_ERROR_INTERNAL_ERROR,     "Internal Error", "%s", errorText); break;
   }
 }
@@ -146,7 +146,7 @@ static bool indexesPost(IndexStore* sP)
       ((typeP != NULL) && ((typeP->type != CorString) || (typeP->value.s[0] == 0))) ||
       ((tenantP != NULL) && ((tenantP->type != CorString) || (tenantP->value.s[0] == 0))))
   {
-    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "the body is { \"attribute\": <name>, \"type\"?: <entity type>, \"tenant\"?: <tenant> }");
+    ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid index declaration", "the body is { \"attribute\": <name>, \"type\"?: <entity type>, \"tenant\"?: <tenant> }");
     return true;
   }
 
@@ -154,7 +154,7 @@ static bool indexesPost(IndexStore* sP)
   {
     if ((nP != attrP) && (nP != typeP) && (nP != tenantP))
     {
-      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Bad Request", "'%s': not a member of a declared index (attribute, type, tenant)", nP->name);
+      ldError(400, LD_ERROR_BAD_REQUEST_DATA, "Invalid index member", "'%s': not a member of a declared index (attribute, type, tenant)", nP->name);
       return true;
     }
   }
