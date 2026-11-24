@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <stddef.h>                                  // NULL
+#include <string.h>                                  // strcmp
 
 #include "coraineFeatures.h"                      // Own interface
 
@@ -102,3 +103,41 @@ const CorainePlugin coraineBuiltPlugins[] =
 #endif
   { NULL,           NULL        }
 };
+
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineHttpServers -
+//
+const char* const coraineHttpServers[] =
+{
+#if COR_HTTP_SERVER_MHD
+  "mhd",
+#endif
+#if COR_HTTP_SERVER_BUILTIN
+  "builtin",
+#endif
+  NULL
+};
+
+
+
+char* coraineHttpServer = NULL;   // set by corArgsParse - its default is coraineHttpServers[0]
+
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineHttpServerBuilt -
+//
+bool coraineHttpServerBuilt(const char* name)
+{
+  for (int ix = 0; coraineHttpServers[ix] != NULL; ix++)
+  {
+    if (strcmp(name, coraineHttpServers[ix]) == 0)
+      return true;
+  }
+
+  return false;
+}

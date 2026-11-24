@@ -82,7 +82,7 @@ FOUNDATION_LIBS = corBase corLog corAlloc corArgs corHash corTree corJson corPro
 SIBLING_LIBS    = $(FOUNDATION_LIBS) $(HTTP_LIB) corBridge corPlugin corRest corJsonld corNgsild corDB
 
 #
-# COR_HTTP_SERVER - mhd | builtin. Passed DOWN to the libs, not only to cmake.
+# COR_HTTP_SERVER - mhd | builtin | both. Passed DOWN to the libs, not only to cmake.
 #
 # The HTTP server lives in corRest, which builds with plain make and knows
 # nothing about the broker's cmake options - so setting it on the cmake side
@@ -173,10 +173,10 @@ endif
 CMAKE_OPTIMIZE = -DCOR_OPTIMIZE=$(COR_OPTIMIZE)
 
 #
-# corHttp only exists in the link when it is the server in use, or a bridge's port is in the build
+# corHttp only exists in the link when the build carries it as a server (builtin, both), or a bridge's port is in the build
 # (COR_FEATURE_BRIDGE_HTTP_LISTEN, on unless CMAKE_FEATURES turns it off). SIBLING_LIBS above places it.
 #
-ifeq ($(COR_HTTP_SERVER),builtin)
+ifneq ($(filter builtin both,$(COR_HTTP_SERVER)),)
 HTTP_LIB = corHttp
 else ifeq ($(findstring COR_FEATURE_BRIDGE_HTTP_LISTEN=OFF,$(CMAKE_FEATURES)),)
 HTTP_LIB = corHttp

@@ -94,7 +94,16 @@ fi
 #
 corCliParamAdd "-httpServer" "COR_TEST_HTTP_SERVER" \
               "$("${COR_BROKER:-coraine}" --version 2>/dev/null | awk '/^httpServer: /{ print $2; found = 1 } END { if (!found) print "NONE" }')" \
-              "HTTP server the broker was built with: mhd|builtin" "HTTPSERVER"
+              "HTTP server the broker runs: mhd|builtin (--httpServer / CORAINE_HTTPSERVER in a build with both)" "HTTPSERVER"
+
+#
+# -httpServers: the HTTP servers the broker is BUILT with - both (COR_HTTP_SERVER=both, the broker choosing at
+# its start), or the one: mhd|builtin. -httpServer above is the one it runs. A broker from before "both" has
+# no httpServers line: its one server is the one it runs.
+#
+corCliParamAdd "-httpServers" "COR_TEST_HTTP_SERVERS" \
+              "$("${COR_BROKER:-coraine}" --version 2>/dev/null | awk '/^httpServers: /{ print (NF > 2) ? "both" : $2; found = 1 } /^httpServer: /{ one = $2 } END { if (!found) print (one != "") ? one : "NONE" }')" \
+              "HTTP servers the broker is built with: both|mhd|builtin" "HTTPSERVERS"
 
 
 #

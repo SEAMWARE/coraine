@@ -158,10 +158,11 @@ endif()
 
 #
 # The policy API listens on a port of its own, and only libmicrohttpd has a second listener (corRestListen):
-# with the built-in HTTP server it is off. COR_HTTP_SERVER is read here before its block below gives it its
-# default - unset is mhd.
+# with the built-in HTTP server alone it is off. With both (COR_HTTP_SERVER=both) it is in, and the broker
+# refuses to start with it on the built-in one (--httpServer builtin with --policyApiPort). COR_HTTP_SERVER is
+# read here before its block below gives it its default - unset is mhd.
 #
-if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
+if (DEFINED COR_HTTP_SERVER AND COR_HTTP_SERVER STREQUAL "builtin")
   set(COR_FEATURE_POLICY_API OFF)
 endif()
 
@@ -284,11 +285,14 @@ set(COR_STATIC_LIBS
 # System libraries
 #
 #
-# COR_HTTP_SERVER - which HTTP server this build carries. Two, and exactly one.
+# COR_HTTP_SERVER - which HTTP server this build carries.
 #
 #   mhd      libmicrohttpd, an external shared library built from source in the
 #            Dockerfile and mapped by every broker process
 #   builtin  the epoll server in corRest, no external dependency
+#   both     the two, the broker running one of them: --httpServer mhd|builtin (CORAINE_HTTPSERVER),
+#            libmicrohttpd by default. corRest calls through the table of the one selected
+#            (corRestBackendTable.h); a build with one server calls it directly.
 #
 # NOT a COR_FEATURE_* boolean: those answer "is this capability in the build",
 # and this is a choice between two implementations of a capability that is
@@ -299,8 +303,8 @@ set(COR_STATIC_LIBS
 # `#if COR_HTTP_SERVER_MHD` and -Wundef catches a misspelling - the same
 # discipline as the feature flags.
 #
-set(COR_HTTP_SERVER "mhd" CACHE STRING "HTTP server implementation: mhd | builtin")
-set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS mhd builtin)
+set(COR_HTTP_SERVER "mhd" CACHE STRING "HTTP server implementation: mhd | builtin | both")
+set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS mhd builtin both)
 
 if (COR_HTTP_SERVER STREQUAL "mhd")
   add_compile_definitions(COR_HTTP_SERVER_MHD=1 COR_HTTP_SERVER_BUILTIN=0)
@@ -314,8 +318,11 @@ elseif (COR_HTTP_SERVER STREQUAL "builtin")
   # resolves an archive against what is still undefined when it reaches it.
   #
   list(APPEND COR_STATIC_LIBS ${COR_LIBS_DIR}/corHttp/libcorHttp.a)
+elseif (COR_HTTP_SERVER STREQUAL "both")
+  add_compile_definitions(COR_HTTP_SERVER_MHD=1 COR_HTTP_SERVER_BUILTIN=1)
+  list(APPEND COR_STATIC_LIBS ${COR_LIBS_DIR}/corHttp/libcorHttp.a)   # after corRest, as for builtin
 else()
-  message(FATAL_ERROR "COR_HTTP_SERVER must be 'mhd' or 'builtin', not '${COR_HTTP_SERVER}'")
+  message(FATAL_ERROR "COR_HTTP_SERVER must be 'mhd', 'builtin' or 'both', not '${COR_HTTP_SERVER}'")
 endif()
 
 #
@@ -327,8 +334,8 @@ if (COR_FEATURE_BRIDGE_HTTP_LISTEN AND COR_HTTP_SERVER STREQUAL "mhd")
 endif()
 message(STATUS "HTTP server: ${COR_HTTP_SERVER}")
 
-# Reported by GET /build, so a running broker can say which one it is.
-add_compile_definitions(CORAINE_HTTP_SERVER="${COR_HTTP_SERVER}")
+# GET /build and --version report the servers built and the one running from COR_HTTP_SERVER_MHD/_BUILTIN
+# (coraineFeatures.c: coraineHttpServers, coraineHttpServer).
 
 #
 # COR_OPTIMIZE - what the build spends its RAM on. One or the other, speed the default.
@@ -355,10 +362,10 @@ add_compile_definitions(CORAINE_OPTIMIZE="${COR_OPTIMIZE}")
 
 set(COR_DYNAMIC_LIBS ssl crypto pthread dl m)
 
-# The one library the builtin server exists to remove. Linked only when it is
-# the implementation in use - which is what makes `ldd coraine` the check that
-# the switch actually worked.
-if (COR_HTTP_SERVER STREQUAL "mhd")
+# The one library the builtin server exists to remove. Linked only when the build
+# carries libmicrohttpd (mhd, both) - which is what makes `ldd coraine` the check
+# that the switch actually worked.
+if (NOT COR_HTTP_SERVER STREQUAL "builtin")
   list(APPEND COR_DYNAMIC_LIBS microhttpd)
 endif()
 

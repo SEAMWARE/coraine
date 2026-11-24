@@ -30,7 +30,7 @@ LIBS="corBase corAlloc corHash corTree corJson corArgs corLog corProm corRest co
 # says COR_HTTP_LINKED=0 for a build without it). Listing it otherwise would be
 # a claim about the binary that is not true of it.
 #
-if [ "${COR_HTTP_SERVER:-mhd}" = "builtin" ] || [ "${COR_HTTP_LINKED:-1}" = 1 ]; then
+if [ "${COR_HTTP_SERVER:-mhd}" != "mhd" ] || [ "${COR_HTTP_LINKED:-1}" = 1 ]; then
   LIBS="$LIBS corHttp"
 fi
 

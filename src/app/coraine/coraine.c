@@ -306,6 +306,7 @@ static CorArg kargV[] =
   { "--connectionPoolSize", "-cps",         CorArgInt,    _vp &poolSize,     CorArgOpt, _vp 0,     _vp 0, _vp 200,  "worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)" },
   { "--httpLoops",          "-hl",          CorArgInt,    _vp &httpLoops,    CorArgOpt, _vp 0,     _vp 0, _vp 64,   "event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build" },
   { "--httpConnectionMemory", "-hcm",       CorArgInt,    _vp &httpConnectionMemory, CorArgOpt, _vp 12, _vp 4, _vp 1024, "kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)" },
+  { "--httpServer",         "-hs",          CorArgString, _vp &coraineHttpServer, CorArgOpt, _vp (COR_HTTP_SERVER_MHD ? "mhd" : "builtin"), NULL, NULL, "the HTTP server to run: mhd (libmicrohttpd) or builtin (corHttp) - one this broker is built with (httpServers in --version and GET /build); default mhd when built, else the one built" },
   { "--notifyValueChangeOnly", "-nvco",     CorArgBool,   _vp &notifyValueChangeOnly, CorArgOpt, _vp false, _vp false, _vp true, "only notify when an attribute value changed (suppress value-neutral updates)" },
   { "--https",              "-https",       CorArgBool,   _vp &https,        CorArgOpt, _vp false, _vp false, _vp true, "serve the NGSI-LD API over HTTPS (TLS), with --key and --cert - a libmicrohttpd build only (httpServer: mhd)" },
   { "--key",                "-key",         CorArgString, _vp &httpsKey,     CorArgOpt, _vp NULL,  NULL,  NULL,      "--https: the server's private key, a PEM file" },
@@ -1865,7 +1866,21 @@ int main(int argC, char* argV[])
     // GET /build reports the same thing to a RUNNING broker; this line is what
     // answers before one has started, which is when the test harness asks.
     //
-    printf("httpServer: %s\n", CORAINE_HTTP_SERVER);
+    // The one this broker runs - --httpServer, or its environment variable, as the start would read them (the
+    // environment is not read yet here); a name it is not built with is the start's error, and the default is
+    // said then. httpServers: every one it is built with.
+    //
+    const char* runs = corArgsPeek(argC, argV, kargV, "--httpServer");
+    if (runs == NULL)
+      runs = getenv("CORAINE_HTTPSERVER");
+    if ((runs == NULL) || (coraineHttpServerBuilt(runs) == false))
+      runs = coraineHttpServers[0];
+
+    printf("httpServer: %s\n", runs);
+    printf("httpServers:");
+    for (int ix = 0; coraineHttpServers[ix] != NULL; ix++)
+      printf(" %s", coraineHttpServers[ix]);
+    printf("\n");
 
     // What the defaults spend RAM on (COR_OPTIMIZE) - a choice of two too, so a line of its own
     printf("optimize: %s\n", CORAINE_OPTIMIZE);
@@ -1899,6 +1914,26 @@ int main(int argC, char* argV[])
   }
 
   //
+  // The HTTP server: one this broker is built with. With both (COR_HTTP_SERVER=both) the one asked for is
+  // selected now, before anything of corRest's is called.
+  //
+  if (coraineHttpServerBuilt(coraineHttpServer) == false)
+    COR_X(1, "--httpServer %s: this broker is built with %s (httpServers in --version) - mhd is libmicrohttpd, builtin corHttp",
+          coraineHttpServer, (coraineHttpServers[1] != NULL) ? "both, mhd and builtin" : (strcmp(coraineHttpServers[0], "mhd") == 0) ? "mhd only" : "builtin only");
+#if COR_HTTP_SERVER_MHD && COR_HTTP_SERVER_BUILTIN
+  corRestBackendSelect(coraineHttpServer);
+#endif
+
+#if COR_FEATURE_POLICY_API
+  //
+  // POLICY_API needs libmicrohttpd: its port is a second listener, and only libmicrohttpd serves one. In a build
+  // with both servers it is in, and refused here with the built-in one rather than started without its port.
+  //
+  if ((policyApiPort != 0) && (strcmp(coraineHttpServer, "mhd") != 0))
+    COR_X(1, "--policyApiPort: the policy API (POLICY_API) is served on a port of its own, which only libmicrohttpd has - start with --httpServer mhd, or without --policyApiPort");
+#endif
+
+  //
   // HTTPS: --key and --cert go with --https, and --https with a server that has TLS. The credentials are read
   // now, before anything else is started - a broker asked for HTTPS stops here rather than serve in the clear
   // or fail later; corRestStart hands them to libmicrohttpd (MHD_USE_TLS).
@@ -1907,8 +1942,8 @@ int main(int argC, char* argV[])
   {
     if ((httpsKey == NULL) || (httpsCert == NULL))
       COR_X(1, "--https needs --key (the server's private key) and --cert (its certificate), PEM files");
-    if (strcmp(CORAINE_HTTP_SERVER, "mhd") != 0)
-      COR_X(1, "--https: this broker is built with the %s HTTP server, which has no TLS - a libmicrohttpd build has (cmake -DCOR_HTTP_SERVER=mhd, httpServer: mhd)", CORAINE_HTTP_SERVER);
+    if (strcmp(coraineHttpServer, "mhd") != 0)
+      COR_X(1, "--https: the %s HTTP server has no TLS - libmicrohttpd has (--httpServer mhd, in a broker built with it: httpServers in --version)", coraineHttpServer);
 
     char* keyPem  = pemFileRead("--key",  httpsKey);
     char* certPem = pemFileRead("--cert", httpsCert);

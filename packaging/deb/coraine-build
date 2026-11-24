@@ -17,9 +17,15 @@
 #                      kept in <dir>/install/etc/tune.env (doc/extreme-performance.md)
 #   --features <list>  comma-separated NAME=ON|OFF, NAME without COR_FEATURE_ - e.g.
 #                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF
-#   --http-server <s>  mhd (libmicrohttpd, the default) or builtin (corHttp, no external library). With
+#   --http-server <s>  mhd (libmicrohttpd, the default), builtin (corHttp, no external library) or both - the
+#                      broker then runs one, chosen at its start (--httpServer, libmicrohttpd by default). With
 #                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
-#                      --json says so: "requires": ["HTTP_SERVER=mhd"]); not with --pgo / --tune yet
+#                      --json says so: "requires": ["HTTP_SERVER=mhd"]; both carries libmicrohttpd, so has them,
+#                      and the broker refuses to start one of them on the built-in server); --pgo / --tune
+#                      with mhd only: their training runs libmicrohttpd, and a both build's built-in server
+#                      would be compiled as code never run
+#   --list-http-servers  print the --http-server values this source can build, and exit; with --json a JSON
+#                      array - ["mhd", "builtin", "both"]
 #   --optimize <o>     speed (the default) or size: what the broker's defaults spend RAM on - size runs one
 #                      malloc arena for the process, for small hardware (doc/building-details.md#cor_optimize)
 #   --bridges <list>   the bridge plugins to build, comma-separated: mqtt, modbus, dds, ckan, opcua, aas, cep - or none
@@ -82,6 +88,7 @@ OPTIMIZE=speed
 DIR=
 LIST=0
 LISTB=0
+LISTH=0
 JSON=0
 BRIDGES=mqtt,modbus,cep
 NAME=coraine
@@ -99,12 +106,13 @@ while [ $# -gt 0 ]; do
     --tune)           MODE=tune; WORKLOAD=${2:?--tune needs a workload file}; shift ;;
     --features)       FEATURES=${2:?--features needs a list}; shift ;;
     --features=*)     FEATURES=${1#--features=} ;;
-    --http-server)    HTTP_SERVER=${2:?--http-server needs mhd or builtin}; shift ;;
+    --http-server)    HTTP_SERVER=${2:?--http-server needs mhd, builtin or both}; shift ;;
     --http-server=*)  HTTP_SERVER=${1#--http-server=} ;;
     --optimize)       OPTIMIZE=${2:?--optimize needs speed or size}; shift ;;
     --optimize=*)     OPTIMIZE=${1#--optimize=} ;;
     --list-features)  LIST=1 ;;
     --list-bridges)   LISTB=1 ;;
+    --list-http-servers) LISTH=1 ;;
     --bridges)        BRIDGES=${2:?--bridges needs a list (or none)}; shift ;;
     --bridges=*)      BRIDGES=${1#--bridges=} ;;
     --json)           JSON=1 ;;
@@ -163,7 +171,7 @@ if [ -n "$IMAGE" ]; then
   fi
 fi
 
-[ -n "$DIR" ] || { { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; } || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
+[ -n "$DIR" ] || { { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ] || [ "$LISTH" = 1 ]; } || { usage; exit 1; }; DIR=$(mktemp -d); trap 'rm -rf "$DIR"' EXIT; }
 
 #
 # The bridges - plugins built from repositories of their own, beside the broker's. name, repository,
@@ -197,7 +205,7 @@ if [ -f "$DIR/coraine/makefile" ] && [ -f "$DIR/SOURCE" ]; then
 elif [ -n "$(ls -A "$DIR")" ]; then
   die "$DIR is neither empty nor a coraine-build directory"
 else
-  if [ -d "$SOURCE" ] && { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ]; }; then
+  if [ -d "$SOURCE" ] && { [ "$LIST" = 1 ] || [ "$LISTB" = 1 ] || [ "$LISTH" = 1 ]; }; then
     #
     # The lists only read the clones (CMakeLists.txt, each bridge's makefile): linked, not exported - as they
     # are checked out; a clone --ref names is exported at that ref instead (a branch's switches are its own)
@@ -246,14 +254,17 @@ if [ "$LIST" = 1 ] && [ "$JSON" = 1 ]; then
   #     set(COR_FEATURE_D OFF)
   #   if ((NOT COR_FEATURE_A) AND (NOT COR_FEATURE_B))            - off when both are: requiresAny A, B
   #     set(COR_FEATURE_C OFF)
+  #   if (DEFINED COR_HTTP_SERVER AND COR_HTTP_SERVER STREQUAL "builtin")
+  #     set(COR_FEATURE_C OFF)                                    - requires HTTP_SERVER=mhd (both has it)
   #   if (DEFINED COR_HTTP_SERVER AND NOT COR_HTTP_SERVER STREQUAL "mhd")
-  #     set(COR_FEATURE_C OFF)                                    - requires HTTP_SERVER=mhd
+  #     set(COR_FEATURE_C OFF)                                    - the same, in a source from before "both"
   # One line per switch turned off: NAME all|any REQ... A condition read otherwise (a switch that is ON in
   # it, AND and OR together), or a set(COR_FEATURE_X OFF) under no condition read, stops the listing: a
   # "requires" that leaves one out says a switch can be had that cannot.
   awk '
     function bad(why) { printf "CMakeLists.txt line %d: %s - %s\n", NR, why, $0 > "/dev/stderr"; failed = 1; exit 1 }
     /^if *\(.*NOT COR_HTTP_SERVER STREQUAL "[a-z]*"/ { match($0, /STREQUAL "[a-z]*"/); kind = "all"; req = "HTTP_SERVER=" substr($0, RSTART + 10, RLENGTH - 11); next }
+    /^if *\(.* COR_HTTP_SERVER STREQUAL "builtin"/    { kind = "all"; req = "HTTP_SERVER=mhd"; next }
     /^if *\(.*NOT COR_FEATURE_/ {
       c = $0; sub(/^if */, "", c)
       n = split(c, w, /COR_FEATURE_/); req = ""
@@ -344,6 +355,24 @@ if [ "$LISTB" = 1 ]; then
 fi
 
 #
+# --list-http-servers: the values the source's CMakeLists.txt offers for COR_HTTP_SERVER (its STRINGS property) - an
+# older source offers mhd and builtin
+#
+if [ "$LISTH" = 1 ]; then
+  servers=$(sed -n 's/^set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS \(.*\))$/\1/p' "$DIR/coraine/CMakeLists.txt")
+  [ -n "$servers" ] || die "no HTTP server list in $DIR/coraine/CMakeLists.txt (set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS ...))"
+  if [ "$JSON" = 1 ]; then
+    printf '['; first=1
+    for h in $servers; do [ "$first" = 1 ] || printf ', '; first=0; printf '"%s"' "$h"; done
+    printf ']\n'
+  else
+    echo "coraine $version - HTTP servers (--http-server):"
+    for h in $servers; do echo "  $h"; done
+  fi
+  exit 0
+fi
+
+#
 # --bridges: each one named, in the source and buildable here - or the build does not start
 #
 BRIDGE_REPOS=()
@@ -424,10 +453,12 @@ if [ "$MONGOC" = ON ] && ! pkg-config --exists mongoc2; then
   fi
 fi
 
-case "$HTTP_SERVER" in mhd|builtin) ;; *) die "--http-server: '$HTTP_SERVER' - mhd or builtin" ;; esac
+case "$HTTP_SERVER" in mhd|builtin|both) ;; *) die "--http-server: '$HTTP_SERVER' - mhd, builtin or both" ;; esac
+[ "$HTTP_SERVER" != both ] || grep -q '^set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS .*both' "$DIR/coraine/CMakeLists.txt" \
+  || die "--http-server both: this source has no such build (coraine-build --list-http-servers)"
 case "$OPTIMIZE" in speed|size) ;; *) die "--optimize: '$OPTIMIZE' - speed or size" ;; esac
-if [ "$HTTP_SERVER" = builtin ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
-  die "--http-server builtin: not with --$MODE yet (its training tools are built and tried with libmicrohttpd only)"
+if [ "$HTTP_SERVER" != mhd ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
+  die "--http-server $HTTP_SERVER: not with --$MODE yet (its training runs libmicrohttpd only - a both build's built-in server would be compiled as code never run)"
 fi
 
 if [ "$MODE" = pgo ] || [ "$MODE" = tune ]; then

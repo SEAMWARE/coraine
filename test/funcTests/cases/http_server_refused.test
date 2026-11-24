@@ -1,0 +1,91 @@
+#
+# FILE            http_server_refused.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# --httpServer names an HTTP server the broker is built with, or the broker does not start. In a build with
+# both (COR_HTTP_SERVER=both) a switch that needs libmicrohttpd is in the build - and a broker asked to run
+# it on the built-in server does not start either, rather than run without it: the policy API (POLICY_API,
+# a port of its own, which only libmicrohttpd serves) and HTTPS (libmicrohttpd's TLS).
+#
+# REQUIRE_HTTPSERVERS: both
+# REQUIRE_FEATURE: POLICY_API
+#
+--NAME--
+Both HTTP servers in the build - a server not built, and a switch needing libmicrohttpd on the built-in one, refused
+
+--TAGS--
+httpserver cli build
+
+--INIT--
+
+--RUN--
+
+unset CORAINE_HTTPSERVER
+
+#
+# run <args> - the broker started with them: its exit code and its last word (killed after 5 s: it started)
+#
+run() {
+  timeout 5 $COR_BROKER --port 9 --database corDB --dbDir /tmp/http_server_refused.$$ "$@" > /tmp/http_server_refused.$$.out 2>&1
+  echo "exit: $?"
+  grep -m1 "^X: " /tmp/http_server_refused.$$.out
+  rm -rf /tmp/http_server_refused.$$ /tmp/http_server_refused.$$.out
+}
+
+echo "01. --httpServer nope - exit 1, the servers built named"
+echo "========================================================"
+run --httpServer nope
+echo
+echo
+
+
+echo "02. CORAINE_HTTPSERVER=nope - the same, from the environment"
+echo "============================================================"
+CORAINE_HTTPSERVER=nope run
+echo
+echo
+
+
+echo "03. --httpServer builtin --policyApiPort 9001 - exit 1: the policy API's port is libmicrohttpd's"
+echo "================================================================================================"
+run --httpServer builtin --policyApiPort 9001
+echo
+echo
+
+
+echo "04. --httpServer builtin --https - exit 1: TLS is libmicrohttpd's"
+echo "================================================================="
+run --httpServer builtin --https --key /dev/null --cert /dev/null
+echo
+echo
+
+
+--EXPECT--
+01. --httpServer nope - exit 1, the servers built named
+========================================================
+exit: 1
+X: --httpServer nope: this broker is built with both, mhd and builtin (httpServers in --version) - mhd is libmicrohttpd, builtin corHttp
+
+
+02. CORAINE_HTTPSERVER=nope - the same, from the environment
+============================================================
+exit: 1
+X: --httpServer nope: this broker is built with both, mhd and builtin (httpServers in --version) - mhd is libmicrohttpd, builtin corHttp
+
+
+03. --httpServer builtin --policyApiPort 9001 - exit 1: the policy API's port is libmicrohttpd's
+================================================================================================
+exit: 1
+X: --policyApiPort: the policy API (POLICY_API) is served on a port of its own, which only libmicrohttpd has - start with --httpServer mhd, or without --policyApiPort
+
+
+04. --httpServer builtin --https - exit 1: TLS is libmicrohttpd's
+=================================================================
+exit: 1
+X: --https: the builtin HTTP server has no TLS - libmicrohttpd has (--httpServer mhd, in a broker built with it: httpServers in --version)
+
+
+--TEARDOWN--

@@ -103,6 +103,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--connectionPoolSize/-cps <worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)>]
                 [--httpLoops/-hl <event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build>]
                 [--httpConnectionMemory/-hcm <kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)>]
+                [--httpServer/-hs <the HTTP server to run: mhd (libmicrohttpd) or builtin (corHttp) - one this broker is built with (httpServers in --version and GET /build); default mhd when built, else the one built>]
                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                 [--https/-https (serve the NGSI-LD API over HTTPS (TLS), with --key and --cert - a libmicrohttpd build only (httpServer: mhd))]
                 [--key/-key <--https: the server's private key, a PEM file>]
@@ -176,6 +177,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--connectionPoolSize/-cps <worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)>]
                 [--httpLoops/-hl <event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build>]
                 [--httpConnectionMemory/-hcm <kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)>]
+                [--httpServer/-hs <the HTTP server to run: mhd (libmicrohttpd) or builtin (corHttp) - one this broker is built with (httpServers in --version and GET /build); default mhd when built, else the one built>]
                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                 [--https/-https (serve the NGSI-LD API over HTTPS (TLS), with --key and --cert - a libmicrohttpd build only (httpServer: mhd))]
                 [--key/-key <--https: the server's private key, a PEM file>]
@@ -252,6 +254,7 @@ Usage: coraine  [--usage/-u (usage)]
                 [--connectionPoolSize/-cps <worker threads that run requests (0: one per CPU the process may run on, for a store that never waits; 32 otherwise)>]
                 [--httpLoops/-hl <event loops sharing the HTTP port, 1-64 (0: one per CPU the process may run on, at most 4) - the built-in server's, and the cor:// listener's (at most 16) on any build>]
                 [--httpConnectionMemory/-hcm <kB of memory per HTTP connection: a request's line and headers must fit in it - a bigger one gets 414/431 (libmicrohttpd only)>]
+                [--httpServer/-hs <the HTTP server to run: mhd (libmicrohttpd) or builtin (corHttp) - one this broker is built with (httpServers in --version and GET /build); default mhd when built, else the one built>]
                 [--notifyValueChangeOnly/-nvco (only notify when an attribute value changed (suppress value-neutral updates))]
                 [--https/-https (serve the NGSI-LD API over HTTPS (TLS), with --key and --cert - a libmicrohttpd build only (httpServer: mhd))]
                 [--key/-key <--https: the server's private key, a PEM file>]
@@ -316,6 +319,7 @@ Usage: coraine  [--usage/-u (usage)]
   --connectionPoolSize    (-cps)                CORAINE_CONNECTIONPOOLSIZE    Optional   Int      0
   --httpLoops             (-hl)                 CORAINE_HTTPLOOPS             Optional   Int      0
   --httpConnectionMemory  (-hcm)                CORAINE_HTTPCONNECTIONMEMORY  Optional   Int      12
+  --httpServer            (-hs)                 CORAINE_HTTPSERVER            Optional   String   REGEX((mhd|builtin))
   --notifyValueChangeOnly (-nvco)               CORAINE_NOTIFYVALUECHANGEONLY Optional   Bool     false
   --https                 (-https)              CORAINE_HTTPS                 Optional   Bool     false
   --key                   (-key)                CORAINE_KEY                   Optional   String   -
