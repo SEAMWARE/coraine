@@ -55,7 +55,7 @@
 //
 // Command line arguments - the broker's names for what a store needs; the plugins add their own
 //
-static char* dbName      = "mongoc";
+static char* dbName      = COR_FEATURE_MONGOC ? "mongoc" : "corDB";   // as the broker's
 static char* troeName    = "none";
 static char* file        = NULL;
 static char* traceLevels = NULL;
@@ -71,7 +71,7 @@ bool asyncSnapshot = false;                                // --asyncSnapshot - 
 static CorArg kargV[] =
 {
   { "--file",        "-f",     CorArgString, _vp &file,        CorArgReq, _vp NULL,     NULL,      NULL,      "the migration stream: one JSON record per line, expanded NGSI-LD ('-' = stdin)" },
-  { "--database",    "-db",    CorArgString, _vp &dbName,      CorArgOpt, _vp "mongoc", NULL,      NULL,      "database plugin (short name or full path) - as the broker's" },
+  { "--database",    "-db",    CorArgString, _vp &dbName,      CorArgOpt, _vp (COR_FEATURE_MONGOC ? "mongoc" : "corDB"), NULL,      NULL,      "database plugin (short name or full path) - as the broker's" },
   { "--troe",        "-troe",  CorArgString, _vp &troeName,    CorArgOpt, _vp "none",   NULL,      NULL,      "TRoE temporal-storage plugin (short name or full path; 'none': no history imported) - as the broker's" },
   { "--traceLevels", "-t",     CorArgString, _vp &traceLevels, CorArgOpt, _vp NULL,     NULL,      NULL,      "trace levels to turn on: levels and ranges, comma-separated (220-226,403) - a release build has none" },
   { "--version",     "-V",     CorArgBool,   _vp &versionOnly, CorArgOpt, _vp false,    _vp false, _vp true,  "print version and exit" },

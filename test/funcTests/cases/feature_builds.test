@@ -58,7 +58,8 @@ echo
 REGISTRATIONS=OFF: build ok, start ok, REGISTRATIONS=false SUBSCRIPTIONS=true
 SUBSCRIPTIONS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=false
 REGISTRATIONS+SUBSCRIPTIONS=OFF: build ok, start ok, REGISTRATIONS=false SUBSCRIPTIONS=false
-MONGOC=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+MONGOC=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true default=corDB database=corDB|ramDB troe=corDB|none|ramDB|timescale, refused: --database mongoc: yes
+CORDB=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true default=mongoc database=mongoc troe=none|timescale, refused: --database corDB: yes, --database ramDB: yes, --troe ramDB: yes
 ADMIN_API=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 METRICS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 TRANSPORTS=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true

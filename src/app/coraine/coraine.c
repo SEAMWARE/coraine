@@ -209,7 +209,7 @@ unsigned short port         = 1026;
 #if COR_FEATURE_COR_PROTOCOL
 unsigned short corPort      = 0;           // cor:// - the binary API (0: off)
 #endif
-char*          dbName       = "mongoc";
+char*          dbName       = COR_FEATURE_MONGOC ? "mongoc" : "corDB";   // the one built when only one is
 char*          troeName     = "none";
 char*          apiNames     = NULL;
 char*          bridgeNames  = NULL;
@@ -283,7 +283,7 @@ static CorArg kargV[] =
 #if COR_FEATURE_COR_PROTOCOL
   { "--corPort",            "-corPort",     CorArgUShort, _vp &corPort,  CorArgOpt, _vp 0,    _vp 0, _vp 65535, "TCP port for cor:// - the binary API (0: off)" },
 #endif
-  { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp "mongoc", NULL,  NULL,      "database plugin (short name or full path)" },
+  { "--database",           "-db",          CorArgString, _vp &dbName,   CorArgOpt, _vp (COR_FEATURE_MONGOC ? "mongoc" : "corDB"), NULL,  NULL,      "database plugin (short name or full path)" },
   { "--troe",               "-troe",        CorArgString, _vp &troeName, CorArgOpt, _vp "none",   NULL,  NULL,      "TRoE temporal-storage plugin: none (the default), timescale, ramDB (a ring of the latest events, for tests), corDB (the corDB store's own history - needs --database corDB), or the path of a .so" },
   { "--troeSync",           "-troeSync",    CorArgBool,   _vp &troeSync,    CorArgOpt, _vp false, _vp false, _vp true, "hand TRoE writes over BEFORE the response, so a temporal read sees them at once; default hands them over after it" },
   { "--apiPlugins",         "-api",         CorArgString, _vp &apiNames, CorArgOpt, _vp NULL,  NULL,  NULL,      "API plugins (comma-separated)" },

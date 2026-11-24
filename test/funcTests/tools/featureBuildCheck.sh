@@ -45,6 +45,7 @@ CONFIGS=(
   "SUBSCRIPTIONS=OFF|-DCOR_FEATURE_SUBSCRIPTIONS=OFF"
   "REGISTRATIONS+SUBSCRIPTIONS=OFF|-DCOR_FEATURE_REGISTRATIONS=OFF -DCOR_FEATURE_SUBSCRIPTIONS=OFF"
   "MONGOC=OFF|-DCOR_FEATURE_MONGOC=OFF"
+  "CORDB=OFF|-DCOR_FEATURE_CORDB=OFF"
   "ADMIN_API=OFF|-DCOR_FEATURE_ADMIN_API=OFF"
   "METRICS=OFF|-DCOR_FEATURE_METRICS=OFF"
   "TRANSPORTS=OFF|-DCOR_FEATURE_TRANSPORTS=OFF"
@@ -74,9 +75,11 @@ CONFIGS=(
 
 rc=0
 
+# COR_BUILD_TEST_ONLY: a comma-separated list of labels (MONGOC=OFF,CORDB=OFF) - those alone, for working on one
 for cfg in "${CONFIGS[@]}"; do
   label="${cfg%%|*}"
   flags="${cfg#*|}"
+  [ -z "$COR_BUILD_TEST_ONLY" ] || [[ ",$COR_BUILD_TEST_ONLY," == *",$label,"* ]] || continue
   d="$WORK/$(echo "$label" | tr '=+' '__')"
 
   if ! cmake -S "$SRC" -B "$d" -DCMAKE_BUILD_TYPE=Debug $flags > "$d.cfg.log" 2>&1; then
@@ -105,6 +108,10 @@ for cfg in "${CONFIGS[@]}"; do
   # GEOQ is corDB's COR_WITH_GEOQ, as the broker's makefile passes it. CORAINE: this tree's shared sources
   # (geoMatch.c, dbPluginAbi.c) - by default corDB compiles ../coraine's, another checkout's
   #
+  # CORDB=OFF: the corDB repository is not built at all (the makefile's COR_WITH_CORDB=0)
+  P="$d.plugins"
+  mkdir -p "$P/db/currentState" "$P/troe/temporal" "$P/api"
+  if [ "$label" != CORDB=OFF ]; then
   dbFlags=$(echo "$flags" | tr ' ' '\n' | sed -n 's/^-D\(COR_FEATURE_[A-Z_]*\)=OFF$/\1=0/p' | sed -e 's/^COR_FEATURE_GEOQ=0$/COR_WITH_GEOQ=0/' -e 's/^COR_FEATURE_TROE_CORDB=0$/COR_WITH_TROE_CORDB=0/' | tr '\n' ' ')
   if ! make -C "$SRC/../corDB" OBJDIR="$d.corDB" CORAINE="$SRC" $dbFlags > "$d.corDB.log" 2>&1; then
     echo "$label: corDB build FAILED"
@@ -112,15 +119,23 @@ for cfg in "${CONFIGS[@]}"; do
     rc=1
     continue
   fi
-
-  P="$d.plugins"
-  mkdir -p "$P/db/currentState" "$P/troe/temporal" "$P/api"
   cp -p "$d.corDB/corDB.so"                          "$P/db/currentState/" 2>/dev/null
+  fi
+  cp -p "$d/src/plugins/currentState/mongoc/mongoc.so" "$P/db/currentState/" 2>/dev/null   # not built: MONGOC=OFF
   cp -p "$d/src/plugins/temporal/none/none.so"       "$P/troe/temporal/"   2>/dev/null
   cp -p "$d/src/plugins/temporal/timescale/timescale.so" "$P/troe/temporal/" 2>/dev/null   # not built: TROE_TIMESCALE=OFF
 
+  #
+  # MONGOC=OFF and CORDB=OFF start with no --database: the default is the one store built. CORDB=OFF's is
+  # mongoc, which needs a MongoDB (every functest job has one; corTest's COR_MONGO_HOST/PORT)
+  #
+  case "$label" in
+    MONGOC=OFF) dbArgs=() ;;
+    CORDB=OFF)  dbArgs=(--dbName featureBuild --dbHost "${COR_MONGO_HOST:-localhost}" --dbPort "${COR_MONGO_PORT:-27017}") ;;
+    *)          dbArgs=(--database corDB) ;;
+  esac
   SEAMWARE_PLUGIN_DIR="$P" "$d/src/app/coraine/coraine" \
-      --port "$PORT" --database corDB --troe none > "$d.run.log" 2>&1 &
+      --port "$PORT" "${dbArgs[@]}" --troe none > "$d.run.log" 2>&1 &
   pid=$!
   echo "$pid" >> "$WORK/pids"
 
@@ -148,6 +163,7 @@ for cfg in "${CONFIGS[@]}"; do
   build=$(curl -sf "http://localhost:$PORT/build" | tr ',' '\n')
   regs=$(echo "$build" | grep '"REGISTRATIONS"' | grep -oE 'true|false')
   subs=$(echo "$build" | grep '"SUBSCRIPTIONS"' | grep -oE 'true|false')
+  loaded=$(curl -sf "http://localhost:$PORT/build" | python3 -c 'import json,sys; print(json.load(sys.stdin)["plugins"]["loaded"]["currentState"]["alias"])' 2>/dev/null)
 
   kill "$pid" 2>/dev/null
   wait "$pid" 2>/dev/null
@@ -168,7 +184,31 @@ for cfg in "${CONFIGS[@]}"; do
       fi ;;
   esac
 
-  echo "$label: build ok, start ok, REGISTRATIONS=$regs SUBSCRIPTIONS=$subs$troe"
+  #
+  # The current-state stores: the one a start without --database runs, what --database offers - and a store the
+  # broker is built without refused by its name, whatever .so of that name is there (empty files here: the
+  # refusal comes before the file is opened, and without it the file would be opened)
+  #
+  stores=""
+  case "$label" in
+    MONGOC=OFF|CORDB=OFF)
+      for f in db/currentState/corDB.so db/currentState/ramDB.so db/currentState/mongoc.so troe/temporal/ramDB.so; do
+        [ -f "$P/$f" ] || : > "$P/$f"
+      done
+      usage=$(SEAMWARE_PLUGIN_DIR="$P" "$d/src/app/coraine/coraine" -u 2>&1)
+      stores=" default=$loaded database=$(echo "$usage" | sed -n 's/.*\[--database\/-db <\([^>]*\)>\].*/\1/p')"
+      stores="$stores troe=$(echo "$usage" | sed -n 's/.*\[--troe\/-troe <\([^>]*\)>\].*/\1/p')"
+      if [ "$label" = CORDB=OFF ]; then refusedV=("--database corDB" "--database ramDB" "--troe ramDB"); else refusedV=("--database mongoc"); fi
+      stores="$stores, refused:"
+      for r in "${refusedV[@]}"; do
+        # $r unquoted: an option and its value
+        SEAMWARE_PLUGIN_DIR="$P" timeout 10 "$d/src/app/coraine/coraine" --port "$PORT" $r "${dbArgs[@]}" 2>&1 | grep -q "this broker was built without" \
+          && stores="$stores $r: yes," || stores="$stores $r: no,"
+      done
+      stores=${stores%,} ;;
+  esac
+
+  echo "$label: build ok, start ok, REGISTRATIONS=$regs SUBSCRIPTIONS=$subs$troe$stores"
 done
 
 exit $rc

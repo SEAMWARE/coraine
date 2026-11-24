@@ -34,6 +34,7 @@ const CoraineFeature coraineFeatures[] =
   { "GEOQ",              COR_FEATURE_GEOQ              },
   { "CONTEXT_HOSTING",   COR_FEATURE_CONTEXT_HOSTING   },
   { "MONGOC",            COR_FEATURE_MONGOC            },
+  { "CORDB",             COR_FEATURE_CORDB             },
   { "ADMIN_API",         COR_FEATURE_ADMIN_API         },
   { "METRICS",           COR_FEATURE_METRICS           },
   { "AUTH",              COR_FEATURE_AUTH              },
@@ -84,7 +85,9 @@ const CoraineFeature coraineFeatures[] =
 //
 const CorainePlugin coraineBuiltPlugins[] =
 {
+#if COR_FEATURE_CORDB
   { "currentState", "corDB"     },
+#endif
 #if COR_FEATURE_MONGOC
   { "currentState", "mongoc"    },
 #endif

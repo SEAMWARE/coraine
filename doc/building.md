@@ -56,8 +56,8 @@ that).
 | TimescaleDB plugin | `libpq-dev` |
 | Toolchain | `cmake build-essential` |
 
-> Don't need Mongo? Build without it: `cmake -DCOR_FEATURE_MONGOC=OFF` and run with
-> `--database corDB`. The mongo-c v2 driver is the most common build snag.
+> Don't need Mongo? Build without it: `cmake -DCOR_FEATURE_MONGOC=OFF` - the broker then runs corDB by
+> default. Mongo only: `make release COR_WITH_CORDB=0`. The mongo-c v2 driver is the most common build snag.
 
 ## Make targets
 

@@ -16,7 +16,9 @@
 #   --tune <workload>  --pgo trained on YOUR workload instead, and the knobs measured on it - the best
 #                      kept in <dir>/install/etc/tune.env (doc/extreme-performance.md)
 #   --features <list>  comma-separated NAME=ON|OFF, NAME without COR_FEATURE_ - e.g.
-#                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF
+#                      --features REGISTRATIONS=OFF,SERVICE_EXECUTION=OFF,MONGOC=OFF. The current-state stores:
+#                      MONGOC and CORDB, at least one of them ON; CORDB=OFF turns TROE_CORDB off ("requires":
+#                      ["CORDB"]) and is not taken by --pgo / --tune (their training runs corDB)
 #   --http-server <s>  mhd (libmicrohttpd, the default), builtin (corHttp, no external library) or both - the
 #                      broker then runs one, chosen at its start (--httpServer, libmicrohttpd by default). With
 #                      builtin the switches that need libmicrohttpd are off (POLICY_API - --list-features
@@ -398,6 +400,7 @@ ICU=0
 CORP=1
 GEOQ=1
 TROE_CORDB=1
+CORDB=1
 IFS=, read -r -a items <<< "$FEATURES"
 for item in "${items[@]}"; do
   [ -n "$item" ] || continue
@@ -426,6 +429,11 @@ for item in "${items[@]}"; do
   # TROE_CORDB too: the makefile's COR_WITH_TROE_CORDB builds corDB.so without its history as well
   if [ "$name" = TROE_CORDB ]; then
     [ "$value" = ON ] && TROE_CORDB=1 || TROE_CORDB=0
+    continue
+  fi
+  # CORDB too: the makefile's COR_WITH_CORDB builds the corDB repository or leaves it out, as well as the switch
+  if [ "$name" = CORDB ]; then
+    [ "$value" = ON ] && CORDB=1 || CORDB=0
     continue
   fi
   CMAKE_FEATURES="$CMAKE_FEATURES -DCOR_FEATURE_$name=$value"
@@ -457,6 +465,13 @@ case "$HTTP_SERVER" in mhd|builtin|both) ;; *) die "--http-server: '$HTTP_SERVER
 [ "$HTTP_SERVER" != both ] || grep -q '^set_property(CACHE COR_HTTP_SERVER PROPERTY STRINGS .*both' "$DIR/coraine/CMakeLists.txt" \
   || die "--http-server both: this source has no such build (coraine-build --list-http-servers)"
 case "$OPTIMIZE" in speed|size) ;; *) die "--optimize: '$OPTIMIZE' - speed or size" ;; esac
+# CMakeLists.txt refuses it as well - here before the libraries are compiled
+if [ "$MONGOC" = OFF ] && [ "$CORDB" = 0 ]; then
+  die "--features MONGOC=OFF,CORDB=OFF: no current-state store - the broker keeps its entities in mongoc (MongoDB) or corDB; build at least one"
+fi
+if [ "$CORDB" = 0 ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
+  die "--features CORDB=OFF: not with --$MODE (its training runs the broker on corDB)"
+fi
 if [ "$HTTP_SERVER" != mhd ] && { [ "$MODE" = pgo ] || [ "$MODE" = tune ]; }; then
   die "--http-server $HTTP_SERVER: not with --$MODE yet (its training runs libmicrohttpd only - a both build's built-in server would be compiled as code never run)"
 fi
@@ -479,7 +494,7 @@ C=$DIR/coraine
 # builds it with the libraries), and without it that would be /opt/seamware/plugins. A command-line
 # variable reaches every sub-make.
 #
-MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_OPTIMIZE="$OPTIMIZE" COR_WITH_ICU="$ICU" COR_WITH_COR_PROTOCOL="$CORP" COR_WITH_GEOQ="$GEOQ" COR_WITH_TROE_CORDB="$TROE_CORDB")
+MK=(PLUGIN_DIR="$INST/plugins" CORAINE_GIT_SHA="${gitSha:0:8}" CMAKE_FEATURES="$CMAKE_FEATURES" COR_HTTP_SERVER="$HTTP_SERVER" COR_OPTIMIZE="$OPTIMIZE" COR_WITH_ICU="$ICU" COR_WITH_COR_PROTOCOL="$CORP" COR_WITH_GEOQ="$GEOQ" COR_WITH_TROE_CORDB="$TROE_CORDB" COR_WITH_CORDB="$CORDB")
 
 #
 # phase - one line per phase, for a front-end to show progress without parsing make's output

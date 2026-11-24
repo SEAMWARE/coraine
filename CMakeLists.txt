@@ -80,6 +80,7 @@ option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, 
 
 # Group: Stores and tools - the plugins and programs built beside the broker
 option(COR_FEATURE_MONGOC          "Build the mongoc DB plugin"                                 ON)
+option(COR_FEATURE_CORDB           "Build the corDB DB plugins: corDB.so (--database corDB, the store in the broker's process) and ramDB.so (--database ramDB, corDB in RAM only) - the corDB repository, built by the makefile (COR_WITH_CORDB); off, the broker refuses --database corDB and ramDB" ON)
 option(COR_FEATURE_TROE_CORDB      "corDB's own temporal history (--troe corDB, with --database corDB): corDB.so with its TRoE part - off, corDB keeps no history and --troe corDB is not offered" ON)
 option(COR_FEATURE_TROE_TIMESCALE  "Build the timescale TRoE plugin: the temporal history in PostgreSQL/TimescaleDB (--troe timescale; libpq) - off, --troe timescale is not offered" ON)
 option(COR_FEATURE_Q_PREFILTER     "Enable the q pre-filter of the mongoc plugin: a value term is served by an index on <attr>.@none.value, the entities with a datasetId instance marked (@dsAttrs, storage format 2)" ON)
@@ -96,13 +97,27 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC TROE_CORDB TROE_TIMESCALE ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC CORDB TROE_CORDB TROE_TIMESCALE ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
 #
 if (NOT COR_FEATURE_SUBSCRIPTIONS OR NOT COR_FEATURE_SNAPSHOT_WRITE)
   set(COR_FEATURE_SNAPSHOT_SUBSCRIPTIONS OFF)
+endif()
+
+#
+# corDB's history is kept in the corDB store: without corDB, no --troe corDB.
+#
+if (NOT COR_FEATURE_CORDB)
+  set(COR_FEATURE_TROE_CORDB OFF)
+endif()
+
+#
+# A broker keeps its entities in a current-state store - mongoc or corDB: one of them is built.
+#
+if ((NOT COR_FEATURE_MONGOC) AND (NOT COR_FEATURE_CORDB))
+  message(FATAL_ERROR "MONGOC=OFF and CORDB=OFF: no current-state store - the broker keeps its entities in mongoc (MongoDB) or corDB; build at least one")
 endif()
 
 #

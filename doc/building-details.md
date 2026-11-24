@@ -45,9 +45,9 @@ coraine/
 | Beyond NGSI-LD | `SERVICE_EXECUTION`, `DATA_CHANNELS`, `ASSET_CHANNELS`, `ASSET_CHANNEL_SERVICES`, `CHANNEL_STATUS_IN`, `CHANNEL_CHECKS`, `ADMIN_CONFIG`, `BRIDGE_INVENTORY`, `CHANNEL_WRITE_BACK`, `BRIDGE_HTTP_LISTEN` |
 | Protocols | `COR_PROTOCOL`, `TRANSPORTS`, `HA_RUNS`, `SSE` |
 | Operations | `ADMIN_API`, `METRICS`, `HEALTH` |
-| Stores and tools | `MONGOC`, `TROE_CORDB`, `TROE_TIMESCALE`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
+| Stores and tools | `MONGOC`, `CORDB`, `TROE_CORDB`, `TROE_TIMESCALE`, `Q_PREFILTER`, `DB_INDEXES`, `MIGRATE` |
 
-All default ON except `ICU_COLLATION`. Eleven are turned off
+All default ON except `ICU_COLLATION`. Twelve are turned off
 by what they need - `coraine-build --list-features --json` gives them as `requires` (each one is needed) and,
 `CHANNEL_WRITE_BACK`'s, as `requiresAny` (one of them is enough):
 
@@ -63,6 +63,7 @@ by what they need - `coraine-build --list-features --json` gives them as `requir
 | `ASSET_CHANNEL_SERVICES` | `ASSET_CHANNELS` or `SERVICE_EXECUTION` is off | an AssetChannel's operations, as Service Registrations |
 | `AUTH_OIDC` | `AUTH` is off | `oidc.so` is an auth plugin |
 | `AUTH_METADATA` | `AUTH` is off | the resource's metadata (`/.well-known/oauth-protected-resource`) is the auth plugins' |
+| `TROE_CORDB` | `CORDB` is off | corDB's history is kept in the corDB store |
 | `POLICY_API` | the HTTP server is the built-in one alone (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`, which `both` meets) | its port is a second listener, which only libmicrohttpd has - a `both` build has it, and refuses `--policyApiPort` with `--httpServer builtin` |
 
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
@@ -71,7 +72,12 @@ removes is in the table below. Tenants, entity scope, `datasetId` and multi-type
 are always in the broker, and compiled out each would save a few KiB.
 
 `-DCOR_FEATURE_MONGOC=OFF` builds a Mongo-free tree (drop `libmongoc` from the
-build host, run `--database corDB`).
+build host); the broker then runs corDB by default. `COR_WITH_CORDB=0` (`--features CORDB=OFF`) leaves corDB
+out instead, and the broker runs mongoc. One of the two is built - CMake refuses neither:
+
+    CMake Error at CMakeLists.txt:120 (message):
+      MONGOC=OFF and CORDB=OFF: no current-state store - the broker keeps its
+      entities in mongoc (MongoDB) or corDB; build at least one
 
 `-DCOR_FEATURE_REGISTRATIONS=OFF` drops the Context Source Registration,
 registration-subscription and EntityMap service routines, the forwarding
@@ -241,12 +247,24 @@ Profile-guided or Tuned yet. [Choosing the HTTP server](#choosing-the-http-serve
 #### Store: corDB only
 
 `--features MONGOC=OFF`. Entities in the broker's own memory, on disk with `--dbDir`. `mongoc.so` is not
-built and its libraries not loaded. Size: **-6.8 MiB** - `mongoc.so` 145 KiB, libmongoc 5.59 MiB, libbson
+built and its libraries not loaded; `--database` defaults to `corDB`, and `--database mongoc` is refused whatever
+`mongoc.so` the plugin directory holds (`DB plugin 'mongoc': this broker was built without mongoc
+(COR_FEATURE_MONGOC); --database corDB`). Size: **-6.8 MiB** - `mongoc.so` 145 KiB, libmongoc 5.59 MiB, libbson
 1.08 MiB; libsasl2 (0.10 MiB) goes too when `timescale.so` is not installed (libpq needs it).
+
+#### Store: mongoc only
+
+`--features CORDB=OFF` (the makefile's `COR_WITH_CORDB=0`). Entities in a MongoDB. The corDB repository is not
+built: no `corDB.so`, no `ramDB.so` (corDB in RAM only) and no `--troe ramDB`; `TROE_CORDB` is off with it. The
+broker refuses `--database corDB`, `--database ramDB` and `--troe ramDB` whatever `.so` of that name the plugin
+directory holds - `DB plugin 'corDB': this broker was built without corDB (COR_FEATURE_CORDB) - corDB and ramDB
+are its; --database mongoc` - and does not offer them in its usage. Not with Profile-guided or Tuned: their
+training runs the broker on corDB. Size: **-2.1 MiB** - `corDB.so` 1,122 KiB, `ramDB.so` 1,017 KiB, the TRoE
+`ramDB.so` 39 KiB, the broker 760 bytes (release build); no library is loaded by corDB alone.
 
 #### Store: corDB + mongoc
 
-The default: `--database mongoc` too, entities in a MongoDB.
+The default: both stores, `--database mongoc` by default, entities in a MongoDB.
 
 #### Temporal: corDB
 
@@ -530,6 +548,11 @@ plugins' `ping`. Off: no `--healthPort`. Size: -8 KiB.
 
 The mongoc store plugin: as [Store: corDB only](#store-cordb-only).
 
+#### `CORDB`
+
+The corDB store plugins, `corDB.so` and `ramDB.so`, and `--troe ramDB`: as [Store: mongoc only](#store-mongoc-only).
+Off: no `--database corDB` or `ramDB`, no `--troe ramDB` or `corDB`. Size: **-2178 KiB**.
+
 #### `Q_PREFILTER`
 
 The `mongoc` plugin's `q` pre-filter: a value term is served by an index on `<attr>.@none.value`, the
@@ -593,13 +616,14 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_TROE_CORDB=OFF` | 20,664 bytes - 16,568 from `corDB.so`, built without its TRoE part (`COR_WITH_TROE_CORDB=0`), 4,096 from the broker (release build) | no `--troe corDB` - corDB keeps no history ([Temporal: corDB](#temporal-cordb)) |
 | `COR_FEATURE_TROE_TIMESCALE=OFF` | 143,832 bytes, and the 2.18 MiB of libraries only `timescale.so` loads (libpq, Kerberos, LDAP) | `timescale.so` is not built: no `--troe timescale` ([Temporal: TimescaleDB](#temporal-timescaledb)) |
 
-**These two leave the broker unchanged and drop a plugin**, which is the whole
-of their effect — the broker is a plugin loader and it simply has one fewer to
-load:
+**These drop a plugin**, which is nearly the whole of their effect — the broker is a plugin loader and it
+simply has fewer to load; a store left out also changes the broker's `--database` default and what it
+refuses:
 
 | flag | effect |
 |---|---|
-| `COR_FEATURE_MONGOC=OFF` | `mongoc.so` is not built; run `--database corDB` |
+| `COR_FEATURE_MONGOC=OFF` | `mongoc.so` is not built; the broker runs `--database corDB` by default, and refuses `--database mongoc` |
+| `COR_WITH_CORDB=0` (`COR_FEATURE_CORDB=OFF`) | `corDB.so`, `ramDB.so` and the TRoE `ramDB.so` are not built (the corDB repository is left out); the broker refuses `--database corDB`, `ramDB` and `--troe ramDB` ([Store: mongoc only](#store-mongoc-only)) |
 | `COR_FEATURE_ADMIN_API=OFF` | `admin.so` is not built |
 
 **This one leaves the broker unchanged and drops a program:**
