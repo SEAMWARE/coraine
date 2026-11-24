@@ -63,7 +63,7 @@ by what they need - `coraine-build --list-features --json` gives them as `requir
 | `ASSET_CHANNEL_SERVICES` | `ASSET_CHANNELS` or `SERVICE_EXECUTION` is off | an AssetChannel's operations, as Service Registrations |
 | `AUTH_OIDC` | `AUTH` is off | `oidc.so` is an auth plugin |
 | `AUTH_METADATA` | `AUTH` is off | the resource's metadata (`/.well-known/oauth-protected-resource`) is the auth plugins' |
-| `POLICY_API` | the HTTP server is the built-in one (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`) | its port is a second listener, which only libmicrohttpd has |
+| `POLICY_API` | the HTTP server is the built-in one alone (`COR_HTTP_SERVER=builtin`; `HTTP_SERVER=mhd` in `requires`, which `both` meets) | its port is a second listener, which only libmicrohttpd has - a `both` build has it, and refuses `--policyApiPort` with `--httpServer builtin` |
 
 The intent is a broker you can shrink to exactly the NGSI-LD you actually deploy —
 no subscription engine on a read-only edge node, no geo, no Mongo. What each switch
@@ -634,18 +634,29 @@ combinations nobody has tried are exactly the ones worth hearing about.
 ```console
 cmake -DCOR_HTTP_SERVER=mhd        # libmicrohttpd (the default)
 cmake -DCOR_HTTP_SERVER=builtin    # corHttp, no external HTTP dependency
+cmake -DCOR_HTTP_SERVER=both       # the two, the broker running one: --httpServer mhd|builtin
 ```
 
-From a package: `coraine-build --http-server builtin` (not with `--pgo` / `--tune` yet). With `builtin`,
-`POLICY_API` is off: its port is a second listener, and corHttp has one.
+From a package: `coraine-build --http-server builtin|both` (`--pgo` / `--tune` with `mhd` only: their
+training runs libmicrohttpd). With `builtin`, `POLICY_API` is off: its port is a second listener, and
+corHttp has one.
+
+**Both** (`COR_HTTP_SERVER=both`): the broker carries the two and runs the one `--httpServer` names
+(`CORAINE_HTTPSERVER`), libmicrohttpd by default ([The HTTP server](installation.md#the-http-server)). It
+links libmicrohttpd and corHttp. In corRest each backend file then defines its functions under its own
+suffix (`corRestBackendStartMhd`, `corRestBackendStartBuiltin`) and fills a table of them; corRest and the
+broker call through the table `corRestBackendSelect` chose at start (`corRestBackendTable.h`) - one
+indirect call per request phase. A build with one server calls its functions directly. The switches that
+need libmicrohttpd (`POLICY_API`) are in a `both` build, and the broker refuses to start one of them, or
+`--https`, on the built-in server.
 
 Not a `COR_FEATURE_*` boolean, because those answer "is this feature in the
 build" and the HTTP server is always in it — what varies is which one. The value
 reaches CMake **and** corRest's own make (the HTTP server lives in corRest,
 which builds with plain make and knows nothing of CMake options), and it decides
 whether `libmicrohttpd` is on the link line at all, so `ldd coraine` is the
-check that it took. A running broker reports it as `build.httpServer` on
-`GET /build`.
+check that it took. A running broker reports the one it runs as `build.httpServer` on
+`GET /build`, and the ones it is built with as `build.httpServers`.
 
 `builtin` selects **corHttp**, a sibling repo: an HTTP/1.1 server on
 edge-triggered epoll loops, depending on nothing but [corAlloc](https://github.com/SEAMWARE-cor/corAlloc) and libc. A request
@@ -678,8 +689,9 @@ Two things it does not do, and both are deliberate rather than pending:
   supporting it properly means driving the event loop from the response side.
 
 **Both servers are tested, but not in the same place.** A pull request builds and
-tests one of them — `mhd`, the default — because doubling a two-minute check to
-answer a question that changes once a month is the wrong trade. The **nightly**
+tests one of them — `mhd`, the default, and `builtin` on the corDB shards — because doubling a two-minute check to
+answer a question that changes once a month is the wrong trade; a `both` build runs the `httpserver`-tagged
+tests on every pull request (the `http-both` shard). The **nightly**
 crosses its valgrind matrix and its ETSI job with `COR_HTTP_SERVER`, so `builtin`
 gets the whole functional suite under valgrind and the whole conformance suite,
 every night that something merged.

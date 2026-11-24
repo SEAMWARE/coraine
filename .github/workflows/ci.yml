@@ -259,6 +259,12 @@ jobs:
           # --troe corDB (-troeDb corDB), the same expectations - the TRoE tests only (~1 min).
           #
           - { db: corDB,  name: 'troe-corDB', from: 1, to: 0, troeDb: 'corDB', tags: 'troe' }
+          #
+          # A broker built with both HTTP servers (COR_HTTP_SERVER=both): the tests tagged httpserver - --httpServer
+          # choosing the one that serves, the refusals (http_server_select, http_server_refused); the other shards
+          # build one server each, where those two do not run (~1 min of tests).
+          #
+          - { db: corDB,  name: 'http-both', from: 1, to: 0, http: 'both', tags: 'httpserver' }
           # corCep's rule engine as the bridge plugin cep.so (--bridges cep), built against THIS stack, its 38
           # plugin-form tests run against THIS coraine - a change here that breaks the plugin (the bridge contract,
           # notification delivery, start and stop, the exported cor-lib symbols) fails here, not in corCep's CI.

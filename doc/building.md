@@ -90,7 +90,7 @@ changes that broker's code under it - it dies of SIGSEGV within seconds.)
 | | |
 |---|---|
 | `cmake -DCOR_FEATURE_<X>=OFF` | compile a feature out - not every flag does what it says; [the details](building-details.md#compiling-out-what-you-dont-need) list the state of each |
-| `cmake -DCOR_HTTP_SERVER=mhd\|builtin` | the HTTP server: libmicrohttpd (the default) or [corHttp](https://github.com/SEAMWARE-cor/corHttp), with no external HTTP dependency ([details](building-details.md#choosing-the-http-server)) |
+| `cmake -DCOR_HTTP_SERVER=mhd\|builtin\|both` | the HTTP server: libmicrohttpd (the default), [corHttp](https://github.com/SEAMWARE-cor/corHttp) with no external HTTP dependency, or both - the broker running one, `--httpServer` ([details](building-details.md#choosing-the-http-server)) |
 | `make release COR_OPTIMIZE=speed\|size` | what the defaults spend RAM on: throughput (the default), or RAM for small hardware - one malloc arena ([details](building-details.md#cor_optimize)) |
 | `make di CMAKE_FEATURES=... BUILD_DEBUG=<dir>` | a reduced tree in a directory of its own, beside the ordinary one |
 

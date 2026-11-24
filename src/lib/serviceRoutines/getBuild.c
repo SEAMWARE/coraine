@@ -53,7 +53,7 @@
 
 #include "coraineVersion.h"                          // CORAINE_VERSION   (-Isrc/app/coraine)
 #include "coraineBuild.h"                            // CORAINE_GIT_SHA, CORAINE_BUILT_AT - GENERATED, see the makefile
-#include "coraineFeatures.h"                         // coraineFeatures, coraineBuiltPlugins
+#include "coraineFeatures.h"                         // coraineFeatures, coraineBuiltPlugins, coraineHttpServer(s)
 #include "serviceRoutines/getBuild.h"                // Own interface
 
 
@@ -103,11 +103,16 @@ bool getBuild(void)
   corTreeChildAdd(buildP, corTreeString(corRest.kallocP, "compiler", CORAINE_BUILD_COMPILER));
 
   //
-  // Which HTTP server this build carries. Not in `features` - that object
-  // answers "is this capability present", and the HTTP server is always
-  // present; what varies is WHICH ONE, and a boolean cannot say that.
+  // The HTTP server this broker runs, and the ones it is built with (one, or both: COR_HTTP_SERVER=both,
+  // --httpServer choosing). Not in `features` - that object answers "is this capability present", and the
+  // HTTP server is always present; what varies is WHICH ONE, and a boolean cannot say that.
   //
-  corTreeChildAdd(buildP, corTreeString(corRest.kallocP, "httpServer", CORAINE_HTTP_SERVER));
+  corTreeChildAdd(buildP, corTreeString(corRest.kallocP, "httpServer", coraineHttpServer));
+
+  CorNode* serversP = corTreeArray(corRest.kallocP, "httpServers");
+  for (int ix = 0; coraineHttpServers[ix] != NULL; ix++)
+    corTreeChildAdd(serversP, corTreeString(corRest.kallocP, NULL, coraineHttpServers[ix]));
+  corTreeChildAdd(buildP, serversP);
   corTreeChildAdd(buildP, corTreeString(corRest.kallocP, "optimize", CORAINE_OPTIMIZE));   // speed | size, the same kind of choice
   corTreeChildAdd(body, buildP);
 

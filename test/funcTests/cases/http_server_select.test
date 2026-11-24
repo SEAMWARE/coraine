@@ -1,0 +1,143 @@
+#
+# FILE            http_server_select.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A broker built with both HTTP servers (COR_HTTP_SERVER=both) runs the one --httpServer names - or its
+# environment variable, CORAINE_HTTPSERVER - libmicrohttpd by default: --version and GET /build say which
+# it runs and which it is built with, and the one named is the one serving (libmicrohttpd's threads are
+# named MHD-worker; the built-in server has none).
+#
+# REQUIRE_HTTPSERVERS: both
+#
+--NAME--
+Both HTTP servers in the build - --httpServer (or CORAINE_HTTPSERVER) picks the one that serves
+
+--TAGS--
+httpserver cli build
+
+--INIT--
+
+--RUN--
+
+unset CORAINE_HTTPSERVER   # this test sets it itself - a run with it exported would change steps 01 and 06
+
+#
+# served <step> - the running broker: what GET /build says it runs and is built with, whether libmicrohttpd's
+# threads are there, and an entity created and read back over it
+#
+served() {
+  PID=$(cat /tmp/coraine_CB.pid)
+  curl -s "localhost:$CB_PORT/build" | python3 -c '
+import json,sys
+b = json.load(sys.stdin)["build"]
+print("GET /build: httpServer", b["httpServer"], "- httpServers", " ".join(b["httpServers"]))'
+  echo "libmicrohttpd threads: $(grep -qx MHD-worker /proc/$PID/task/*/comm && echo yes || echo no)"
+  curl -s -o /dev/null -w "POST /entities: %{http_code}\n" "localhost:$CB_PORT/ngsi-ld/v1/entities" -H 'Content-Type: application/json' \
+       -d '{"id":"urn:ngsi-ld:T:'$1'","type":"T","p":{"type":"Property","value":"'$1'"}}'
+  echo "GET /entities/urn:ngsi-ld:T:$1: $(curl -s "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:ngsi-ld:T:$1?options=keyValues" | jq -c .)"
+}
+
+echo "01. --version - libmicrohttpd by default; built with both"
+echo "========================================================="
+$COR_BROKER --version | grep "^httpServer"
+echo
+echo
+
+
+echo "02. --version with CORAINE_HTTPSERVER=builtin, and with --httpServer builtin"
+echo "============================================================================"
+CORAINE_HTTPSERVER=builtin $COR_BROKER --version | grep "^httpServer:"
+$COR_BROKER --httpServer builtin --version | grep "^httpServer:"
+echo
+echo
+
+
+echo "03. --httpServer mhd - libmicrohttpd serves"
+echo "==========================================="
+corDbDrop
+coraineStart --httpServer mhd
+served 03
+coraineStop
+echo
+echo
+
+
+echo "04. --httpServer builtin - the built-in server serves"
+echo "====================================================="
+corDbDrop
+coraineStart --httpServer builtin
+served 04
+coraineStop
+echo
+echo
+
+
+echo "05. CORAINE_HTTPSERVER=builtin, no --httpServer - the built-in server serves"
+echo "============================================================================"
+corDbDrop
+CORAINE_HTTPSERVER=builtin coraineStart
+served 05
+coraineStop
+echo
+echo
+
+
+echo "06. Neither - libmicrohttpd serves"
+echo "=================================="
+corDbDrop
+coraineStart
+served 06
+echo
+echo
+
+
+--EXPECT--
+01. --version - libmicrohttpd by default; built with both
+=========================================================
+httpServer: mhd
+httpServers: mhd builtin
+
+
+02. --version with CORAINE_HTTPSERVER=builtin, and with --httpServer builtin
+============================================================================
+httpServer: builtin
+httpServer: builtin
+
+
+03. --httpServer mhd - libmicrohttpd serves
+===========================================
+GET /build: httpServer mhd - httpServers mhd builtin
+libmicrohttpd threads: yes
+POST /entities: 201
+GET /entities/urn:ngsi-ld:T:03: {"id":"urn:ngsi-ld:T:03","type":"T","p":"03"}
+
+
+04. --httpServer builtin - the built-in server serves
+=====================================================
+GET /build: httpServer builtin - httpServers mhd builtin
+libmicrohttpd threads: no
+POST /entities: 201
+GET /entities/urn:ngsi-ld:T:04: {"id":"urn:ngsi-ld:T:04","type":"T","p":"04"}
+
+
+05. CORAINE_HTTPSERVER=builtin, no --httpServer - the built-in server serves
+============================================================================
+GET /build: httpServer builtin - httpServers mhd builtin
+libmicrohttpd threads: no
+POST /entities: 201
+GET /entities/urn:ngsi-ld:T:05: {"id":"urn:ngsi-ld:T:05","type":"T","p":"05"}
+
+
+06. Neither - libmicrohttpd serves
+==================================
+GET /build: httpServer mhd - httpServers mhd builtin
+libmicrohttpd threads: yes
+POST /entities: 201
+GET /entities/urn:ngsi-ld:T:06: {"id":"urn:ngsi-ld:T:06","type":"T","p":"06"}
+
+
+--TEARDOWN--
+coraineStop

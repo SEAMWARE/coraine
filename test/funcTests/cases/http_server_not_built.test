@@ -1,0 +1,76 @@
+#
+# FILE            http_server_not_built.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A broker built with ONE HTTP server (COR_HTTP_SERVER=mhd or builtin) runs that one: --httpServer naming it
+# is accepted, naming the other is a startup error that says what the broker is built with.
+#
+# REQUIRE_HTTPSERVERS: mhd builtin
+#
+--NAME--
+One HTTP server in the build - --httpServer naming the other one is refused at start
+
+--TAGS--
+httpserver cli build
+
+--INIT--
+
+--RUN--
+
+unset CORAINE_HTTPSERVER
+
+BUILT=$($COR_BROKER --version | sed -n 's/^httpServers: //p')
+if [ "$BUILT" == mhd ]; then OTHER=builtin; else OTHER=mhd; fi
+
+echo "01. --version - the one built, and it runs"
+echo "=========================================="
+$COR_BROKER --version | grep "^httpServer" | sed "s/ $BUILT\$/ <built>/"
+echo
+echo
+
+
+echo "02. --httpServer <the other one> - exit 1, the one built named"
+echo "=============================================================="
+timeout 5 $COR_BROKER --port 9 --database corDB --dbDir /tmp/http_server_not_built.$$ --httpServer $OTHER > /tmp/http_server_not_built.$$.out 2>&1
+echo "exit: $?"
+grep -m1 "^X: " /tmp/http_server_not_built.$$.out | sed -e "s/--httpServer $OTHER:/--httpServer <other>:/" -e "s/built with $BUILT only/built with <built> only/"
+rm -rf /tmp/http_server_not_built.$$ /tmp/http_server_not_built.$$.out
+echo
+echo
+
+
+echo "03. --httpServer <the one built> - the broker serves"
+echo "===================================================="
+corDbDrop
+coraineStart --httpServer $BUILT
+curl -s "localhost:$CB_PORT/build" | python3 -c '
+import json,sys
+b = json.load(sys.stdin)["build"]
+print("GET /build: httpServer is the one built:", b["httpServer"] == "'$BUILT'", "- httpServers:", len(b["httpServers"]))'
+echo
+echo
+
+
+--EXPECT--
+01. --version - the one built, and it runs
+==========================================
+httpServer: <built>
+httpServers: <built>
+
+
+02. --httpServer <the other one> - exit 1, the one built named
+==============================================================
+exit: 1
+X: --httpServer <other>: this broker is built with <built> only (httpServers in --version) - mhd is libmicrohttpd, builtin corHttp
+
+
+03. --httpServer <the one built> - the broker serves
+====================================================
+GET /build: httpServer is the one built: True - httpServers: 1
+
+
+--TEARDOWN--
+coraineStop

@@ -66,4 +66,32 @@ typedef struct CorainePlugin
 //
 extern const CorainePlugin coraineBuiltPlugins[];
 
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineHttpServers - the HTTP servers this build carries, "mhd" first, terminated by NULL
+//
+// One (COR_HTTP_SERVER=mhd|builtin) or both (COR_HTTP_SERVER=both). Not features: the HTTP server is always
+// there, and what varies is which - and, with both, which one this process runs (coraineHttpServer).
+//
+extern const char* const coraineHttpServers[];
+
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineHttpServer - the HTTP server this process runs: --httpServer (CORAINE_HTTPSERVER), one of
+// coraineHttpServers - by default libmicrohttpd when the build carries it, else the one it carries
+//
+extern char* coraineHttpServer;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// coraineHttpServerBuilt - is 'name' one of coraineHttpServers
+//
+extern bool coraineHttpServerBuilt(const char* name);
+
 #endif  // SRC_APP_CORAINE_CORAINEFEATURES_H_
