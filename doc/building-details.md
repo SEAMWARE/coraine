@@ -235,8 +235,12 @@ report, not for production.
 
 #### HTTP server: libmicrohttpd
 
-`--http-server mhd`, the default. libmicrohttpd 1.0.10, and GnuTLS behind it: nine libraries, 7.29 MiB.
-Everything builds.
+`--http-server mhd`, the default. A broker needs one HTTP server, and libmicrohttpd is the one that serves
+everything: HTTPS (`--https`), the policy API on a port of its own (`POLICY_API`), and the Profile-guided and
+Tuned builds, which train with it alone. corHttp has none of these yet, so libmicrohttpd is left out only when
+corHttp replaces it on purpose (`--http-server builtin`); with `--http-server both` it is in, beside corHttp, and
+the broker runs either - a both build is not Profile-guided or Tuned. libmicrohttpd 1.0.10, and GnuTLS behind it:
+nine libraries, 7.29 MiB. [Choosing the HTTP server](#choosing-the-http-server).
 
 #### HTTP server: corHttp
 
