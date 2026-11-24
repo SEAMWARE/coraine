@@ -54,6 +54,11 @@
 #
 # The corDB copy of build_endpoint.test: the same report, with corDB as the loaded current-state plugin.
 #
+# The body pinned is a broker's with one HTTP server - httpServers one long; a broker built with both is
+# http_server_select.test's.
+#
+# REQUIRE_HTTPSERVERS: mhd builtin
+#
 --NAME--
 corDB: GET /build reports features, plugins built vs loaded, and the runtime settings
 
@@ -96,7 +101,10 @@ Content-Length: REGEX([0-9]+)
     "builtAt": "REGEX([0-9T:Z-]+)",
     "compiler": "REGEX(.+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "httpServer": "REGEX([a-z]+)",
+    "httpServer": "REGEX(mhd|builtin)",
+    "httpServers": [
+      "REGEX(mhd|builtin)"
+    ],
     "optimize": "REGEX(speed|size)",
     "type": "REGEX([A-Za-z]+)"
   },
@@ -210,7 +218,10 @@ Content-Length: REGEX([0-9]+)
     "builtAt": "REGEX([0-9T:Z-]+)",
     "compiler": "REGEX(.+)",
     "gitSha": "REGEX([0-9a-f]+)",
-    "httpServer": "REGEX([a-z]+)",
+    "httpServer": "REGEX(mhd|builtin)",
+    "httpServers": [
+      "REGEX(mhd|builtin)"
+    ],
     "optimize": "REGEX(speed|size)",
     "type": "REGEX([A-Za-z]+)"
   },
