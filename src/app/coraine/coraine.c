@@ -1885,6 +1885,20 @@ int main(int argC, char* argV[])
     // What the defaults spend RAM on (COR_OPTIMIZE) - a choice of two too, so a line of its own
     printf("optimize: %s\n", CORAINE_OPTIMIZE);
 
+    //
+    // The plugins this broker would find and take, per kind, as its options name them (pluginsFound): what a
+    // start can be given. The plugin directory is the one a start uses - SEAMWARE_PLUGIN_DIR, else the
+    // default. Last, so a reader of the five lines above reads them as before.
+    //
+    static const char* const kindV[] = { "db", "troe", "api", "auth", "bridges", "transports", NULL };
+    char                     found[1024];
+
+    corPluginSetBaseDir("/opt/seamware/plugins", "SEAMWARE_PLUGIN_DIR");
+    printf("plugins:");
+    for (int ix = 0; kindV[ix] != NULL; ix++)
+      printf(" %s=%s", kindV[ix], pluginsFound(kindV[ix], ',', found, sizeof(found)));
+    printf("\n");
+
     exit(0);
   }
 

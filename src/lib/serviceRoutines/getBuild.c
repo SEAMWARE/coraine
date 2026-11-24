@@ -38,6 +38,7 @@
 // a build contains must not be one of the things a build can leave out.
 //
 #include <stdbool.h>                                 // bool
+#include <string.h>                                  // strtok_r
 
 #include "corTree/CorNode.h"                         // CorNode
 #include "corTree/corTreeBuilder.h"                  // corTreeObject, corTreeString, corTreeBoolean, corTreeArray, corTreeChildAdd
@@ -50,6 +51,7 @@
 #include "db/DbDriver.h"                             // db
 #include "troe/TroeDriver.h"                         // troe
 #include "plugin/ApiPlugin.h"                        // apiPlugins, apiPluginCount
+#include "plugin/pluginLoader.h"                     // pluginsFound
 
 #include "coraineVersion.h"                          // CORAINE_VERSION   (-Isrc/app/coraine)
 #include "coraineBuild.h"                            // CORAINE_GIT_SHA, CORAINE_BUILT_AT - GENERATED, see the makefile
@@ -167,6 +169,29 @@ bool getBuild(void)
 
   corTreeChildAdd(loadedP, apiP);
   corTreeChildAdd(pluginsP, loadedP);
+
+  //
+  // 'found' - the plugins in the directory above that this broker would take, per kind, as its options name them
+  // (--database, --troe, --apiPlugins, --auth, --bridges, --transports): what a start of it can be given. The
+  // same as --version's plugins: line. Read now, so a plugin installed since the start is in it.
+  //
+  static const char* const kindV[] = { "db", "troe", "api", "auth", "bridges", "transports", NULL };
+  CorNode*                 foundP  = corTreeObject(corRest.kallocP, "found");
+
+  for (int ix = 0; kindV[ix] != NULL; ix++)
+  {
+    char     names[1024];
+    CorNode* kindP = corTreeArray(corRest.kallocP, kindV[ix]);
+    char*    saveP = NULL;
+
+    pluginsFound(kindV[ix], ',', names, sizeof(names));
+    for (char* nameP = strtok_r(names, ",", &saveP); nameP != NULL; nameP = strtok_r(NULL, ",", &saveP))
+      corTreeChildAdd(kindP, corTreeString(corRest.kallocP, NULL, nameP));
+
+    corTreeChildAdd(foundP, kindP);
+  }
+
+  corTreeChildAdd(pluginsP, foundP);
   corTreeChildAdd(body, pluginsP);
 
   //

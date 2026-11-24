@@ -297,138 +297,151 @@ int pluginLoadTroe(const char* shortName, char* errorBuf, int errorBufSize)
 
 // -----------------------------------------------------------------------------
 //
-// argValuesDrop - the values an option offers (its description, "a|b|c", from corPluginArgUpdate), less those of
-// dropV (NULL-terminated): a store this broker is built without - its .so, left by another build, is refused
-// (pluginLoadDb, pluginLoadTroe), so it is not offered
-//
-static void argValuesDrop(const char* longName, const char* const* dropV, char* buf, int bufSize)
-{
-  for (int i = 0; corArgInfoV[i].type != CorArgEnd; i++)
-  {
-    if ((corArgInfoV[i].longName == NULL) || (strcmp(corArgInfoV[i].longName, longName) != 0) || (corArgInfoV[i].description == NULL))
-      continue;
-
-    char   copy[256];
-    char*  saveP = NULL;
-    int    len   = 0;
-
-    snprintf(copy, sizeof(copy), "%s", corArgInfoV[i].description);
-    buf[0] = 0;
-
-    for (char* nameP = strtok_r(copy, "|", &saveP); (nameP != NULL) && (len < bufSize); nameP = strtok_r(NULL, "|", &saveP))
-    {
-      bool dropped = false;
-      for (int d = 0; dropV[d] != NULL; d++)
-      {
-        if (strcmp(nameP, dropV[d]) == 0)
-          dropped = true;
-      }
-
-      if (dropped == false)
-        len += snprintf(&buf[len], bufSize - len, "%s%s", (len > 0) ? "|" : "", nameP);
-    }
-
-    corArgInfoV[i].description = buf;
-    return;
-  }
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// pluginDbArgUpdate - the stores --database offers: those in db/currentState that this broker is built with
-//
-static void pluginDbArgUpdate(void)
-{
-  static char              buf[256];
-  static const char* const dropV[] =
-  {
-#if COR_FEATURE_CORDB == 0
-    "corDB", "ramDB",
-#endif
-#if COR_FEATURE_MONGOC == 0
-    "mongoc",
-#endif
-    NULL
-  };
-
-  corPluginArgUpdate("--database", "db/currentState");
-  argValuesDrop("--database", dropV, buf, sizeof(buf));
-}
-
-
-
-// -----------------------------------------------------------------------------
-//
-// pluginTroeArgUpdate -
+// nameCompare -
 //
 static int nameCompare(const void* a, const void* b)
 {
   return strcmp(*(const char* const*) a, *(const char* const*) b);
 }
 
+
+
+// -----------------------------------------------------------------------------
 //
-// The TRoE plugins installed (troe/temporal/*.so: none, timescale - built when COR_FEATURE_TROE_TIMESCALE), and
-// corDB - its history is corDB.so's own: offered when this broker was built with it (COR_FEATURE_TROE_CORDB) and
-// corDB.so is there
+// pluginNotTaken - a .so of that name that this broker refuses (pluginLoadDb, pluginLoadTroe): a store it is
+// built without, left in the plugin directory by another build
 //
-void pluginTroeArgUpdate(void)
+static bool pluginNotTaken(const char* kind, const char* name)
 {
-  corPluginArgUpdate("--troe", "troe/temporal");
-
 #if COR_FEATURE_CORDB == 0
-  static char              buf[256];
-  static const char* const dropV[] = { "ramDB", NULL };  // corDB's repository builds it - not, without corDB
-  argValuesDrop("--troe", dropV, buf, sizeof(buf));
+  if ((strcmp(name, "ramDB") == 0) && ((strcmp(kind, "db") == 0) || (strcmp(kind, "troe") == 0)))
+    return true;
+  if ((strcmp(name, "corDB") == 0) && (strcmp(kind, "db") == 0))
+    return true;
+#endif
+#if COR_FEATURE_MONGOC == 0
+  if ((strcmp(name, "mongoc") == 0) && (strcmp(kind, "db") == 0))
+    return true;
+#endif
+  return (strcmp(kind, "troe") == 0) && (strcmp(name, "corDB") == 0);   // not a file of troe/: corDB.so's own, below
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginsFound - the plugins of one kind this broker would find and take, sorted, as its options name them:
+//
+//   db         --database   db/currentState/*.so - less a store it is built without
+//   troe       --troe       troe/temporal/*.so - less ramDB without corDB - and corDB: its history is corDB.so's
+//                           own, there when the broker is built with it (COR_FEATURE_TROE_CORDB) and corDB.so is
+//   api        --apiPlugins api/*.so
+//   auth       --auth       auth/*.so - none without COR_FEATURE_AUTH (no --auth)
+//   bridges    --bridges    bridge/*.so
+//   transports --transports transport/*.so - none without COR_FEATURE_TRANSPORTS (no --transports)
+//
+// From the plugin directory, corPluginBaseDir(). An unknown kind, or a directory not there: "".
+//
+const char* pluginsFound(const char* kind, char sep, char* buf, int bufSize)
+{
+  const char* subDir = NULL;
+
+  if      (strcmp(kind, "db")         == 0) subDir = "db/currentState";
+  else if (strcmp(kind, "troe")       == 0) subDir = "troe/temporal";
+  else if (strcmp(kind, "api")        == 0) subDir = "api";
+  else if (strcmp(kind, "bridges")    == 0) subDir = "bridge";
+#if COR_FEATURE_AUTH
+  else if (strcmp(kind, "auth")       == 0) subDir = "auth";
+#endif
+#if COR_FEATURE_TRANSPORTS
+  else if (strcmp(kind, "transports") == 0) subDir = "transport";
 #endif
 
-#if COR_FEATURE_TROE_CORDB == 0
-  return;
+  buf[0] = 0;
+  if (subDir == NULL)
+    return buf;
+
+  char        dirPath[512];
+  char        scanned[1024];
+  const char* nameV[64];
+  int         names = 0;
+
+  snprintf(dirPath, sizeof(dirPath), "%s/%s", corPluginBaseDir(), subDir);
+  if (corPluginScanNames(dirPath, '|', scanned, sizeof(scanned)) == NULL)
+    scanned[0] = 0;
+
+  char* saveP = NULL;
+  for (char* nameP = strtok_r(scanned, "|", &saveP); (nameP != NULL) && (names < 63); nameP = strtok_r(NULL, "|", &saveP))
+  {
+    if (pluginNotTaken(kind, nameP) == false)
+      nameV[names++] = nameP;
+  }
+
+#if COR_FEATURE_TROE_CORDB
+  if (strcmp(kind, "troe") == 0)
+  {
+    char path[512];
+    corPluginResolve(corPluginBaseDir(), "db", "currentState", "corDB", path, sizeof(path));
+    if (access(path, R_OK) == 0)
+      nameV[names++] = "corDB";
+  }
 #endif
 
-  char path[512];
-  corPluginResolve(corPluginBaseDir(), "db", "currentState", "corDB", path, sizeof(path));
-  if (access(path, R_OK) != 0)
-    return;                                          // no corDB: no --troe corDB either
+  qsort(nameV, names, sizeof(nameV[0]), nameCompare);
+
+  char sepString[2] = { sep, 0 };
+  int  len          = 0;
+
+  for (int n = 0; (n < names) && (len < bufSize); n++)
+    len += snprintf(&buf[len], bufSize - len, "%s%s", (n > 0) ? sepString : "", nameV[n]);
+
+  return buf;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginArgValuesSet - an option's usage text: the plugins of its kind found (pluginsFound), "a|b|c" - none
+// found, its own description stays
+//
+static void pluginArgValuesSet(const char* longName, const char* kind, char* buf, int bufSize)
+{
+  if (*pluginsFound(kind, '|', buf, bufSize) == 0)
+    return;
 
   for (int i = 0; corArgInfoV[i].type != CorArgEnd; i++)
   {
-    if ((corArgInfoV[i].longName == NULL) || (strcmp(corArgInfoV[i].longName, "--troe") != 0))
-      continue;
-
-    static char  buf[256];
-    char         copy[256];
-    const char*  nameV[32];
-    int          names = 0;
-    bool         haveCorDB = false;
-
-    snprintf(copy, sizeof(copy), "%s", (corArgInfoV[i].description != NULL) ? corArgInfoV[i].description : "");
-
-    char* saveP = NULL;
-    for (char* nameP = strtok_r(copy, "|", &saveP); (nameP != NULL) && (names < 31); nameP = strtok_r(NULL, "|", &saveP))
+    if ((corArgInfoV[i].longName != NULL) && (strcmp(corArgInfoV[i].longName, longName) == 0))
     {
-      if (strcmp(nameP, "corDB") == 0)
-        haveCorDB = true;
-      nameV[names++] = nameP;
+      corArgInfoV[i].description = buf;
+      return;
     }
-
-    if (haveCorDB == false)
-      nameV[names++] = "corDB";
-
-    qsort(nameV, names, sizeof(nameV[0]), nameCompare);
-
-    buf[0] = 0;
-    for (int n = 0; n < names; n++)
-    {
-      if (n > 0)
-        strncat(buf, "|", sizeof(buf) - strlen(buf) - 1);
-      strncat(buf, nameV[n], sizeof(buf) - strlen(buf) - 1);
-    }
-
-    corArgInfoV[i].description = buf;
-    return;
   }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginDbArgUpdate - the stores --database offers
+//
+static void pluginDbArgUpdate(void)
+{
+  static char buf[256];
+  pluginArgValuesSet("--database", "db", buf, sizeof(buf));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// pluginTroeArgUpdate - the TRoE stores --troe offers
+//
+void pluginTroeArgUpdate(void)
+{
+  static char buf[256];
+  pluginArgValuesSet("--troe", "troe", buf, sizeof(buf));
 }
 
 

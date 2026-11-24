@@ -49,7 +49,7 @@
 #     and REQUIRE_DB keeps the test off a corDB run. What `loaded` reports is
 #     not DB-specific, so covering one of the two is covering the mechanism.
 #
-# REQUIRE_FEATURE: MONGOC ADMIN_API
+# REQUIRE_FEATURE: MONGOC ADMIN_API CORDB TROE_CORDB AUTH TRANSPORTS
 # REQUIRE_DB: mongoc
 #
 # The body pinned is a broker's with one HTTP server - httpServers one long; a broker built with both is
@@ -64,8 +64,14 @@ GET /build reports features, plugins built vs loaded, and the runtime settings
 version features admin
 
 --INIT--
+P=/tmp/corTest-buildEndpoint/plugins       # the plugin directory this test's brokers look in - links to the two they load, the rest empty files
+rm -rf /tmp/corTest-buildEndpoint
+mkdir -p $P/db/currentState $P/troe/temporal $P/api $P/auth $P/bridge $P/transport
+ln -s $COR_PLUGIN_DIR/troe/temporal/none.so $P/troe/temporal/none.so
+ln -s $COR_PLUGIN_DIR/api/admin.so          $P/api/admin.so
+for f in db/currentState/corDB db/currentState/mongoc auth/fdsc bridge/loopback transport/ws; do : > $P/$f.so; done
 corDbDrop
-coraineStart
+SEAMWARE_PLUGIN_DIR=$P coraineStart
 
 --RUN--
 
@@ -79,7 +85,8 @@ echo
 echo "02. Restart with --distributed and the admin plugin — runtime follows"
 echo "====================================================================="
 coraineStop
-coraineStart -dist --apiPlugins admin
+P=/tmp/corTest-buildEndpoint/plugins       # the plugin directory this test's brokers look in - links to the two they load, the rest empty files
+SEAMWARE_PLUGIN_DIR=$P coraineStart -dist --apiPlugins admin
 corCurl --url /build
 echo
 echo
@@ -181,6 +188,28 @@ Content-Length: REGEX([0-9]+)
       }
     ],
     "directory": "REGEX(.*/plugins)",
+    "found": {
+      "api": [
+        "admin"
+      ],
+      "auth": [
+        "fdsc"
+      ],
+      "bridges": [
+        "loopback"
+      ],
+      "db": [
+        "corDB",
+        "mongoc"
+      ],
+      "transports": [
+        "ws"
+      ],
+      "troe": [
+        "corDB",
+        "none"
+      ]
+    },
     "loaded": {
       "api": [],
       "currentState": {
@@ -299,6 +328,28 @@ Content-Length: REGEX([0-9]+)
       }
     ],
     "directory": "REGEX(.*/plugins)",
+    "found": {
+      "api": [
+        "admin"
+      ],
+      "auth": [
+        "fdsc"
+      ],
+      "bridges": [
+        "loopback"
+      ],
+      "db": [
+        "corDB",
+        "mongoc"
+      ],
+      "transports": [
+        "ws"
+      ],
+      "troe": [
+        "corDB",
+        "none"
+      ]
+    },
     "loaded": {
       "api": [
         {
@@ -329,3 +380,4 @@ Content-Length: REGEX([0-9]+)
 
 --TEARDOWN--
 coraineStop
+rm -rf /tmp/corTest-buildEndpoint

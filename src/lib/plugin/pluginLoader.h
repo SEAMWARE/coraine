@@ -61,6 +61,15 @@ extern void pluginTroeArgUpdate(void);
 
 // -----------------------------------------------------------------------------
 //
+// pluginsFound - the plugins of one kind (db, troe, api, auth, bridges, transports) this broker would find in its
+// plugin directory and take, sorted, sep-separated, as its options name them - into buf, which is returned
+//
+extern const char* pluginsFound(const char* kind, char sep, char* buf, int bufSize);
+
+
+
+// -----------------------------------------------------------------------------
+//
 // pluginLoadBridges - load bridge plugins from a comma-separated list
 //
 // Each name resolves to {baseDir}/bridge/{name}.so. Any number may be active.
