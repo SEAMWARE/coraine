@@ -29,6 +29,7 @@ options, and its options are also documented with the plugin.
 - [The program](#the-program) - 12
 - [Listening](#listening) - 15
 - [Limits and memory](#limits-and-memory) - 7
+- [The HTTP server](#the-http-server) - 1
 - [Built-in HTTP server (corHttp)](#built-in-http-server-corhttp) - 1
 - [libmicrohttpd HTTP server (the default build)](#libmicrohttpd-http-server-the-default-build) - 1
 - [@contexts](#contexts) - 2
@@ -58,7 +59,7 @@ repository), timescale's [README](https://github.com/SEAMWARE/coraine/blob/main/
 ## The programs beside the broker
 
 - [coraine-import](#coraine-import) - 17
-- [coraine-build](#coraine-build) - 16
+- [coraine-build](#coraine-build) - 17
 
 ---
 
@@ -676,11 +677,34 @@ automatic maps off. Metrics: `ngsild_entity_map_bytes`, `ngsild_entity_map_store
     coraine -db corDB -v --entityMapMemory 0
     # V: ... main: EntityMap memory: 0 MiB (no cap, no automatic EntityMaps)
 
+## The HTTP server
+
+### `--httpServer`
+
+`-hs` · `CORAINE_HTTPSERVER` · String · default: `mhd` when the broker is built with libmicrohttpd, else
+`builtin` · values: `mhd`, `builtin` - one the broker is built with · plugin: core
+
+The HTTP server the broker runs: `mhd` (libmicrohttpd) or `builtin` (corHttp). A broker carries one of
+them or both, as it was built (`cmake -DCOR_HTTP_SERVER=mhd|builtin|both`,
+[Choosing the HTTP server](building-details.md#choosing-the-http-server)); `coraine -V` says
+`httpServers: mhd builtin` for both, and `httpServer:` the one it would run with the options and environment
+given. A running broker says the same on `GET /build` (`build.httpServer`, `build.httpServers`).
+
+A server the broker is not built with stops the start with exit code 1. So do the options that need
+libmicrohttpd with `--httpServer builtin` in a broker built with both: `--https` (TLS) and `--policyApiPort`
+(a second port). A broker with one server needs no `--httpServer`; naming that server is accepted.
+
+    coraine -db corDB --httpServer builtin
+    CORAINE_HTTPSERVER=builtin coraine -db corDB
+    coraine -V | grep ^httpServer
+    # httpServer: mhd
+    # httpServers: mhd builtin
+
 ## Built-in HTTP server (corHttp)
 
-Options that act on a broker built with the built-in HTTP server (`cmake -DCOR_HTTP_SERVER=builtin`;
-`coraine -V` says `httpServer: builtin`). A build with libmicrohttpd (the default, `httpServer: mhd`)
-accepts them, so a deployment does not have to know which server its binary carries
+Options that act on a broker running the built-in HTTP server (`--httpServer builtin`, or a build with it
+alone; `coraine -V` says `httpServer: builtin`). A broker running libmicrohttpd (`httpServer: mhd`) accepts
+them, so a deployment does not have to know which server its binary carries
 ([Choosing the HTTP server](building-details.md#choosing-the-http-server)).
 
 ### `--httpLoops`
@@ -701,9 +725,9 @@ force.
 
 ## libmicrohttpd HTTP server (the default build)
 
-Options that act on a broker built with libmicrohttpd (`cmake -DCOR_HTTP_SERVER=mhd`, the default;
-`coraine -V` says `httpServer: mhd`). A build with the built-in HTTP server accepts them and ignores
-them.
+Options that act on a broker running libmicrohttpd (a build with it - `cmake -DCOR_HTTP_SERVER=mhd`, the
+default, or `both` - and `--httpServer mhd`, its default; `coraine -V` says `httpServer: mhd`). A broker
+running the built-in HTTP server accepts them and ignores them.
 
 ### `--httpConnectionMemory`
 
@@ -2441,15 +2465,18 @@ them, `requires`) ([Compiling out what you don't need](building-details.md#compi
 ### `--http-server`
 
 no short form · no environment variable · String · default: `mhd`
-· values: `mhd` (libmicrohttpd), `builtin` (corHttp, no external library); `--http-server=<s>` too · tool: coraine-build
+· values: `mhd` (libmicrohttpd), `builtin` (corHttp, no external library), `both` (the two, the broker
+running one: `--httpServer`); `--http-server=<s>` too · tool: coraine-build
 
-The broker's HTTP server. With `builtin` the switches that need libmicrohttpd are off - `POLICY_API`, so the
-broker built has no `--policyApiPort`. Not with `--pgo` or `--tune`
-(`coraine-build: --http-server builtin: not with --pgo yet (its training tools are built and tried with
-libmicrohttpd only)`). Another value: `coraine-build: --http-server: '<s>' - mhd or builtin`
+The broker's HTTP server, or both. With `builtin` the switches that need libmicrohttpd are off -
+`POLICY_API`, so the broker built has no `--policyApiPort`. With `both` they are in, and the broker refuses
+to start one of them on the built-in server ([`--httpServer`](#--httpserver)). `--pgo` and `--tune` take
+`mhd` only: their training runs libmicrohttpd, and a `both` build's built-in server would be compiled as code
+never run (`coraine-build: --http-server both: not with --pgo yet (its training runs libmicrohttpd only - a
+both build's built-in server would be compiled as code never run)`). Another value:
+`coraine-build: --http-server: '<s>' - mhd, builtin or both`; `both` from a source without it:
+`coraine-build: --http-server both: this source has no such build (coraine-build --list-http-servers)`
 ([Choosing the HTTP server](building-details.md#choosing-the-http-server)).
-
-    coraine-build --http-server builtin --source ~/git /tmp/cb
 
 ### `--optimize`
 
@@ -2496,6 +2523,18 @@ as they are checked out, nothing is exported.
       modbus   default  Modbus TCP - values between Modbus registers and entities (modbus.so, no library)
       dds               DDS - topics, services and actions between DDS and entities (dds.so, eProsima Fast DDS and the DDS Enabler)
       ...
+
+### `--list-http-servers`
+
+no short form · no environment variable · flag · default: off
+· values: a flag · tool: coraine-build
+
+Prints the `--http-server` values the source can build and exits 0 - the values its CMakeLists.txt offers
+for `COR_HTTP_SERVER`; a source from before `both` offers `mhd` and `builtin`. With `--json`: a JSON array.
+No `<dir>` is needed; `--source` and `--ref` as for `--list-bridges`.
+
+    $ coraine-build --list-http-servers --json --source ~/git
+    ["mhd", "builtin", "both"]
 
 ### `--list-features`
 

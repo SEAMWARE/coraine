@@ -400,6 +400,64 @@ TimeoutStopSec=120
 A `Type=simple` unit can keep the log in a file as well, without `--daemon`: `--logTo file`
 (or `both`, for the journal too).
 
+## The HTTP server
+
+A broker carries libmicrohttpd (`mhd`), the built-in HTTP server corHttp (`builtin`), or both - as it was
+built ([Choosing the HTTP server](building-details.md#choosing-the-http-server)). The .deb package and
+the Docker image carry libmicrohttpd; `coraine-build --http-server both` builds a broker with both. One
+built with both runs one of them, chosen at its start:
+
+| Option | Environment variable | Default | Values |
+|--------|----------------------|---------|--------|
+| `--httpServer` / `-hs` | `CORAINE_HTTPSERVER` | `mhd` when built, else `builtin` | `mhd`, `builtin` - one the broker is built with |
+
+- **libmicrohttpd by default** when the broker carries it: it is the server the package, the image and the
+  pull-request tests run, and the one with TLS and a second port.
+- **What a broker carries and runs:** `coraine -V` prints `httpServers:` (built) and `httpServer:` (the one
+  the options and environment given would run); `GET /build` says the same of a running broker
+  (`build.httpServers`, `build.httpServer`).
+- **The options of one server** are accepted with the other, and ignored: `--httpLoops` (built-in),
+  `--httpConnectionMemory` (libmicrohttpd).
+
+### The combinations
+
+| built with | no `--httpServer` | `--httpServer mhd` | `--httpServer builtin` |
+|---|---|---|---|
+| `mhd` (the default build) | libmicrohttpd | libmicrohttpd | **refused** |
+| `builtin` | the built-in server | **refused** | the built-in server |
+| `both` | libmicrohttpd | libmicrohttpd | the built-in server - **refused** with `--https` or `--policyApiPort` |
+
+A refused one stops the broker before anything starts - exit code 1, one line on stderr:
+
+```text
+X: --httpServer builtin: this broker is built with mhd only (httpServers in --version) - mhd is libmicrohttpd, builtin corHttp
+X: --https: the builtin HTTP server has no TLS - libmicrohttpd has (--httpServer mhd, in a broker built with it: httpServers in --version)
+X: --policyApiPort: the policy API (POLICY_API) is served on a port of its own, which only libmicrohttpd has - start with --httpServer mhd, or without --policyApiPort
+```
+
+A broker built with the built-in server alone has no `--policyApiPort` at all (the switch is not in it).
+
+### Examples
+
+```console
+$ coraine -V | grep ^httpServer
+httpServer: mhd
+httpServers: mhd builtin
+$ CORAINE_HTTPSERVER=builtin coraine -V | grep ^httpServer:
+httpServer: builtin
+$ coraine --database corDB --httpServer builtin
+$ curl -s localhost:1026/build | jq -c '.build | {httpServer, httpServers}'
+{"httpServer":"builtin","httpServers":["mhd","builtin"]}
+```
+
+A systemd unit sets it in its environment:
+
+```ini
+[Service]
+Environment=CORAINE_HTTPSERVER=builtin
+ExecStart=/usr/bin/coraine --database corDB --dbDir /var/lib/coraine/db
+```
+
 ## HTTPS
 
 `--https` serves the NGSI-LD API over TLS instead of plain HTTP, on the same `--port`. The server's
@@ -421,8 +479,8 @@ private key and certificate are PEM files, `--key` and `--cert`:
   default then begins with `https://`. Given explicitly, `--httpEndpoint` is used as it is: give it the
   `https://` URL the clients reach (the name the certificate is issued for).
 - **libmicrohttpd does the TLS** (GnuTLS). The .deb package and the Docker image are libmicrohttpd builds.
-  A build with the built-in HTTP server (`coraine -V`: `httpServer: builtin`) has no TLS and refuses
-  `--https`.
+  A broker running the built-in HTTP server (`coraine -V`: `httpServer: builtin`) has no TLS and refuses
+  `--https` ([The HTTP server](#the-http-server)).
 - **Behind a proxy** (an ingress, APISIX) that ends TLS itself, the broker stays on HTTP - `--https` is for
   a broker clients reach directly.
 
