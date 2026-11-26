@@ -8,7 +8,9 @@ engineers; no source code is needed to follow it.
 is built, and has two sources: the OPC UA bridge ([corOpcuaBridge](https://github.com/SEAMWARE-cor/corOpcuaBridge))
 and the AAS bridge, `aas.so` ([corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge), not released). The
 examples below are what the mapping makes of an AAS; they are worked out by hand. The design in full is
-[asset-channels.md](asset-channels.md); the bridge's configuration is in corAasBridge's README.
+[asset-channels.md](asset-channels.md); the bridge's configuration is in corAasBridge's README. The
+bridge is in the coraine image (`--bridges aas`, [docker/README.md](../docker/README.md)), and
+`coraine-build --bridges aas` builds it with a broker from source.
 
 - [1. In one picture](#1-in-one-picture)
 - [2. Why an AssetChannel](#2-why-an-assetchannel)

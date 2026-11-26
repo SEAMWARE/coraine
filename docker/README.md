@@ -76,6 +76,16 @@ installation's directories: **`SEAMWARE_PLUGIN_DIR`**, where plugins are loaded 
 
 The port is not fixed in the image: pass `--port` and publish what you chose.
 
+The bridge plugins in the image (`--bridges`, their configuration a `bridges.json` mounted over
+`/opt/seamware/etc/bridges.json`): `mqtt`, `modbus`, `ckan`, `aas`, `cep`, and `dds` unless the image was
+built with `DDS=off`. `opcua` is not in it - it links open62541; `coraine-build --bridges opcua` builds it
+where the library is installed.
+
+```sh
+docker run --rm -p 1026:1026 -v $PWD/bridges.json:/opt/seamware/etc/bridges.json:ro coraine:local \
+       --database corDB --bridges aas
+```
+
 HTTPS: mount the key and the certificate and pass `--https --key <file> --cert <file>`
 ([HTTPS](../doc/installation.md#https)):
 
