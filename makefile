@@ -710,6 +710,7 @@ cdi:        clean debug install_debug
 DOCKER_TAG ?= coraine:local
 # DOCKER_BUILD - release, or debug: traces compiled in (docker/README.md)
 DOCKER_BUILD ?= release
+# OPCUA=on - the OPC UA bridge in the image, and open62541 with it (docker/README.md); unset: not
 
 #
 # CI_IMAGE is where the eProsima DDS stack comes from - the CI image builds it
@@ -731,6 +732,7 @@ docker:
 	  --build-arg GIT_SHA=$$(git rev-parse --short HEAD) \
 	  --build-arg BUILD_AT=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 	  $(if $(CI_IMAGE),--build-arg CI_IMAGE=$(CI_IMAGE),) \
+	  $(if $(OPCUA),--build-arg OPCUA=$(OPCUA),) \
 	  -t $(DOCKER_TAG) .
 	@echo "Built $(DOCKER_TAG) from $$(git rev-parse --short HEAD)"
 	@git diff --quiet || echo "WARNING: uncommitted changes are NOT in the image (vendor-libs stages committed state)"
