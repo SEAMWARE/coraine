@@ -22,7 +22,7 @@
 //   a method / operation              no attribute - a Service Registration of the entity, the operation's
 //                                     endpoint (assetChannelServices.c, COR_FEATURE_ASSET_CHANNEL_SERVICES)
 //
-#include <ctype.h>                                    // isalnum, tolower, toupper
+#include <ctype.h>                                    // isalnum, isupper, islower, tolower, toupper
 #include <stdbool.h>                                  // bool
 #include <stdio.h>                                    // snprintf
 #include <stdlib.h>                                   // free, malloc
@@ -50,7 +50,7 @@
 #include "bridge/AssetMap.h"                          // AssetMap, AssetRule, AssetLayout
 #include "bridge/bridgeSampleIn.h"                    // bridgeThreadBind
 #include "bridge/bridgeEntitiesUpsert.h"              // bridgeEntitiesUpsert
-#include "bridge/assetChannelCache.h"                 // assetChannelMappedFree
+#include "bridge/assetChannelCache.h"                 // assetChannelMappedFree, assetChannelStatusSet
 #if COR_FEATURE_ASSET_CHANNEL_SERVICES
 #include "bridge/assetChannelServices.h"              // AssetOperation, assetChannelServicesSync
 #endif
@@ -349,7 +349,25 @@ static char* attrName(const char* prefix, const char* name)
     }
 
     if (n == 0)
-      out[n++] = (char) tolower(*p);
+    {
+      //
+      // The name's first word in lower case - a leading acronym whole: URIOfTheProduct -> uriOfTheProduct,
+      // AASReference -> aasReference, PLC -> plc; its last capital starts the next word when a lower-case
+      // letter follows it (the O of Of)
+      //
+      const unsigned char* q = p;
+
+      while ((isupper(*p) != 0) && (isupper(q[1]) != 0))
+        q++;
+
+      if ((q > p) && (islower(q[1]) != 0))
+        q--;
+
+      for (; p <= q; p++)
+        out[n++] = (char) tolower(*p);
+
+      p--;
+    }
     else if (upper == true)
       out[n++] = (char) toupper(*p);
     else
@@ -1039,6 +1057,31 @@ static void servicesSync(AssetChannel* acP, AssetModel* modelP)
 
 // -----------------------------------------------------------------------------
 //
+// entityIdTwice - an id two of the model's entities would have; NULL: none
+//
+// An AAS id, an OPC UA node id, names one thing; two nodes of a model with one id (an AAS shell and a submodel
+// given the same id) would be written as one entity, of both types - the model is wrong, not the mapping.
+//
+static const char* entityIdTwice(AssetModel* modelP)
+{
+  for (int ix = 1; ix < modelP->entities; ix++)
+  {
+    const char* id = modelP->entityV[ix].id;
+
+    for (int jx = 0; (id != NULL) && (jx < ix); jx++)
+    {
+      if ((modelP->entityV[jx].id != NULL) && (strcmp(modelP->entityV[jx].id, id) == 0))
+        return id;
+    }
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // modelIn - { "model": <node> }
 //
 static int modelIn(AssetChannel* acP, CorNode* treeP)
@@ -1049,6 +1092,21 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
   {
     COR_W("bridge '%s': the model on AssetChannel '%s' makes no entity - dropped", acP->bridgeName, acP->endpoint);
     __atomic_add_fetch(&acP->samplesRefused, 1, __ATOMIC_RELAXED);
+    corNgsildFallbackRelease();
+    return BRIDGE_BAD_INPUT;
+  }
+
+  const char* twice = entityIdTwice(&model);
+
+  if (twice != NULL)
+  {
+    char reason[512];
+
+    snprintf(reason, sizeof(reason), "its model has two nodes with the id '%s' - one id names one thing: the model is refused", twice);
+    COR_W("bridge '%s': AssetChannel '%s': %s", acP->bridgeName, acP->endpoint, reason);
+    __atomic_add_fetch(&acP->samplesRefused, 1, __ATOMIC_RELAXED);
+    __atomic_store_n(&acP->modelRefused, true, __ATOMIC_RELEASE);
+    assetChannelStatusSet(acP->bridgeName, acP->endpoint, ChannelStatusDormant, reason);
     corNgsildFallbackRelease();
     return BRIDGE_BAD_INPUT;
   }
@@ -1069,6 +1127,9 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
 #if COR_FEATURE_ASSET_CHANNEL_SERVICES
   servicesSync(acP, &model);                          // a new model, its operations: values do not change them
 #endif
+
+  if (__atomic_exchange_n(&acP->modelRefused, false, __ATOMIC_ACQ_REL) == true)
+    assetChannelStatusSet(acP->bridgeName, acP->endpoint, ChannelStatusAvailable, NULL);   // a model taken: available again
 
   __atomic_add_fetch(&acP->modelsIn, 1, __ATOMIC_RELAXED);
   __atomic_add_fetch(&acP->entitiesWritten, (uint64_t) written, __ATOMIC_RELAXED);

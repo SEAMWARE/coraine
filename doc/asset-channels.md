@@ -92,10 +92,14 @@ An AAS one, the same members:
     (the root's, when the root is no entity, is dropped).
 - **The entity id** - the node's own id when it is an IRI (AAS ids are: `https://acme.example/ids/aas/press-17`
   is a valid NGSI-LD id as it is); else `urn:ngsi-ld:<type>:<the names from the root to the node>`, each
-  byte outside `[A-Za-z0-9._-]` as `%XX` (`urn:ngsi-ld:HydraulicUnit:Press17:Unit1`).
+  byte outside `[A-Za-z0-9._-]` as `%XX` (`urn:ngsi-ld:HydraulicUnit:Press17:Unit1`). An id names one
+  thing: a model in which two entity nodes have the same id (an AAS shell and a submodel given one id) is
+  refused - nothing written, the AssetChannel dormant with why - until the source hands over a model with
+  distinct ids.
 - **`attributeLayout`** - what a container that is not an entity becomes in the entity above it:
   - `attributes` (the default): each leaf an attribute, named by its path (`ContactInformation` / `Phone` ->
-    `contactInformationPhone`; only `[A-Za-z0-9_]` kept, a space starting a word), each one queryable with `q`;
+    `contactInformationPhone`; only `[A-Za-z0-9_]` kept, a space starting a word; the first word lower-case, a
+    leading acronym whole: `URIOfTheProduct` -> `uriOfTheProduct`, `PLC` -> `plc`), each one queryable with `q`;
   - `subAttributes`: one Property named by the container, its value the container's name, its leaves
     sub-attributes (one level: a deeper container's leaves by their path);
   - `value`: the container one JsonProperty, its value as the source has it.
@@ -199,7 +203,8 @@ and, as values change:
 
 A `method` or `operation` makes no attribute: a Service Registration of its entity when it has an `endpoint` (§ 4),
 nothing when it has none. A sample that is neither `model` nor `values`, or a model
-that makes no entity, is counted (`samplesRefused`) and dropped.
+that makes no entity, is counted (`samplesRefused`) and dropped; a model with two entity nodes of one id is
+counted so too, and makes the AssetChannel dormant (`statusReason` says which id) until a model is taken.
 
 ## 4. Operations and methods: Service Execution
 
