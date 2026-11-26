@@ -47,6 +47,13 @@ ARG BASE_IMAGE=ubuntu:26.04
 #
 ARG DDS=on
 
+#
+# OPCUA=on - an image with the OPC UA bridge, opcua.so (--bridges opcua): open62541 (the distribution's,
+# libopen62541-1.4 and mbedTLS - the image 12 MB bigger) in the builder and the runtime, and the bridge built. Off by
+# default: an image carries the library only when it is asked for.
+#
+ARG OPCUA=off
+
 # --------------------------------------------------------------------------- #
 # Stage 0 — where the DDS stack comes from
 #
@@ -163,6 +170,14 @@ RUN set -eux; \
 ARG BUILD=release
 RUN test "$BUILD" = release -o "$BUILD" = debug || { echo "BUILD must be release or debug, not '$BUILD'"; exit 1; }
 RUN make -C /root/git/corLibs install BUILD=$BUILD
+
+# The OPC UA bridge, when OPCUA=on - not built by the umbrella: it links open62541, installed only then
+ARG OPCUA
+RUN test "$OPCUA" = on -o "$OPCUA" = off || { echo "OPCUA must be on or off, not '$OPCUA'"; exit 1; }; \
+    if [ "$OPCUA" = on ]; then \
+      apt-get update && apt-get install -y --no-install-recommends libopen62541-1.4-dev && rm -rf /var/lib/apt/lists/* \
+      && make -C /root/git/corOpcuaBridge install BUILD=$BUILD; \
+    fi
 
 # The broker itself. .dockerignore keeps the host build trees out, so CMake
 # starts clean instead of inheriting a cache full of host paths.
@@ -302,10 +317,15 @@ RUN coraine --bridges cep -U 2>&1 | grep -q -- "--cep-tenant" \
 # The CKAN and AAS bridges, ckan.so and aas.so (--bridges ckan, aas): built by corLibs' umbrella, as mqtt.so and
 # modbus.so - they need nothing the broker does not have (libc; OpenSSL). Loaded here once, so an image whose
 # plugin is missing or does not resolve fails to build: a plugin that does not load is named in a line
-# "bridge plugin '<name>' ...". The OPC UA bridge is not in the image (open62541 - coraine-build --bridges opcua).
+# "bridge plugin '<name>' ...". The OPC UA bridge too when the image is built with OPCUA=on - and its library.
 #
-RUN if coraine --bridges ckan,aas -U 2>&1 | grep "bridge plugin '"; then exit 1; fi \
-    && echo "ckan and aas bridge plugins present, and coraine loads them"
+ARG OPCUA
+RUN if [ "$OPCUA" = on ]; then \
+      apt-get update && apt-get install -y --no-install-recommends libopen62541-1.4 && rm -rf /var/lib/apt/lists/*; \
+    fi
+RUN B=ckan,aas; if [ "$OPCUA" = on ]; then B=$B,opcua; fi; \
+    if coraine --bridges $B -U 2>&1 | grep "bridge plugin '"; then exit 1; fi \
+    && echo "bridge plugins $B present, and coraine loads them"
 
 EXPOSE 1026
 
