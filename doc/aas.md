@@ -196,7 +196,10 @@ Through the AAS HTTP API (IDTA Part 2), as any AAS client does:
   server's host, never to another host a registry names.
 - **Values that change:** the model read again every `pollInterval` (set per channel, `channelInfo`, an
   ISO 8601 duration; 10 s by default). Each entity a changed element is in is written again, the time of
-  the read its `observedAt`. The server's events are not used.
+  the read its `observedAt`.
+- **The server's events** (optional, the bridge's `push` url): the change events Eclipse BaSyx and FA³ST
+  Service publish over MQTT are subscribed to - an event about a submodel makes its channels read at once.
+  Polling goes on underneath: a lost event costs at most a `pollInterval`.
 - **The model's structure changes** (a submodel added, an element removed): the model is written again.
   What the model no longer has is **left alone**, not deleted - a server restarting or a connection lost
   must not wipe the last values, and a reconnect may bring it back.
@@ -273,9 +276,10 @@ Not decided; the answers decide the AAS bridge:
 
 1. **Which servers first.** Eclipse BaSyx, the Eclipse AASX Server, FA³ST Service - which ones the users
    run, and which API version (V3.0, V3.1) to target first.
-2. **Live values.** Which servers can push changes, and how (MQTT, server-sent events) - or is polling
-   the normal case? Many AAS servers take their live values from OPC UA themselves: should coraine take
-   the structure and the meaning from the AAS and the live values straight from OPC UA?
+2. **Live values.** The bridge takes BaSyx's and FA³ST's MQTT events (section 6). Do other servers push
+   (the Eclipse AASX Server, server-sent events), and is MQTT with credentials or TLS needed? Many AAS
+   servers take their live values from OPC UA themselves: should coraine take the structure and the
+   meaning from the AAS and the live values straight from OPC UA?
 3. **Registries.** The bridge can find a shell and its submodels through an AAS Registry (section 6), the
    submodels by the shell descriptor's `submodelDescriptors`. Is a separate Submodel Registry
    (`/submodel-descriptors`) used in practice for submodels a shell descriptor does not list - and do
