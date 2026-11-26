@@ -189,6 +189,11 @@ Through the AAS HTTP API (IDTA Part 2), as any AAS client does:
 - **At start:** `GET /shells/{id}`, then each submodel it refers to, `GET /submodels/{id}` - ids
   base64url-encoded in the path, as the API says. The whole model is written in one batch: the entities
   created when not there, their mapped attributes replaced, any other attribute on them left alone.
+- **Through a registry** (optional, the bridge's `registry` url): the shell looked up first at an AAS
+  Registry, `GET /shell-descriptors/{id}` (IDTA-01002), and read where its descriptor says, each submodel
+  where its submodel descriptor says - shells and submodels may live on different servers. A shell the
+  registry does not know is read from the configured server. The credentials go only to the configured
+  server's host, never to another host a registry names.
 - **Values that change:** the model read again every `pollInterval` (set per channel, `channelInfo`, an
   ISO 8601 duration; 10 s by default). Each entity a changed element is in is written again, the time of
   the read its `observedAt`. The server's events are not used.
@@ -271,8 +276,10 @@ Not decided; the answers decide the AAS bridge:
 2. **Live values.** Which servers can push changes, and how (MQTT, server-sent events) - or is polling
    the normal case? Many AAS servers take their live values from OPC UA themselves: should coraine take
    the structure and the meaning from the AAS and the live values straight from OPC UA?
-3. **Registries.** Should the bridge find shells through an AAS Registry (`/shell-descriptors`), or
-   always be given the server and the shell ids?
+3. **Registries.** The bridge can find a shell and its submodels through an AAS Registry (section 6), the
+   submodels by the shell descriptor's `submodelDescriptors`. Is a separate Submodel Registry
+   (`/submodel-descriptors`) used in practice for submodels a shell descriptor does not list - and do
+   registries need credentials of their own, other than the AAS server's?
 4. **The shell's entity type.** With `natural`, a shell is of type `Shell`. Is there something better to
    take by default - `assetInformation`'s `assetType`, the asset kind?
 5. **The AAS `Entity` element** (a part in a bill of material, with its own `globalAssetId`) and
