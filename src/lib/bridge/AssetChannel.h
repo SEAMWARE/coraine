@@ -64,6 +64,34 @@ typedef struct AssetMapped
 
 // -----------------------------------------------------------------------------
 //
+// AssetNode - a node of the last model that is an entity, or is in one: what a reference in another
+// AssetChannel's model to that node becomes - a Relationship to the entity
+//
+typedef struct AssetNode
+{
+  char*  nodeId;
+  char*  entityId;
+  bool   isEntity;                                    // the node is the entity itself, not a node in it
+} AssetNode;
+
+
+
+// -----------------------------------------------------------------------------
+//
+// AssetReference - a reference of the last model to a node of another AssetChannel's, and what it became:
+// the entity (NULL: none - a Property). A new model there that changes that maps this model again.
+//
+typedef struct AssetReference
+{
+  char*  target;
+  char*  entityId;
+  bool   isEntity;
+} AssetReference;
+
+
+
+// -----------------------------------------------------------------------------
+//
 // AssetChannel -
 //
 typedef struct AssetChannel
@@ -76,6 +104,13 @@ typedef struct AssetChannel
 
   pthread_mutex_t       modelMutex;                   // model: replaced by a "model", updated by "values"
   char*                 model;                        // the last model, as JSON text (malloc); NULL before the first
+
+  pthread_mutex_t       writeMutex;                   // a model or values mapped and written - one at a time: another
+                                                      // AssetChannel's model maps this one again, on its own thread
+  AssetNode*            nodeV;                        // the last model's nodes in entities - assetChannelCache.c's nodeMutex
+  int                   nodes;
+  AssetReference*       refV;                         // its references to other AssetChannels' nodes - nodeMutex
+  int                   refs;
 
   ChannelStatus         status;                       // available, or dormant - channelStatusIn on a plugin thread: atomic
   char*                 statusReason;                 // why dormant, or what the plugin said; NULL: none - atomic

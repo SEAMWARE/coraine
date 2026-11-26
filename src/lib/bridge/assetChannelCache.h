@@ -76,6 +76,34 @@ extern void assetChannelsRelease(void);
 
 
 
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodesKeep - the nodes of an AssetChannel's last model that are entities or are in one, and its
+// references to other AssetChannels' nodes, with what they became - copied, in place of what it had
+//
+extern void assetChannelNodesKeep(AssetChannel* acP, AssetNode* nodeV, int nodes, AssetReference* refV, int refs);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodeLookup - the node of that id in the last model of another AssetChannel of exceptP's tenant:
+// the entity it is or is in (copied into the request's arena), and whether it is the entity itself
+//
+extern bool assetChannelNodeLookup(AssetChannel* exceptP, const char* nodeId, char** entityIdP, bool* isEntityP);
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelsToRemap - after a new model on changedP: the AssetChannels of its tenant with a reference that
+// now becomes something else (a Relationship where it was a Property, another entity, a Property again) - to
+// be mapped again. The array is in the request's arena; how many
+//
+extern int assetChannelsToRemap(AssetChannel* changedP, AssetChannel*** acVP);
+
+
+
 #if COR_FEATURE_CHANNEL_WRITE_BACK
 // -----------------------------------------------------------------------------
 //

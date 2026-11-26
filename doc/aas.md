@@ -151,8 +151,9 @@ value had at the source as its `observedAt`.
 | Range | Property, value `{ "min": ..., "max": ... }` |
 | File | Property: the file's URL (a file of the server's AASX package: the API's attachment URL), and a `contentType` sub-Property |
 | Blob | Property: the API's attachment URL, and a `contentType` sub-Property; the content itself is not copied |
-| ReferenceElement to a part that is an entity | Relationship |
-| ReferenceElement to anything else | Property, the reference as the AAS writes it |
+| ReferenceElement to a shell or submodel that is an entity - of this AssetChannel or of another one | Relationship to it |
+| ReferenceElement to an element (`<submodel id>#<idShortPath>`) - of this AssetChannel or of another one | Relationship to the entity it is in, and a `targetNode` sub-Property: the element's id |
+| ReferenceElement to anything else (an external reference, a shell no AssetChannel reads) | Property, the reference as the AAS writes it |
 | RelationshipElement (`first`, `second`) | a Relationship on `first`'s entity, to `second`'s - not mapped by the prototype |
 | a submodel of a shell, a part that is an entity | a Relationship named by its idShort |
 | SubmodelElementList | ListProperty (of values) or ListRelationship (of references) |
@@ -175,9 +176,9 @@ whatever @context it uses; an element without a semanticId has no `semanticId` s
 
 **Ids.** A shell's or submodel's id is used as the entity id unchanged. AAS ids are globally unique; a
 server whose shell and submodel share one (Eclipse BaSyx's own example does) has its model refused - the
-AssetChannel dormant, saying which id. A collection that a rule makes an
-entity has no id of its own in AAS; its id is made from the path to it:
-`urn:ngsi-ld:<type>:<idShort>:<idShort>...`.
+AssetChannel dormant, saying which id. An element has no id of its own in AAS: the bridge gives it
+`<submodel id>#<idShortPath>` (`.../operational#Stations[1]`) - what a value, a write back and a reference
+name - and a collection that a rule makes an entity has that as its entity id.
 
 ## 6. How the bridge reaches the AAS server
 
