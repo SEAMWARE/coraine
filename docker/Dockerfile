@@ -298,6 +298,15 @@ RUN ldconfig \
 RUN coraine --bridges cep -U 2>&1 | grep -q -- "--cep-tenant" \
     && echo "cep bridge plugin present, and coraine loads it"
 
+#
+# The CKAN and AAS bridges, ckan.so and aas.so (--bridges ckan, aas): built by corLibs' umbrella, as mqtt.so and
+# modbus.so - they need nothing the broker does not have (libc; OpenSSL). Loaded here once, so an image whose
+# plugin is missing or does not resolve fails to build: a plugin that does not load is named in a line
+# "bridge plugin '<name>' ...". The OPC UA bridge is not in the image (open62541 - coraine-build --bridges opcua).
+#
+RUN if coraine --bridges ckan,aas -U 2>&1 | grep "bridge plugin '"; then exit 1; fi \
+    && echo "ckan and aas bridge plugins present, and coraine loads them"
+
 EXPOSE 1026
 
 # /version: answered without touching the store, and exempt from the memory budget - over the budget
