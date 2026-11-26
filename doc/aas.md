@@ -203,6 +203,11 @@ Through the AAS HTTP API (IDTA Part 2), as any AAS client does:
   broker and not sent.
 - **The payload check.** The bridge may refuse a client's write that does not fit the element's
   `valueType` (a string to an `xs:double`): the client gets 400 and nothing is stored.
+- **Credentials,** from the environment, never from the bridge's file: an `Authorization` header as given
+  (a bearer token, Basic), or an OAuth2 access token by the client credentials grant - fetched from the
+  token endpoint, again before it expires and when a request is refused (401). On https, the server's
+  certificate is verified (the system's CAs, or a file of them), and the bridge can show a certificate of
+  its own (mutual TLS). The details are in corAasBridge's README.
 - **When the server cannot be reached,** the bridge retries, and the broker says why nothing comes in -
   in `GET /ngsi-ld/v1/assetChannels`, its `status` and `statusReason`.
 
@@ -280,7 +285,8 @@ Not decided; the answers decide the AAS bridge:
 7. **ConceptDescriptions.** Should their content (preferred names, units, definitions) be carried too -
    as entities of their own, or as a `unitCode` and sub-Properties on the attributes?
 8. **AASX packages.** Is importing an AASX file, with no server, worth a path of its own?
-9. **Security.** How AAS servers are protected in practice (OAuth2 tokens, mutual TLS, an API key), so
-   the bridge can authenticate.
+9. **Security.** How AAS servers are protected in practice. The bridge sends a fixed `Authorization`
+   header, an OAuth2 client-credentials token, or a client certificate (section 6) - is an API key in a
+   header of another name needed, or another OAuth2 grant?
 10. **Writing back.** Which elements users expect to write through NGSI-LD, if any - or is read-only
     what an AAS view should be?
