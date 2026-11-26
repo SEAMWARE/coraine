@@ -199,7 +199,10 @@ Through the AAS HTTP API (IDTA Part 2), as any AAS client does:
   the read its `observedAt`.
 - **The server's events** (optional, the bridge's `push` url): the change events Eclipse BaSyx and FA³ST
   Service publish over MQTT are subscribed to - an event about a submodel makes its channels read at once.
-  Polling goes on underneath: a lost event costs at most a `pollInterval`.
+  Polling goes on underneath: a lost event costs at most a `pollInterval`. Only a change is acted on (FA³ST
+  tells of reads too). The MQTT broker can be `mqtts://` - its certificate verified against a CA file or the
+  system's, the plugin's own client certificate if the broker wants one - and take a user and password, from
+  environment variables; the AAS server's credentials never go to it. Tested against both servers, in CI too.
 - **The model's structure changes** (a submodel added, an element removed): the model is written again.
   What the model no longer has is **left alone**, not deleted - a server restarting or a connection lost
   must not wipe the last values, and a reconnect may bring it back.
@@ -277,7 +280,7 @@ Not decided; the answers decide the AAS bridge:
 1. **Which servers first.** Eclipse BaSyx, the Eclipse AASX Server, FA³ST Service - which ones the users
    run, and which API version (V3.0, V3.1) to target first.
 2. **Live values.** The bridge takes BaSyx's and FA³ST's MQTT events (section 6). Do other servers push
-   (the Eclipse AASX Server, server-sent events), and is MQTT with credentials or TLS needed? Many AAS
+   (the Eclipse AASX Server, server-sent events)? Many AAS
    servers take their live values from OPC UA themselves: should coraine take the structure and the
    meaning from the AAS and the live values straight from OPC UA?
 3. **Registries.** The bridge can find a shell and its submodels through an AAS Registry (section 6), the
