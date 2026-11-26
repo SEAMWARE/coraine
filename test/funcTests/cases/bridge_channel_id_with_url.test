@@ -1,0 +1,97 @@
+#
+# FILE            bridge_channel_id_with_url.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# A channel whose endpoint is a URL (an AAS shell's id) has an id that carries it:
+# urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-20. GET /assetChannels/{id} finds it -
+# percent-encoded (the HTTP server decodes %2F before the routing sees the path) and written as it is. A URN
+# with no URL in it still takes no '/': /entities/urn:ngsi-ld:T:1/nope is no entity id, 404 as before.
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS
+#
+--NAME--
+Bridges: GET /assetChannels/{id} - an id that carries a URL (an AAS endpoint), encoded and as it is
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "https://acme.example/ids/aas/press-20": { "model": { "node": "shell", "id": "https://acme.example/ids/aas/press-20", "name": "Press20", "children": [] } }
+    },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": { "https://acme.example/ids/aas/press-20": { "entities": "natural" } }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+show() {  # show <path> - the status, and the AssetChannel's id or the error's title
+  curl -s -w '\n%{http_code}\n' "localhost:$CB_PORT$1" > /tmp/coraine_channel_id.out
+  tail -1 /tmp/coraine_channel_id.out
+  head -n -1 /tmp/coraine_channel_id.out | python3 -c 'import sys, json
+b = json.load(sys.stdin)
+print(b.get("id") or b.get("title"))'
+}
+sleep 1
+
+echo "01. GET /assetChannels/{id} - the id percent-encoded"
+echo "====================================================="
+show '/ngsi-ld/v1/assetChannels/urn%3Angsi-ld%3AAssetChannel%3Aloopback%3Ahttps%3A%2F%2Facme.example%2Fids%2Faas%2Fpress-20'
+show '/ngsi-ld/v1/assetChannels/urn:ngsi-ld:AssetChannel:loopback:https:%2F%2Facme.example%2Fids%2Faas%2Fpress-20'
+echo
+echo
+
+
+echo "02. GET /assetChannels/{id} - the id as it is"
+echo "=============================================="
+show '/ngsi-ld/v1/assetChannels/urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-20'
+echo
+echo
+
+
+echo "03. A URN with no URL takes no '/': /entities/urn:ngsi-ld:T:1/nope - no such route, 404"
+echo "======================================================================================="
+show '/ngsi-ld/v1/entities/urn:ngsi-ld:T:1/nope'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json /tmp/coraine_channel_id.out
+
+
+--EXPECT--
+01. GET /assetChannels/{id} - the id percent-encoded
+=====================================================
+200
+urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-20
+200
+urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-20
+
+
+02. GET /assetChannels/{id} - the id as it is
+==============================================
+200
+urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/aas/press-20
+
+
+03. A URN with no URL takes no '/': /entities/urn:ngsi-ld:T:1/nope - no such route, 404
+=======================================================================================
+404
+Unknown resource
+
+
