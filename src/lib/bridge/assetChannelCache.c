@@ -211,6 +211,16 @@ int assetChannelStatusSet(const char* bridgeName, const char* endpoint, ChannelS
   if (acP == NULL)
     return CHANNEL_ERR;
 
+  //
+  // The bridge reads the source again, but the broker refused its model (two entities of one id): dormant, with
+  // the broker's reason, until a model is taken
+  //
+  if ((status == ChannelStatusAvailable) && (__atomic_load_n(&acP->modelRefused, __ATOMIC_ACQUIRE) == true))
+  {
+    COR_I("bridge '%s': AssetChannel '%s' - dormant still: its model was refused", bridgeName, endpoint);
+    return CHANNEL_OK;
+  }
+
   char* newReason = (reason != NULL) ? strdup(reason) : NULL;
 
   pthread_mutex_lock(&statusMutex);

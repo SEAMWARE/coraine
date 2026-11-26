@@ -36,6 +36,7 @@
 // Compiled in with COR_FEATURE_ASSET_CHANNELS.
 //
 #include <pthread.h>                                  // pthread_mutex_t
+#include <stdbool.h>                                  // bool
 #include <stdint.h>                                   // uint64_t
 
 #include "db/Tenant.h"                                // Tenant
@@ -80,6 +81,7 @@ typedef struct AssetChannel
   char*                 statusReason;                 // why dormant, or what the plugin said; NULL: none - atomic
   char**                retiredReasonV;               // statusReasons replaced while the AssetChannel was read - freed with it
   int                   retiredReasons;
+  bool                  modelRefused;                 // the broker refused the bridge's last model: dormant until it takes one - atomic
 
   uint64_t              modelsIn;                     // models written
   uint64_t              valuesIn;                     // node values written

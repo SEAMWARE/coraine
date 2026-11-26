@@ -1,0 +1,220 @@
+#
+# FILE            bridge_asset_channel_names_ids.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# AssetChannels (doc/asset-channels.md): an attribute's name and a model's ids.
+#
+# Names - a node's name with its first word in lower case, a leading acronym whole:
+#   URIOfTheProduct -> uriOfTheProduct, AASReference -> aasReference, PLC -> plc, SerialNumber -> serialNumber,
+#   Oil Temp -> oilTemp, intProp -> intProp (as it is); in a folder the path's first word so too:
+#   IOData / PLCState -> ioDataPLCState
+#
+# Ids - two nodes of one model with the same id (an AAS shell and a submodel given one id, as BaSyx's own
+# example has them) would be one entity of two types: the model is refused - nothing written, the AssetChannel
+# dormant with why, samplesRefused counts it. The source's next model, with distinct ids, is taken: available
+# again, its entities written.
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS
+#
+--NAME--
+Bridges: AssetChannels - a leading acronym lower-cased whole in a name; a model with one id twice refused, the next taken
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+PLANT='{ "model": { "node": "object", "id": "ns=2;s=Plant1", "name": "Plant1", "typeName": "Plant",
+         "children": [
+           { "node": "variable", "id": "ns=2;s=P1.Uri",    "name": "URIOfTheProduct", "value": "https://acme.example/p/1" },
+           { "node": "variable", "id": "ns=2;s=P1.AasRef", "name": "AASReference",    "value": "https://acme.example/ids/aas/1" },
+           { "node": "variable", "id": "ns=2;s=P1.Plc",    "name": "PLC",             "value": "S7-1500" },
+           { "node": "variable", "id": "ns=2;s=P1.Serial", "name": "SerialNumber",    "value": "P1-0042" },
+           { "node": "variable", "id": "ns=2;s=P1.Oil",    "name": "Oil Temp",        "value": 48.1 },
+           { "node": "variable", "id": "ns=2;s=P1.Int",    "name": "intProp",         "value": 7 },
+           { "node": "folder", "name": "IOData", "children": [
+               { "node": "variable", "id": "ns=2;s=P1.PlcState", "name": "PLCState", "value": "run" } ] } ] } }'
+
+TWICE='{ "model": { "node": "shell", "id": "https://acme.example/ids/same", "name": "SecondAAS",
+         "children": [
+           { "node": "submodel", "id": "https://acme.example/ids/same", "name": "SecondSubmodel",
+             "children": [ { "node": "property", "name": "Speed", "value": 1.5 } ] } ] } }'
+
+FIXED='{ "model": { "node": "shell", "id": "https://acme.example/ids/same", "name": "SecondAAS",
+         "children": [
+           { "node": "submodel", "id": "https://acme.example/ids/same/sm", "name": "SecondSubmodel",
+             "children": [ { "node": "property", "name": "Speed", "value": 2.5 } ] } ] } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "ns=2;s=Plant1": $PLANT,
+      "https://acme.example/ids/same": $TWICE
+    },
+    "emitLater": {
+      "https://acme.example/ids/same": $FIXED
+    },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": {
+        "ns=2;s=Plant1": { "entities": "natural" },
+        "https://acme.example/ids/same": { "entities": "natural" }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+channelSame() {  # the AssetChannel of https://acme.example/ids/same, from the list
+  curl -s "localhost:$CB_PORT/ngsi-ld/v1/assetChannels" | python3 -c 'import sys, json
+print(json.dumps([c for c in json.load(sys.stdin) if c["channelTarget"] == "https://acme.example/ids/same"], indent=2, sort_keys=True))'
+}
+
+
+echo "01. The plant - the names, a leading acronym lower-cased whole"
+echo "=============================================================="
+sleep 1
+corCurl --url '/ngsi-ld/v1/entities/urn:ngsi-ld:Plant:Plant1?format=keyValues'
+echo
+echo
+
+
+echo "02. The model with one id twice - refused: no entity, the AssetChannel dormant with why, samplesRefused 1"
+echo "========================================================================================================"
+corCurl --url '/ngsi-ld/v1/entities/https:%2F%2Facme.example%2Fids%2Fsame'
+echo
+channelSame
+echo
+echo
+
+
+echo "03. 1.5 s later the source's model has distinct ids - taken: available, its two entities written"
+echo "================================================================================================"
+sleep 2
+channelSame
+echo
+corCurl --url '/ngsi-ld/v1/entities/https:%2F%2Facme.example%2Fids%2Fsame?format=keyValues'
+echo
+corCurl --url '/ngsi-ld/v1/entities/https:%2F%2Facme.example%2Fids%2Fsame%2Fsm?format=keyValues'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json
+
+
+--EXPECT--
+01. The plant - the names, a leading acronym lower-cased whole
+==============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 270
+
+{
+  "aasReference": "https://acme.example/ids/aas/1",
+  "id": "urn:ngsi-ld:Plant:Plant1",
+  "intProp": 7,
+  "ioDataPLCState": "run",
+  "oilTemp": 48.1,
+  "plc": "S7-1500",
+  "serialNumber": "P1-0042",
+  "type": "Plant",
+  "uriOfTheProduct": "https://acme.example/p/1"
+}
+
+
+
+02. The model with one id twice - refused: no entity, the AssetChannel dormant with why, samplesRefused 1
+========================================================================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 181
+
+{
+  "detail": "entity 'https://acme.example/ids/same' not found",
+  "status": 404,
+  "title": "Entity not found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+[
+  {
+    "assetEntities": "natural",
+    "attributeLayout": "attributes",
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "https://acme.example/ids/same",
+    "entitiesWritten": 0,
+    "id": "urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/same",
+    "modelsIn": 0,
+    "payloadsRefused": 0,
+    "samplesRefused": 1,
+    "status": "dormant",
+    "statusReason": "its model has two nodes with the id 'https://acme.example/ids/same' - one id names one thing: the model is refused",
+    "type": "AssetChannel",
+    "valuesIn": 0,
+    "valuesRefused": 0
+  }
+]
+
+
+03. 1.5 s later the source's model has distinct ids - taken: available, its two entities written
+================================================================================================
+[
+  {
+    "assetEntities": "natural",
+    "attributeLayout": "attributes",
+    "bridgeId": "urn:ngsi-ld:ContextBridge:loopback",
+    "channelTarget": "https://acme.example/ids/same",
+    "entitiesWritten": 2,
+    "id": "urn:ngsi-ld:AssetChannel:loopback:https://acme.example/ids/same",
+    "modelsIn": 1,
+    "payloadsRefused": 0,
+    "samplesRefused": 1,
+    "status": "available",
+    "type": "AssetChannel",
+    "valuesIn": 0,
+    "valuesRefused": 0
+  }
+]
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 119
+
+{
+  "id": "https://acme.example/ids/same",
+  "secondSubmodel": "https://acme.example/ids/same/sm",
+  "type": "Shell"
+}
+
+
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 85
+
+{
+  "id": "https://acme.example/ids/same/sm",
+  "speed": 2.5,
+  "type": "Submodel"
+}
+
+
+
