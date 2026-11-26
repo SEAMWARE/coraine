@@ -164,7 +164,8 @@ value had at the source as its `observedAt`.
 `LanguageProperty` (its value a language map) or `ListProperty` (an array) - and its `contentType`
 ([asset-channels.md § 3.3](asset-channels.md#33-what-a-bridge-hands-over-the-node-tree)).
 
-**Names.** An attribute's name is the element's idShort with a lower-case first letter; a path of
+**Names.** An attribute's name is the element's idShort with its first word lower-case - a leading
+acronym whole (`URIOfTheProduct` -> `uriOfTheProduct`, `AASReference` -> `aasReference`); a path of
 idShorts (`attributes` layout) joins them, each one after the first starting upper-case. Only
 `[A-Za-z0-9_]` is kept.
 
@@ -172,7 +173,9 @@ idShorts (`attributes` layout) joins them, each one after the first starting upp
 attribute - not left to an @context. The prototype takes the reference's first key. An application finds what an attribute means in the entity itself,
 whatever @context it uses; an element without a semanticId has no `semanticId` sub-Property.
 
-**Ids.** A shell's or submodel's id is used as the entity id unchanged. A collection that a rule makes an
+**Ids.** A shell's or submodel's id is used as the entity id unchanged. AAS ids are globally unique; a
+server whose shell and submodel share one (Eclipse BaSyx's own example does) has its model refused - the
+AssetChannel dormant, saying which id. A collection that a rule makes an
 entity has no id of its own in AAS; its id is made from the path to it:
 `urn:ngsi-ld:<type>:<idShort>:<idShort>...`.
 
