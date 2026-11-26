@@ -154,7 +154,7 @@ value had at the source as its `observedAt`.
 | ReferenceElement to a shell or submodel that is an entity - of this AssetChannel or of another one | Relationship to it |
 | ReferenceElement to an element (`<submodel id>#<idShortPath>`) - of this AssetChannel or of another one | Relationship to the entity it is in, and a `targetNode` sub-Property: the element's id |
 | ReferenceElement to anything else (an external reference, a shell no AssetChannel reads) | Property, the reference as the AAS writes it |
-| RelationshipElement (`first`, `second`) | a Relationship on `first`'s entity, to `second`'s - not mapped by the prototype |
+| RelationshipElement (`first`, `second`) | a Relationship on the entity `first` is or is in, named by its idShort, to what `second` refers to - as a ReferenceElement's target: an entity, of this AssetChannel or of another one; an element, the entity it is in and a `targetNode`; anything else, a Property. A `first` not in the AssetChannel's model (another shell's element, an external reference): not mapped, logged |
 | a submodel of a shell, a part that is an entity | a Relationship named by its idShort |
 | SubmodelElementList | ListProperty (of values) or ListRelationship (of references) |
 | SubmodelElementCollection | an entity (when a rule says so), else by `attributeLayout` (section 3) |
