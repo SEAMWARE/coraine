@@ -1,0 +1,213 @@
+#
+# FILE            bridge_asset_channel_references.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# References across AssetChannels. A reference becomes a Relationship only to an entity: its target a node
+# that is an entity, or is in one - of its own model or of another AssetChannel's last model. To a node in an
+# entity (an AAS element), the Relationship's object is that entity and a "targetNode" sub-Property names the
+# node. Anything else - a node of no AssetChannel, a URL - a Property, the target's id.
+#
+# The loopback bridge emits, all natural:
+#   line-1     a shell and its submodel Layout; the submodel's references:
+#                Press          the press-17 shell                     another AssetChannel's entity
+#                PressPressure  press-17's Operational#Pressure        a node in another AssetChannel's entity
+#                OwnSpeed       its own Layout#Speed                   a node in its own entity
+#                Feeds          the press-17 shell and Operational#Pressure - a ListRelationship, a targetNode
+#                               ListProperty, one per object
+#                Certificate    https://certs.example/l1               no node: a Property
+#                Neighbour      the press-20 shell                     its model comes 1.5 s after the start
+#   press-17   a shell and its submodel Operational (Pressure, Mode); 1.5 s later a model without Pressure
+#   press-20   nothing at the start; 1.5 s later its model
+#
+# What changes on another AssetChannel maps line-1 again: Neighbour becomes a Relationship when press-20's
+# model comes; PressPressure a Property again when press-17's new model has no Pressure, and Feeds a plain
+# Relationship to the shell.
+#
+# REQUIRE_FEATURE: ASSET_CHANNELS
+#
+--NAME--
+Bridges: AssetChannels - a reference a Relationship to the entity its target is or is in, across AssetChannels
+
+--TAGS--
+bridge channel plugins
+
+--INIT--
+corDbDrop
+
+LINE1='{ "model": { "node": "shell", "id": "https://acme.example/ids/aas/line-1", "name": "Line1", "children": [
+          { "node": "submodel", "id": "https://acme.example/ids/sm/line-1/layout", "name": "Layout", "typeName": "Layout",
+            "children": [ { "node": "property", "id": "https://acme.example/ids/sm/line-1/layout#Speed", "name": "Speed", "value": 1.2 } ],
+            "references": [
+              { "type": "Press",         "target": "https://acme.example/ids/aas/press-17" },
+              { "type": "PressPressure", "target": "https://acme.example/ids/sm/press-17/operational#Pressure" },
+              { "type": "OwnSpeed",      "target": "https://acme.example/ids/sm/line-1/layout#Speed" },
+              { "type": "Feeds",         "target": "https://acme.example/ids/aas/press-17" },
+              { "type": "Feeds",         "target": "https://acme.example/ids/sm/press-17/operational#Pressure" },
+              { "type": "Certificate",   "target": "https://certs.example/l1" },
+              { "type": "Neighbour",     "target": "https://acme.example/ids/aas/press-20" } ] } ] } }'
+
+PRESS17_V1='{ "model": { "node": "shell", "id": "https://acme.example/ids/aas/press-17", "name": "Press17", "children": [
+               { "node": "submodel", "id": "https://acme.example/ids/sm/press-17/operational", "name": "Operational", "typeName": "Operational",
+                 "children": [
+                   { "node": "property", "id": "https://acme.example/ids/sm/press-17/operational#Pressure", "name": "Pressure", "value": 212.5 },
+                   { "node": "property", "id": "https://acme.example/ids/sm/press-17/operational#Mode", "name": "Mode", "value": "auto" } ] } ] } }'
+
+PRESS17_V2='{ "model": { "node": "shell", "id": "https://acme.example/ids/aas/press-17", "name": "Press17", "children": [
+               { "node": "submodel", "id": "https://acme.example/ids/sm/press-17/operational", "name": "Operational", "typeName": "Operational",
+                 "children": [
+                   { "node": "property", "id": "https://acme.example/ids/sm/press-17/operational#Mode", "name": "Mode", "value": "manual" } ] } ] } }'
+
+PRESS20='{ "model": { "node": "shell", "id": "https://acme.example/ids/aas/press-20", "name": "Press20", "children": [] } }'
+
+cat > /tmp/coraine_bridges.json <<EOF
+{
+  "loopback": {
+    "emitAtStart": {
+      "https://acme.example/ids/aas/line-1":   $LINE1,
+      "https://acme.example/ids/aas/press-17": $PRESS17_V1
+    },
+    "emitLater": {
+      "https://acme.example/ids/aas/press-17": $PRESS17_V2,
+      "https://acme.example/ids/aas/press-20": $PRESS20
+    },
+    "ngsild": {
+      "defaultEntity": false,
+      "assetChannels": {
+        "https://acme.example/ids/aas/line-1":   { "entities": "natural" },
+        "https://acme.example/ids/aas/press-17": { "entities": "natural" },
+        "https://acme.example/ids/aas/press-20": { "entities": "natural" }
+      }
+    }
+  }
+}
+EOF
+
+coraineStart --bridges loopback --bridgeConfig /tmp/coraine_bridges.json
+
+--RUN--
+LAYOUT='/ngsi-ld/v1/entities/https://acme.example/ids/sm/line-1/layout?attrs=press,pressPressure,ownSpeed,feeds,certificate,neighbour'
+
+layout() {  # layout [<python condition on the entity e>] - Layout's references once the condition holds (5 s at most)
+  for i in $(seq 1 50); do
+    curl -s "localhost:$CB_PORT$LAYOUT" > /tmp/coraine_references.out
+    python3 -c 'import sys, json
+e = json.load(open("/tmp/coraine_references.out"))
+sys.exit(0 if ('"${1:-True}"') else 1)' 2> /dev/null && break
+    sleep 0.1
+  done
+  python3 -c 'import json; print(json.dumps(json.load(open("/tmp/coraine_references.out")), indent=2, sort_keys=True))'
+}
+
+echo "01. Layout - the references to press-17 and its Pressure Relationships, to its own Speed too; press-20 not there yet: a Property"
+echo "==============================================================================================================================="
+layout 'e.get("press", {}).get("type") == "Relationship" and e.get("pressPressure", {}).get("type") == "Relationship"'
+echo
+echo
+
+
+echo "02. press-20's model, press-17's without Pressure - Layout mapped again: Neighbour a Relationship, PressPressure a Property"
+echo "========================================================================================================================="
+layout 'e.get("neighbour", {}).get("type") == "Relationship" and e.get("pressPressure", {}).get("type") == "Property"'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+rm -f /tmp/coraine_bridges.json /tmp/coraine_references.out
+
+
+--EXPECT--
+01. Layout - the references to press-17 and its Pressure Relationships, to its own Speed too; press-20 not there yet: a Property
+===============================================================================================================================
+{
+  "certificate": {
+    "type": "Property",
+    "value": "https://certs.example/l1"
+  },
+  "feeds": {
+    "objectList": [
+      {
+        "object": "https://acme.example/ids/aas/press-17"
+      },
+      {
+        "object": "https://acme.example/ids/sm/press-17/operational"
+      }
+    ],
+    "targetNode": {
+      "type": "ListProperty",
+      "valueList": [
+        "https://acme.example/ids/aas/press-17",
+        "https://acme.example/ids/sm/press-17/operational#Pressure"
+      ]
+    },
+    "type": "ListRelationship"
+  },
+  "id": "https://acme.example/ids/sm/line-1/layout",
+  "neighbour": {
+    "type": "Property",
+    "value": "https://acme.example/ids/aas/press-20"
+  },
+  "ownSpeed": {
+    "object": "https://acme.example/ids/sm/line-1/layout",
+    "targetNode": {
+      "type": "Property",
+      "value": "https://acme.example/ids/sm/line-1/layout#Speed"
+    },
+    "type": "Relationship"
+  },
+  "press": {
+    "object": "https://acme.example/ids/aas/press-17",
+    "type": "Relationship"
+  },
+  "pressPressure": {
+    "object": "https://acme.example/ids/sm/press-17/operational",
+    "targetNode": {
+      "type": "Property",
+      "value": "https://acme.example/ids/sm/press-17/operational#Pressure"
+    },
+    "type": "Relationship"
+  },
+  "type": "Layout"
+}
+
+
+02. press-20's model, press-17's without Pressure - Layout mapped again: Neighbour a Relationship, PressPressure a Property
+=========================================================================================================================
+{
+  "certificate": {
+    "type": "Property",
+    "value": "https://certs.example/l1"
+  },
+  "feeds": {
+    "object": "https://acme.example/ids/aas/press-17",
+    "type": "Relationship"
+  },
+  "id": "https://acme.example/ids/sm/line-1/layout",
+  "neighbour": {
+    "object": "https://acme.example/ids/aas/press-20",
+    "type": "Relationship"
+  },
+  "ownSpeed": {
+    "object": "https://acme.example/ids/sm/line-1/layout",
+    "targetNode": {
+      "type": "Property",
+      "value": "https://acme.example/ids/sm/line-1/layout#Speed"
+    },
+    "type": "Relationship"
+  },
+  "press": {
+    "object": "https://acme.example/ids/aas/press-17",
+    "type": "Relationship"
+  },
+  "pressPressure": {
+    "type": "Property",
+    "value": "https://acme.example/ids/sm/press-17/operational#Pressure"
+  },
+  "type": "Layout"
+}
+
+

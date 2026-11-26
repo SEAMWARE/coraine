@@ -17,12 +17,17 @@
 //   a container child (not entity)    as attributeLayout says: its leaves attributes named by their path, or
 //                                     one attribute and its leaves sub-attributes, or one JsonProperty
 //   an entity child                   a Relationship to it, named by the child
-//   a reference to an entity node     a Relationship, named by the reference's type (several: a
-//                                     ListRelationship); to anything else a Property, the target's id
+//   a reference                       to a node that is an entity, or is in one - of this model or of another
+//                                     AssetChannel's: a Relationship to that entity, named by the reference's
+//                                     type (several: a ListRelationship); to a node in it, not the entity
+//                                     itself: a "targetNode" sub-Property, the node's id (a ListRelationship:
+//                                     a ListProperty, one per object). To anything else a Property, the
+//                                     target's id. A new model on the other AssetChannel maps this one again.
 //   a method / operation              no attribute - a Service Registration of the entity, the operation's
 //                                     endpoint (assetChannelServices.c, COR_FEATURE_ASSET_CHANNEL_SERVICES)
 //
 #include <ctype.h>                                    // isalnum, isupper, islower, tolower, toupper
+#include <pthread.h>                                  // pthread_mutex_lock, pthread_mutex_unlock
 #include <stdbool.h>                                  // bool
 #include <stdio.h>                                    // snprintf
 #include <stdlib.h>                                   // free, malloc
@@ -77,12 +82,30 @@ typedef struct AssetEntity
 //
 // AssetModel - the model of one sample, its entities found
 //
+typedef struct AssetRefAttr
+{
+  CorNode*     holderP;                               // the entity, or the attribute, the reference is in
+  char*        name;                                  // NULL: made with an earlier one of its name
+  const char*  target;
+  const char*  object;                                // the entity; NULL: none - a Property
+  bool         inside;                                // the target is a node in the entity, not the entity
+} AssetRefAttr;
+
 typedef struct AssetModel
 {
-  AssetMap*     mapP;
-  AssetEntity*  entityV;
-  int           entities;
-  int           entitiesMax;
+  AssetChannel*    acP;
+  AssetMap*        mapP;
+  CorNode*         rootP;                             // the tree: a reference's target is looked up in it first
+  AssetEntity*     entityV;
+  int              entities;
+  int              entitiesMax;
+  AssetNode*       nodeV;                             // the nodes in entities - kept, for the other AssetChannels' references
+  int              nodes;
+  AssetReference*  refV;                              // the references to other AssetChannels' nodes, what they became
+  int              refs;
+  int              refsMax;
+  AssetRefAttr*    refAttrV;                          // the entity being made: its references, made at its end
+  int              refAttrs;
 #if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   CorNode*      curEntityP;                           // the entity being made: its attributes are recorded
   const char*   curEntityId;
@@ -284,26 +307,13 @@ static void entitiesFind(AssetModel* modelP, CorNode* nodeP, char* path, int pat
 
 // -----------------------------------------------------------------------------
 //
-// entityOfNode / entityOfSourceId - the entity a node is, or the entity node whose source id is that; NULL
+// entityOfNode - the entity a node is; NULL
 //
 static AssetEntity* entityOfNode(AssetModel* modelP, CorNode* nodeP)
 {
   for (int ix = 0; ix < modelP->entities; ix++)
   {
     if (modelP->entityV[ix].nodeP == nodeP)
-      return &modelP->entityV[ix];
-  }
-
-  return NULL;
-}
-
-static AssetEntity* entityOfSourceId(AssetModel* modelP, const char* sourceId)
-{
-  for (int ix = 0; ix < modelP->entities; ix++)
-  {
-    const char* id = str(modelP->entityV[ix].nodeP, "id");
-
-    if ((id != NULL) && (strcmp(id, sourceId) == 0))
       return &modelP->entityV[ix];
   }
 
@@ -686,34 +696,205 @@ static void relationshipAdd(CorNode* entityP, const char* name, const char* obje
 
 // -----------------------------------------------------------------------------
 //
-// referencesMap - a node's references, as attributes of the entity it is in
+// nodeById - the node of the tree whose "id" is 'id', and the entity node it is in (the nearest one above it,
+// or itself)
 //
-static void referencesMap(AssetModel* modelP, CorNode* entityP, CorNode* nodeP)
+static CorNode* nodeById(AssetModel* modelP, CorNode* nodeP, const char* id, AssetEntity* inP, AssetEntity** entityPP)
+{
+  AssetEntity* selfP = entityOfNode(modelP, nodeP);
+
+  if (selfP != NULL)
+    inP = selfP;
+
+  const char* nodeId = str(nodeP, "id");
+
+  if ((nodeId != NULL) && (strcmp(nodeId, id) == 0))
+  {
+    *entityPP = inP;
+    return nodeP;
+  }
+
+  CorNode* childrenP = corTreeLookup(nodeP, "children");
+
+  for (CorNode* childP = ((childrenP != NULL) && (childrenP->type == CorArray)) ? childrenP->value.head : NULL; childP != NULL; childP = childP->next)
+  {
+    CorNode* foundP = nodeById(modelP, childP, id, inP, entityPP);
+
+    if (foundP != NULL)
+      return foundP;
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// referenceResolve - the entity a reference's target is, or is in: a node of this model's, else of another
+// AssetChannel's last model (what it became recorded - a new model there may change it)
+//
+static void referenceResolve(AssetModel* modelP, const char* target, const char** objectP, bool* insideP)
+{
+  AssetEntity* inP   = NULL;
+  CorNode*     nodeP = (modelP->rootP != NULL) ? nodeById(modelP, modelP->rootP, target, NULL, &inP) : NULL;
+
+  *objectP = NULL;
+  *insideP = false;
+
+  if (nodeP != NULL)                                  // this model's - in an entity, or in none: a Property
+  {
+    if (inP != NULL)
+    {
+      *objectP = inP->id;
+      *insideP = (inP->nodeP != nodeP);
+    }
+    return;
+  }
+
+  char* entityId = NULL;
+  bool  isEntity = false;
+
+  if (assetChannelNodeLookup(modelP->acP, target, &entityId, &isEntity) == true)
+  {
+    *objectP = entityId;
+    *insideP = (isEntity == false);
+  }
+
+  for (int ix = 0; ix < modelP->refs; ix++)
+  {
+    if (strcmp(modelP->refV[ix].target, target) == 0)
+      return;
+  }
+
+  if (modelP->refs < modelP->refsMax)
+  {
+    AssetReference* refP = &modelP->refV[modelP->refs++];
+
+    refP->target   = (char*) target;
+    refP->entityId = entityId;
+    refP->isEntity = isEntity;
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// referencesMap - a node's references, resolved, for the attributes of the entity (or the attribute) they are
+// in - made at the end of the entity, referenceAttrsAdd
+//
+static void referencesMap(AssetModel* modelP, CorNode* holderP, CorNode* nodeP)
 {
   CorNode* refsP = corTreeLookup(nodeP, "references");
 
   for (CorNode* refP = ((refsP != NULL) && (refsP->type == CorArray)) ? refsP->value.head : NULL; refP != NULL; refP = refP->next)
   {
-    const char* refType = str(refP, "type");
-    const char* target  = str(refP, "target");
-    char*       name    = attrName(NULL, refType);
+    const char* target = str(refP, "target");
+    char*       name   = attrName(NULL, str(refP, "type"));
 
-    if ((name == NULL) || (target == NULL))
+    if ((name == NULL) || (target == NULL) || (modelP->refAttrs >= modelP->refsMax))
       continue;
 
-    AssetEntity* targetP = entityOfSourceId(modelP, target);
+    AssetRefAttr* rP = &modelP->refAttrV[modelP->refAttrs++];
 
-    if (targetP != NULL)
-      relationshipAdd(entityP, name, targetP->id);
-    else
+    rP->holderP = holderP;
+    rP->name    = name;
+    rP->target  = target;
+    referenceResolve(modelP, target, &rP->object, &rP->inside);
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// referenceAttrsAdd - the references of the entity made, by name: the ones that became an entity a
+// Relationship (several a ListRelationship), with a "targetNode" when one is a node in it; none did: the
+// first one's target as a Property
+//
+static void referenceAttrsAdd(AssetModel* modelP)
+{
+  for (int ix = 0; ix < modelP->refAttrs; ix++)
+  {
+    AssetRefAttr* rP = &modelP->refAttrV[ix];
+
+    if (rP->name == NULL)
+      continue;
+
+    char*       name    = rP->name;
+    CorNode*    holderP = rP->holderP;
+    const char* first   = rP->target;
+    int         objects = 0;
+    bool        inside  = false;
+
+    for (int jx = ix; jx < modelP->refAttrs; jx++)
+    {
+      AssetRefAttr* oP = &modelP->refAttrV[jx];
+
+      if ((oP->name != NULL) && (oP->holderP == holderP) && (strcmp(oP->name, name) == 0) && (oP->object != NULL))
+      {
+        objects++;
+        inside = inside || oP->inside;
+      }
+    }
+
+    if (objects == 0)                                 // none an entity: the first one's target
     {
       CorNode* propP = corTreeObject(corRest.kallocP, name);
 
       corTreeChildAdd(propP, corTreeString(corRest.kallocP, "type", "Property"));
-      corTreeChildAdd(propP, corTreeString(corRest.kallocP, "value", (char*) target));
-      attrAdd(entityP, propP);
+      corTreeChildAdd(propP, corTreeString(corRest.kallocP, "value", (char*) first));
+      attrAdd(holderP, propP);
+    }
+
+    bool     existed  = (corTreeLookup(holderP, name) != NULL);
+    CorNode* targetsP = ((inside == true) && (existed == false)) ? corTreeArray(corRest.kallocP, "valueList") : NULL;
+    char*    single   = NULL;
+
+    for (int jx = ix; jx < modelP->refAttrs; jx++)
+    {
+      AssetRefAttr* oP = &modelP->refAttrV[jx];
+
+      if ((oP->name == NULL) || (oP->holderP != holderP) || (strcmp(oP->name, name) != 0))
+        continue;
+
+      oP->name = NULL;                                // made
+
+      if (oP->object == NULL)
+        continue;
+
+      relationshipAdd(holderP, name, oP->object);
+
+      if (targetsP != NULL)
+      {
+        corTreeChildAdd(targetsP, corTreeString(corRest.kallocP, NULL, (char*) oP->target));
+        single = (char*) oP->target;
+      }
+    }
+
+    CorNode* attrP = (targetsP != NULL) ? corTreeLookup(holderP, name) : NULL;
+
+    if (attrP != NULL)
+    {
+      CorNode* subP = corTreeObject(corRest.kallocP, "targetNode");
+
+      if (objects == 1)
+      {
+        corTreeChildAdd(subP, corTreeString(corRest.kallocP, "type", "Property"));
+        corTreeChildAdd(subP, corTreeString(corRest.kallocP, "value", single));
+      }
+      else
+      {
+        corTreeChildAdd(subP, corTreeString(corRest.kallocP, "type", "ListProperty"));
+        corTreeChildAdd(subP, targetsP);
+      }
+
+      corTreeChildAdd(attrP, subP);
     }
   }
+
+  modelP->refAttrs = 0;
 }
 
 
@@ -810,9 +991,11 @@ static CorNode* entityMake(AssetModel* modelP, AssetEntity* entP)
   modelP->curEntityId = entP->id;
 #endif
 
+  modelP->refAttrs = 0;
   attrAdd(entityP, semanticIdNode(entP->nodeP));
   childrenMap(modelP, entityP, entP->nodeP, NULL, modelP->mapP->layout);
   referencesMap(modelP, entityP, entP->nodeP);
+  referenceAttrsAdd(modelP);
 
 #if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   //
@@ -851,35 +1034,58 @@ static int nodeCount(CorNode* nodeP)
 
 // -----------------------------------------------------------------------------
 //
-// nodeById - the node of the tree whose "id" is 'id', and the entity node it is in (the nearest one above it,
-// or itself)
+// refCount - the references of a tree
 //
-static CorNode* nodeById(AssetModel* modelP, CorNode* nodeP, const char* id, AssetEntity* inP, AssetEntity** entityPP)
+static int refCount(CorNode* nodeP)
 {
-  AssetEntity* selfP = entityOfNode(modelP, nodeP);
+  CorNode* refsP = corTreeLookup(nodeP, "references");
+  int      n     = 0;
+
+  for (CorNode* refP = ((refsP != NULL) && (refsP->type == CorArray)) ? refsP->value.head : NULL; refP != NULL; refP = refP->next)
+    n++;
+
+  CorNode* childrenP = corTreeLookup(nodeP, "children");
+
+  for (CorNode* childP = ((childrenP != NULL) && (childrenP->type == CorArray)) ? childrenP->value.head : NULL; childP != NULL; childP = childP->next)
+  {
+    if (childP->type == CorObject)
+      n += refCount(childP);
+  }
+
+  return n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// nodesFind - every node with an id that is an entity or is in one, and that entity: what another
+// AssetChannel's reference to it becomes
+//
+static void nodesFind(AssetModel* modelP, CorNode* nodeP, AssetEntity* inP)
+{
+  AssetEntity* selfP  = entityOfNode(modelP, nodeP);
+  const char*  nodeId = str(nodeP, "id");
 
   if (selfP != NULL)
     inP = selfP;
 
-  const char* nodeId = str(nodeP, "id");
-
-  if ((nodeId != NULL) && (strcmp(nodeId, id) == 0))
+  if ((inP != NULL) && (inP->id != NULL) && (nodeId != NULL) && (modelP->nodes < modelP->entitiesMax))
   {
-    *entityPP = inP;
-    return nodeP;
+    AssetNode* nP = &modelP->nodeV[modelP->nodes++];
+
+    nP->nodeId   = (char*) nodeId;
+    nP->entityId = inP->id;
+    nP->isEntity = (selfP != NULL);
   }
 
   CorNode* childrenP = corTreeLookup(nodeP, "children");
 
   for (CorNode* childP = ((childrenP != NULL) && (childrenP->type == CorArray)) ? childrenP->value.head : NULL; childP != NULL; childP = childP->next)
   {
-    CorNode* foundP = nodeById(modelP, childP, id, inP, entityPP);
-
-    if (foundP != NULL)
-      return foundP;
+    if (childP->type == CorObject)
+      nodesFind(modelP, childP, inP);
   }
-
-  return NULL;
 }
 
 
@@ -973,15 +1179,26 @@ static int write(AssetChannel* acP, AssetModel* modelP)
 //
 // modelFind - the model's entities, found
 //
-static bool modelFind(AssetModel* modelP, AssetMap* mapP, CorNode* treeP)
+static bool modelFind(AssetModel* modelP, AssetChannel* acP, CorNode* treeP)
 {
   char path[1024];
+  int  nodes = nodeCount(treeP);
+  int  refs  = refCount(treeP);
 
   path[0]             = 0;
-  modelP->mapP        = mapP;
+  modelP->acP         = acP;
+  modelP->mapP        = acP->mapP;
+  modelP->rootP       = treeP;
   modelP->entities    = 0;
-  modelP->entitiesMax = nodeCount(treeP);
-  modelP->entityV     = (AssetEntity*) corAlloc(&corRest.kalloc, modelP->entitiesMax * sizeof(AssetEntity));
+  modelP->entitiesMax = nodes;
+  modelP->entityV     = (AssetEntity*) corAlloc(&corRest.kalloc, nodes * sizeof(AssetEntity));
+  modelP->nodes       = 0;
+  modelP->nodeV       = (AssetNode*) corAlloc(&corRest.kalloc, nodes * sizeof(AssetNode));
+  modelP->refs        = 0;
+  modelP->refsMax     = refs;
+  modelP->refV        = (refs > 0) ? (AssetReference*) corAlloc(&corRest.kalloc, refs * sizeof(AssetReference)) : NULL;
+  modelP->refAttrs    = 0;
+  modelP->refAttrV    = (refs > 0) ? (AssetRefAttr*) corAlloc(&corRest.kalloc, refs * sizeof(AssetRefAttr)) : NULL;
 #if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   modelP->curEntityP  = NULL;
   modelP->curEntityId = NULL;
@@ -990,10 +1207,14 @@ static bool modelFind(AssetModel* modelP, AssetMap* mapP, CorNode* treeP)
   modelP->mappedMax   = 0;
 #endif
 
-  if (modelP->entityV == NULL)
+  if ((modelP->entityV == NULL) || (modelP->nodeV == NULL) || ((refs > 0) && ((modelP->refV == NULL) || (modelP->refAttrV == NULL))))
+  {
+    modelP->refsMax = 0;
     return false;
+  }
 
   entitiesFind(modelP, treeP, path, sizeof(path));
+  nodesFind(modelP, treeP, NULL);
   return true;
 }
 
@@ -1082,13 +1303,14 @@ static const char* entityIdTwice(AssetModel* modelP)
 
 // -----------------------------------------------------------------------------
 //
-// modelIn - { "model": <node> }
+// modelMap - a model mapped and written: one in ({ "model": <node> }), or the kept one again (remap: not kept
+// anew, not counted as a model in, its services as they are). Under writeMutex
 //
-static int modelIn(AssetChannel* acP, CorNode* treeP)
+static int modelMap(AssetChannel* acP, CorNode* treeP, bool remap)
 {
   AssetModel model;
 
-  if ((treeP->type != CorObject) || (modelFind(&model, acP->mapP, treeP) == false) || (model.entities == 0))
+  if ((treeP->type != CorObject) || (modelFind(&model, acP, treeP) == false) || (model.entities == 0))
   {
     COR_W("bridge '%s': the model on AssetChannel '%s' makes no entity - dropped", acP->bridgeName, acP->endpoint);
     __atomic_add_fetch(&acP->samplesRefused, 1, __ATOMIC_RELAXED);
@@ -1111,18 +1333,31 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
     return BRIDGE_BAD_INPUT;
   }
 
-  pthread_mutex_lock(&acP->modelMutex);
-  modelKeep(acP, treeP);
-  pthread_mutex_unlock(&acP->modelMutex);
+  if (remap == false)
+  {
+    pthread_mutex_lock(&acP->modelMutex);
+    modelKeep(acP, treeP);
+    pthread_mutex_unlock(&acP->modelMutex);
+  }
 
   int written = write(acP, &model);
 
   if (written == 0)
     return BRIDGE_ERR;
 
+  assetChannelNodesKeep(acP, model.nodeV, model.nodes, model.refV, model.refs);   // the entities written: another model's references to them
+
 #if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
   mappedKeep(acP, &model);                            // what a client's write is checked against and written back to - the model's names; values do not change them
 #endif
+
+  __atomic_add_fetch(&acP->entitiesWritten, (uint64_t) written, __ATOMIC_RELAXED);
+
+  if (remap == true)
+  {
+    COR_T(CtBridge, "model on AssetChannel '%s' mapped again (a reference's target changed) -> %d entit%s", acP->endpoint, written, (written == 1) ? "y" : "ies");
+    return BRIDGE_OK;
+  }
 
 #if COR_FEATURE_ASSET_CHANNEL_SERVICES
   servicesSync(acP, &model);                          // a new model, its operations: values do not change them
@@ -1132,10 +1367,58 @@ static int modelIn(AssetChannel* acP, CorNode* treeP)
     assetChannelStatusSet(acP->bridgeName, acP->endpoint, ChannelStatusAvailable, NULL);   // a model taken: available again
 
   __atomic_add_fetch(&acP->modelsIn, 1, __ATOMIC_RELAXED);
-  __atomic_add_fetch(&acP->entitiesWritten, (uint64_t) written, __ATOMIC_RELAXED);
   COR_T(CtBridge, "model on AssetChannel '%s' -> %d entit%s", acP->endpoint, written, (written == 1) ? "y" : "ies");
 
   return BRIDGE_OK;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// modelRemap - an AssetChannel's kept model mapped and written again: a reference in it now becomes something else
+//
+static void modelRemap(AssetChannel* acP)
+{
+  pthread_mutex_lock(&acP->writeMutex);
+
+  pthread_mutex_lock(&acP->modelMutex);
+  char* text = (acP->model != NULL) ? corAllocStrdup(&corRest.kalloc, acP->model) : NULL;
+  pthread_mutex_unlock(&acP->modelMutex);
+
+  CorNode* treeP = (text != NULL) ? corJsonParse(corRest.corJsonP, text) : NULL;
+
+  if (treeP != NULL)
+    modelMap(acP, treeP, true);
+
+  pthread_mutex_unlock(&acP->writeMutex);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// modelIn - { "model": <node> }; then the other AssetChannels whose references it changes, mapped again
+//
+// One AssetChannel's writeMutex at a time: this one's released before another's is taken - two models
+// coming in at once, each changing the other's references, wait for no one.
+//
+static int modelIn(AssetChannel* acP, CorNode* treeP)
+{
+  pthread_mutex_lock(&acP->writeMutex);
+  int r = modelMap(acP, treeP, false);
+  pthread_mutex_unlock(&acP->writeMutex);
+
+  if (r != BRIDGE_OK)
+    return r;
+
+  AssetChannel** acV = NULL;
+  int            n   = assetChannelsToRemap(acP, &acV);
+
+  for (int ix = 0; ix < n; ix++)
+    modelRemap(acV[ix]);
+
+  return r;
 }
 
 
@@ -1161,7 +1444,7 @@ static int valuesIn(AssetChannel* acP, CorNode* valuesP)
 
   AssetModel model;
 
-  if ((treeP == NULL) || (modelFind(&model, acP->mapP, treeP) == false))
+  if ((treeP == NULL) || (modelFind(&model, acP, treeP) == false))
   {
     pthread_mutex_unlock(&acP->modelMutex);
     COR_W("bridge '%s': values on AssetChannel '%s' before its model - dropped", acP->bridgeName, acP->endpoint);
@@ -1238,7 +1521,7 @@ void assetChannelNodeValueSet(AssetChannel* acP, const char* nodeId, CorNode* va
   CorNode*   treeP = (text != NULL) ? corJsonParse(corRest.corJsonP, text) : NULL;
   AssetModel model;
 
-  if ((treeP != NULL) && (modelFind(&model, acP->mapP, treeP) == true))
+  if ((treeP != NULL) && (modelFind(&model, acP, treeP) == true))
   {
     AssetEntity* inP   = NULL;
     CorNode*     nodeP = nodeById(&model, treeP, nodeId, NULL, &inP);
@@ -1275,7 +1558,11 @@ int assetChannelSampleIn(AssetChannel* acP, const char* json, int64_t publishTim
   if (modelP != NULL)
     r = modelIn(acP, modelP);
   else if ((valuesP != NULL) && (valuesP->type == CorArray))
+  {
+    pthread_mutex_lock(&acP->writeMutex);
     r = valuesIn(acP, valuesP);
+    pthread_mutex_unlock(&acP->writeMutex);
+  }
   else
   {
     COR_W("bridge '%s': the sample on AssetChannel '%s' is neither { \"model\": ... } nor { \"values\": [ ... ] } - dropped", acP->bridgeName, acP->endpoint);

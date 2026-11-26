@@ -14,6 +14,7 @@
 
 #include "corLog/corLog.h"                            // COR_T
 #include "corBridge/BridgeDriver.h"                   // BridgeDriver
+#include "corAlloc/corAlloc.h"                        // corAlloc
 #include "corAlloc/corAllocStrdup.h"                  // corAllocStrdup
 #include "corRest/CorRestState.h"                     // corRest
 
@@ -29,6 +30,7 @@
 
 static AssetChannel*    assetChannelList = NULL;
 static pthread_mutex_t  statusMutex     = PTHREAD_MUTEX_INITIALIZER;   // assetChannelStatusSet's retired reasons
+static pthread_mutex_t  nodeMutex       = PTHREAD_MUTEX_INITIALIZER;   // every AssetChannel's nodeV and refV - never held with another lock
 
 
 
@@ -164,6 +166,7 @@ int assetChannelCreate(const char* bridgeName, const char* endpoint, Tenant* ten
   acP->info = info;
 
   pthread_mutex_init(&acP->modelMutex, NULL);
+  pthread_mutex_init(&acP->writeMutex, NULL);
 
   //
   // A Bridge that is not loaded: the AssetChannel is still added - valid configuration for a transport this
@@ -304,6 +307,179 @@ bool assetChannelMappedLookup(Tenant* tenantP, const char* entityId, const char*
 
 // -----------------------------------------------------------------------------
 //
+// nodesFree / refsFree -
+//
+static void nodesFree(AssetNode* nodeV, int nodes)
+{
+  for (int ix = 0; ix < nodes; ix++)
+  {
+    free(nodeV[ix].nodeId);
+    free(nodeV[ix].entityId);
+  }
+
+  if (nodeV != NULL) free(nodeV);
+}
+
+static void refsFree(AssetReference* refV, int refs)
+{
+  for (int ix = 0; ix < refs; ix++)
+  {
+    free(refV[ix].target);
+    if (refV[ix].entityId != NULL) free(refV[ix].entityId);
+  }
+
+  if (refV != NULL) free(refV);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodesKeep -
+//
+void assetChannelNodesKeep(AssetChannel* acP, AssetNode* nodeV, int nodes, AssetReference* refV, int refs)
+{
+  AssetNode*      newNodeV = (nodes > 0) ? (AssetNode*)      calloc(nodes, sizeof(AssetNode))      : NULL;
+  AssetReference* newRefV  = (refs  > 0) ? (AssetReference*) calloc(refs,  sizeof(AssetReference)) : NULL;
+
+  if (((nodes > 0) && (newNodeV == NULL)) || ((refs > 0) && (newRefV == NULL)))
+  {
+    if (newNodeV != NULL) free(newNodeV);
+    if (newRefV  != NULL) free(newRefV);
+    return;
+  }
+
+  for (int ix = 0; ix < nodes; ix++)
+  {
+    newNodeV[ix].nodeId   = strdup(nodeV[ix].nodeId);
+    newNodeV[ix].entityId = strdup(nodeV[ix].entityId);
+    newNodeV[ix].isEntity = nodeV[ix].isEntity;
+  }
+
+  for (int ix = 0; ix < refs; ix++)
+  {
+    newRefV[ix].target   = strdup(refV[ix].target);
+    newRefV[ix].entityId = (refV[ix].entityId != NULL) ? strdup(refV[ix].entityId) : NULL;
+    newRefV[ix].isEntity = refV[ix].isEntity;
+  }
+
+  pthread_mutex_lock(&nodeMutex);
+
+  AssetNode*      oldNodeV = acP->nodeV;
+  int             oldNodes = acP->nodes;
+  AssetReference* oldRefV  = acP->refV;
+  int             oldRefs  = acP->refs;
+
+  acP->nodeV = newNodeV;
+  acP->nodes = nodes;
+  acP->refV  = newRefV;
+  acP->refs  = refs;
+
+  pthread_mutex_unlock(&nodeMutex);
+
+  nodesFree(oldNodeV, oldNodes);
+  refsFree(oldRefV, oldRefs);
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// nodeLookup - the node of that id in the last model of another AssetChannel of exceptP's tenant; NULL.
+// Under nodeMutex
+//
+static AssetNode* nodeLookup(AssetChannel* exceptP, const char* nodeId)
+{
+  for (AssetChannel* acP = assetChannelFirst(); acP != NULL; acP = acP->next)
+  {
+    if ((acP == exceptP) || (acP->tenantP != exceptP->tenantP))
+      continue;
+
+    for (int ix = 0; ix < acP->nodes; ix++)
+    {
+      if (strcmp(acP->nodeV[ix].nodeId, nodeId) == 0)
+        return &acP->nodeV[ix];
+    }
+  }
+
+  return NULL;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelNodeLookup -
+//
+bool assetChannelNodeLookup(AssetChannel* exceptP, const char* nodeId, char** entityIdP, bool* isEntityP)
+{
+  pthread_mutex_lock(&nodeMutex);
+
+  AssetNode* nodeP = nodeLookup(exceptP, nodeId);
+
+  if (nodeP != NULL)
+  {
+    *entityIdP = corAllocStrdup(&corRest.kalloc, nodeP->entityId);
+    *isEntityP = nodeP->isEntity;
+  }
+
+  pthread_mutex_unlock(&nodeMutex);
+
+  return ((nodeP != NULL) && (*entityIdP != NULL));
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// assetChannelsToRemap -
+//
+int assetChannelsToRemap(AssetChannel* changedP, AssetChannel*** acVP)
+{
+  int channels = 0;
+
+  for (AssetChannel* acP = assetChannelFirst(); acP != NULL; acP = acP->next)
+    channels++;
+
+  AssetChannel** acV = (AssetChannel**) corAlloc(&corRest.kalloc, channels * sizeof(AssetChannel*));
+  int            n   = 0;
+
+  if (acV == NULL)
+    return 0;
+
+  pthread_mutex_lock(&nodeMutex);
+
+  for (AssetChannel* acP = assetChannelFirst(); acP != NULL; acP = acP->next)
+  {
+    if ((acP == changedP) || (acP->tenantP != changedP->tenantP))
+      continue;
+
+    for (int ix = 0; ix < acP->refs; ix++)
+    {
+      AssetReference* refP  = &acP->refV[ix];
+      AssetNode*      nodeP = nodeLookup(acP, refP->target);
+
+      if ((nodeP == NULL) && (refP->entityId == NULL))
+        continue;
+
+      if ((nodeP != NULL) && (refP->entityId != NULL) && (strcmp(nodeP->entityId, refP->entityId) == 0) && (nodeP->isEntity == refP->isEntity))
+        continue;
+
+      acV[n++] = acP;                                 // what the reference became has changed
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&nodeMutex);
+
+  *acVP = acV;
+  return n;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // assetChannelsRelease -
 //
 void assetChannelsRelease(void)
@@ -325,6 +501,8 @@ void assetChannelsRelease(void)
 
     assetMapFree(acP->mapP);
     free(acP->model);
+    nodesFree(acP->nodeV, acP->nodes);
+    refsFree(acP->refV, acP->refs);
 #if COR_FEATURE_CHANNEL_CHECKS || COR_FEATURE_CHANNEL_WRITE_BACK
     assetChannelMappedFree(acP->mappedV, acP->mapped);
 #endif

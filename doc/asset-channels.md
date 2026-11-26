@@ -124,8 +124,9 @@ An AAS one, the same members:
 | MultiLanguageProperty | LanguageProperty |
 | Range | Property, value `{ "min": ..., "max": ... }` |
 | File, Blob | Property: the file's URL (and `contentType` sub-Property); a Blob's content not copied |
-| ReferenceElement to a node that is an entity | Relationship |
-| ReferenceElement to anything else | Property, the reference as the source writes it |
+| ReferenceElement to a node that is an entity - of this model or of another AssetChannel's | Relationship to it |
+| ReferenceElement to a node in an entity (an element) - of this model or of another AssetChannel's | Relationship to that entity, and a `targetNode` sub-Property: the node's id |
+| ReferenceElement to anything else (no AssetChannel has the node; an external reference) | Property, the reference as the source writes it |
 | RelationshipElement (`first`, `second`) | a Relationship on `first`'s entity to `second`'s |
 | a child that is an entity (the shell's submodels) | a Relationship named by the child (`nameplate`) |
 | SubmodelElementList | ListProperty (of values) or ListRelationship (of references) |
@@ -199,12 +200,18 @@ and, as values change:
 | `children` | the nodes it contains |
 | `endpoint` | a `method`'s or an `operation`'s: where the bridge invokes it - the endpoint of its Service Registration (§ 4) |
 | `input`, `output` | a `method`'s or an `operation`'s variables, `{ "name", "valueType", "array" }` - `valueType` an XML Schema type (`xs:double`), left out when the source's type has none; `array` true for an array (an OPC UA argument of a ValueRank of dimensions) |
-| `references` | `{ "type", "target" }`: a Relationship when the target is an entity node, named by the type (several of one type: a ListRelationship); a Property (the target's id) when it is not |
+| `references` | `{ "type", "target" }`, the target a node's id: a Relationship, named by the type, to the entity the target node is or is in - a node of this model or of another AssetChannel's last model; to a node in it, not the entity itself, with a `targetNode` sub-Property, the node's id. Several of one type: a ListRelationship, its `targetNode` a ListProperty, one node id per object. A target no AssetChannel has: a Property, the target's id |
 
 A `method` or `operation` makes no attribute: a Service Registration of its entity when it has an `endpoint` (§ 4),
 nothing when it has none. A sample that is neither `model` nor `values`, or a model
 that makes no entity, is counted (`samplesRefused`) and dropped; a model with two entity nodes of one id is
 counted so too, and makes the AssetChannel dormant (`statusReason` says which id) until a model is taken.
+
+A reference to another AssetChannel's node follows that AssetChannel's last model. When a model comes in
+that changes what such a reference becomes - the node now there (a Relationship where it was a Property), in
+another entity, or gone (a Property again) - every AssetChannel of the tenant with that reference is mapped
+again from its kept model and written. One model's mapping and write at a time per AssetChannel; the one
+mapped again waits for nothing else.
 
 ## 4. Operations and methods: Service Execution
 
