@@ -197,7 +197,8 @@ Through the AAS HTTP API (IDTA Part 2), as any AAS client does:
   must not wipe the last values, and a reconnect may bring it back.
 - **Writing back,** with the channel's `channelDirection` `both`: a client's write to one of these
   attributes goes to the AAS server first, `PATCH /submodels/{id}/submodel-elements/{idShortPath}/$value`
-  in the ValueOnly form (Property, MultiLanguageProperty, Range, a SubmodelElementList of Properties). A
+  in the ValueOnly form (Property, MultiLanguageProperty, Range); a SubmodelElementList of Properties is
+  written whole, a `PUT` of the element with its items replaced - servers differ on a list's `$value`. A
   File, a Blob and the asset information are not written: 422. A write the server refuses is read back -
   the entity shows what the server has. Inbound only (the default), a client's write is stored in the
   broker and not sent.
