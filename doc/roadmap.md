@@ -150,7 +150,7 @@ Recently built, and documented where it lives:
 -   **The release is built from the libraries the pre-release campaign tested** - the campaign records
     the commit of every library (corLibs and c³ too) once, every part builds from that record, and
     `release.yml` builds and tags the release from the newest green campaign of the tag's tree; none,
-    and nothing is released. c³'s tag, made by hand, must be the commit in the record
+    and nothing is released. c³'s and corCep's tags, made by hand, must be the commits in the record
     ([Testing](testing.md#the-pre-release-campaign)).
 -   **HTTPS** - `--https --key <file> --cert <file>`: the NGSI-LD API over TLS on its `--port`
     ([Installation](installation.md#https)).

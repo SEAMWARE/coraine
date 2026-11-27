@@ -140,6 +140,21 @@ jobs:
             echo "::error::c3's v$VERSION is '${c3tag:-missing}', the campaign tested c3 at $c3 - tag that one: git -C c3 tag -a v$VERSION $c3 -m 'coraine $VERSION' && git -C c3 push origin v$VERSION"
             exit 1
           fi
+          #
+          # corCep is released with coraine, under coraine's version (KZ 2026-11-27), and is tagged by hand
+          # as c³ is: it is SEAMWARE/corCep, which the app token (SEAMWARE-cor) does not reach. Its tag
+          # starts corCep's own packages.yml (the corcep image and packages), which wants CORCEP_VERSION
+          # to be the tag's version. The tag must be the commit the campaign tested
+          #
+          cep=$(awk '$1 == "corCep" { print $2 }' /tmp/libs.txt)
+          if [ -n "$cep" ]; then
+            ceptag=$(git ls-remote --tags https://github.com/SEAMWARE/corCep.git "v$VERSION" "v$VERSION^{}" \
+                     | awk -v t="refs/tags/v$VERSION" '$2 == t "^{}" { peeled = $1 } $2 == t { plain = $1 } END { print (peeled != "" ? peeled : plain) }')
+            if [ "$ceptag" != "$cep" ]; then
+              echo "::error::corCep's v$VERSION is '${ceptag:-missing}', the campaign tested corCep at $cep - tag that one: git -C corCep tag -a v$VERSION $cep -m 'coraine $VERSION' && git -C corCep push origin v$VERSION"
+              exit 1
+            fi
+          fi
 
       #
       # The stack the release is built from. bootstrap.sh clones every dependency
@@ -284,13 +299,13 @@ jobs:
       # workflow can grant itself.
       #
       # The token's repositories are the ones the tag step below tags: every repository bootstrap.sh
-      # cloned into stack/ but coraine. A hand-kept list here left corCkanBridge and corOpcuaBridge out
+      # cloned into stack/ but coraine and corCep (SEAMWARE/corCep, tagged by hand - checked above). A hand-kept list here left corCkanBridge and corOpcuaBridge out
       # in 0.6.1 - 403 on both, after #505 had made the tag step take them all.
       #
       - name: The repositories to tag
         id: repos
         run: |
-          list=$(cd "$GITHUB_WORKSPACE/stack" && ls -d */ | tr -d / | grep -vx coraine | paste -sd, -)
+          list=$(cd "$GITHUB_WORKSPACE/stack" && ls -d */ | tr -d / | grep -vx -e coraine -e corCep | paste -sd, -)
           echo "list=$list" >> "$GITHUB_OUTPUT"
           echo "$list"
 
@@ -370,6 +385,7 @@ jobs:
           for d in "$GITHUB_WORKSPACE"/stack/*/; do
             lib=$(basename "$d")
             [ "$lib" = coraine ] && continue
+            [ "$lib" = corCep ]  && continue      # SEAMWARE/corCep: tagged by hand, its tag checked before the build
             tagRepo "$lib" "$(git -C "$d" rev-parse HEAD 2>/dev/null)"
           done
 
