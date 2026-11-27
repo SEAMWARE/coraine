@@ -37,6 +37,7 @@ nav:
   - Home: index.md
   - Installation & Administration: installation.md
   - Command-line options: options.md
+  - The log file kept in bounds: log-file.md
   - Migrating a database to coraine: migration.md
   - Kubernetes: kubernetes.md
   - High Availability: high-availability.md

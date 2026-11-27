@@ -18,6 +18,12 @@
 #include "corLog/corLogTraceLevelSet.h"           // corLogTraceLevelSet
 #include "corLog/corLogTraceLevelReset.h"         // corLogTraceLevelReset
 
+#if COR_FEATURE_LOG_TRIM
+#include "api/admin/adminLogTrim.h"               // adminLogTrimAdd, adminLogTrimParams
+#else
+#include "serviceRoutines/corNotInThisBuild.h"     // corNotInThisBuild
+#endif
+
 #include "api/admin/adminLog.h"                   // Own interface
 
 
@@ -76,6 +82,10 @@ bool adminGetLog(void)
   corTreeChildAdd(root, corTreeBoolean(allocP, "traces", false));
 #endif
 
+#if COR_FEATURE_LOG_TRIM
+  adminLogTrimAdd(root);                              // "file" and "trim" - a build without the trim has neither
+#endif
+
   corRest.out.responseTree = root;
   corNgsild.rawResponse = true;                       // not an Entity
   return true;
@@ -112,10 +122,37 @@ static void adminLogApplyFlags(void)
 
 // -----------------------------------------------------------------------------
 //
+// adminLogTrimRefused - the trim limits (trimAt, trimTo, trimKeep, trimKeepFor) checked and set before anything else
+// changes: true when they are refused (the response is set) - 501 when the trim is not in this build
+//
+static bool adminLogTrimRefused(void)
+{
+#if COR_FEATURE_LOG_TRIM
+  return (adminLogTrimParams() == false);
+#else
+  const char* trimParams[] = { "trimAt", "trimTo", "trimKeep", "trimKeepFor" };
+
+  for (unsigned int ix = 0; ix < sizeof(trimParams) / sizeof(trimParams[0]); ix++)
+  {
+    if (kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, trimParams[ix]) != NULL)
+      return corNotInThisBuild();
+  }
+
+  return false;
+#endif
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
 // adminPutLog - PUT /admin/log
 //
 bool adminPutLog(void)
 {
+  if (adminLogTrimRefused() == true)
+    return true;
+
   adminLogApplyFlags();
 
   const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");
@@ -133,6 +170,9 @@ bool adminPutLog(void)
 //
 bool adminPostLog(void)
 {
+  if (adminLogTrimRefused() == true)
+    return true;
+
   adminLogApplyFlags();
 
   const char* levels = kvLookup(corRest.in.uriParamV, corRest.in.uriParamCount, "traceLevels");

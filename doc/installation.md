@@ -296,7 +296,10 @@ coraine: --logTo 'syslog' is none of stdout, file, both
   the informational (`I:`) and verbose (`V:`) lines, `-t` the traces of a debug build. A broker
   started with neither writes, on a quiet start, nothing at all - except, with `--daemon`, the line with
   its pid (below).
-- **Rotation:** the broker does not reopen the file - it has no SIGHUP handler. Rotate it with
+- **Kept in bounds:** when the file's disk is full to `--logTrimAt` percent (90), the broker trims the file -
+  the oldest lines of least importance dropped, repeats merged, what goes kept gzipped for a while; also on request
+  (`POST /admin/log/trim`). [The log file kept in bounds](log-file.md) has the whole of it.
+- **Rotation:** the broker reopens the file only for its own trim - it has no SIGHUP handler. Rotate it with
   logrotate's `copytruncate`: the broker writes in append mode, so after the truncation its next line
   lands at the start of the file. A `create`-style rotation (rename, then a signal) does not work: the
   broker keeps writing to the renamed file.
@@ -1183,6 +1186,7 @@ Load the `admin` API plugin (`--apiPlugins admin`) to get:
 | `GET /admin/version` | version, git SHA, build timestamp |
 | `GET /admin/log` | current log/trace levels, and `traces`: whether this build has traces compiled in (Debug and Coverage builds; a release build takes trace levels and traces nothing) — `PUT`/`POST`/`PATCH`/`DELETE` change them at runtime |
 | `GET /admin/log/lines` | the broker's recent log, from what it keeps in memory (`--logLines`, 256 KiB by default) - whatever `--logTo` is: `{"lines": [...], "matched", "kept"}`, oldest first, each line with its UTC time first (`2026-11-20T12:51:24.486Z E: ...`). `?lines=` the last N of those that match (1-2000, default 100), `?types=` the line types (letters: `E` error, `W` warning, `I` info, `V` verbose, `T` trace, `X` exit - `types=EW`), `?match=` a text the line contains, `?since=` a UTC time (`2026-11-20T12:00:00Z`, or with milliseconds). 400: another value; 409: `--logLines 0`; 501: `COR_FEATURE_LOG_LINES` is off |
+| `POST /admin/log/trim`, `GET /admin/log/trimmed`, `GET`/`DELETE /admin/log/trimmed/{name}` | the log file kept in bounds: trim it now, the kept files of trimmed-off lines - and `PUT /admin/log?trimAt=&trimTo=&trimKeep=&trimKeepFor=`, the limits ([The log file kept in bounds](log-file.md)). 409: no log file; 501: `COR_FEATURE_LOG_TRIM` is off |
 | `GET /admin/tenants` | the tenants in use |
 | `GET /admin/plugins` | which plugins are loaded |
 | `GET /admin/metrics` | Prometheus metrics (when compiled in) |

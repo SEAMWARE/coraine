@@ -68,6 +68,7 @@ const CoraineFeature coraineFeatures[] =
   { "DB_INDEXES",        COR_FEATURE_DB_INDEXES        },
   { "PROBES",            COR_FEATURE_PROBES            },
   { "LOG_LINES",         COR_FEATURE_LOG_LINES         },
+  { "LOG_TRIM",          COR_FEATURE_LOG_TRIM          },
   { "TROE_CORDB",        COR_FEATURE_TROE_CORDB        },
   { "TROE_TIMESCALE",    COR_FEATURE_TROE_TIMESCALE    },
   { NULL,                false                         }

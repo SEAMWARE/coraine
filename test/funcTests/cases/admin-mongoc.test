@@ -236,12 +236,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((79|80))
+Content-Length: REGEX((216|217))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": false
 }
 
@@ -282,12 +291,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((78|79))
+Content-Length: REGEX((215|216))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": true
 }
 
@@ -299,12 +317,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((78|79))
+Content-Length: REGEX((215|216))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": true
 }
 
@@ -316,12 +343,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((85|86))
+Content-Length: REGEX((222|223))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "1-2,5-8",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": true
 }
 
@@ -333,12 +369,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((91|92))
+Content-Length: REGEX((228|229))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "1-2,5-8,10-11",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": true
 }
 
@@ -350,12 +395,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((87|88))
+Content-Length: REGEX((224|225))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "1-2,10-11",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": true
 }
 
@@ -367,12 +421,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((79|80))
+Content-Length: REGEX((216|217))
 
 {
+  "file": null,
   "info": true,
   "traceLevels": "99",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": true
 }
 
@@ -384,12 +447,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((81|82))
+Content-Length: REGEX((218|219))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "99",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": false
 }
 
@@ -454,12 +526,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((79|80))
+Content-Length: REGEX((216|217))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": false
 }
 
@@ -471,12 +552,21 @@ HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
 Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
-Content-Length: REGEX((79|80))
+Content-Length: REGEX((216|217))
 
 {
+  "file": null,
   "info": false,
   "traceLevels": "",
   "traces": REGEX((true|false)),
+  "trim": {
+    "at": 90,
+    "disk": null,
+    "keep": 10000,
+    "keepFor": 86400,
+    "last": null,
+    "to": 85
+  },
   "verbose": false
 }
 

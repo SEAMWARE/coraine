@@ -623,6 +623,7 @@ at a time and comparing the result against a full build.
 | `COR_FEATURE_CHANNEL_WRITE_BACK=OFF` | 25,048 bytes (release build) | no write-back - a DataChannel or an AssetChannel with `"channelDirection": "both"` is warned about and skipped |
 | `COR_FEATURE_ADMIN_CONFIG=OFF` | 1,528 bytes (release build) | `GET /admin/config` answers 501 |
 | `COR_FEATURE_LOG_LINES=OFF` | `adminLogLines.c` is not built (`admin.so`), and the broker has no `--logLines`; corLog's ring stays, unused | no log kept in memory - `/admin/log/lines` answers 501 |
+| `COR_FEATURE_LOG_TRIM=OFF` | `src/lib/logTrim` and `adminLogTrim.c` (`admin.so`) are not built, zlib is not linked, and the broker has no `--logTrimAt`, `--logTrimTo`, `--logTrimKeep`, `--logTrimKeepFor` | the log file is never trimmed - `/admin/log` has no `"file"` and `"trim"`, its trim parameters, `/admin/log/trim` and `/admin/log/trimmed` answer 501 |
 | `COR_FEATURE_PROBES=OFF` | 368 bytes of the broker, 1,650 of `admin.so`, 219 of `timescale.so` (release build) | no probes - `PROBE_SET` is nothing, `/admin/probes` answers 501; a test that reads one is not run (`REQUIRE_FEATURE: PROBES`) |
 | `COR_FEATURE_BRIDGE_INVENTORY=OFF` | 1,361 bytes (release build) | `GET /admin/bridges/{bridge}/inventory` answers 501; a bridge's `inventory` is never called |
 | `COR_FEATURE_BRIDGE_HTTP_LISTEN=OFF` | 43,616 bytes (release build, libmicrohttpd: corHttp is not linked) | `BridgeBroker.httpListen` is NULL: the broker serves no port for a bridge plugin |

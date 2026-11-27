@@ -86,6 +86,13 @@
 #  define LOG_LINES(handler)  corNotInThisBuild
 #endif
 
+#if COR_FEATURE_LOG_TRIM
+#  include "api/admin/adminLogTrim.h"             // adminPostLogTrim, adminGetLogTrimmed, adminGetLogTrimmedFile, ...
+#  define LOG_TRIM(handler)  handler
+#else
+#  define LOG_TRIM(handler)  corNotInThisBuild
+#endif
+
 
 
 // -----------------------------------------------------------------------------
@@ -119,6 +126,10 @@ static CorRestParam adminParams[] =
   { "types",       ADMIN_LOG_PARAMS },
   { "match",       ADMIN_LOG_PARAMS },
   { "since",       ADMIN_LOG_PARAMS },
+  { "trimAt",      ADMIN_LOG_PARAMS },           // PUT/POST/PATCH /admin/log - the log file's trim (doc/log-file.md)
+  { "trimTo",      ADMIN_LOG_PARAMS },
+  { "trimKeep",    ADMIN_LOG_PARAMS },
+  { "trimKeepFor", ADMIN_LOG_PARAMS },
   { "from",        ADMIN_INVENTORY_PARAMS },
   { "depth",       ADMIN_INVENTORY_PARAMS },
   { NULL, 0 }
@@ -137,6 +148,8 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbGet,    "/admin/health",  adminGetHealth,  0,                0 },
   { CorVerbGet,    "/admin/log",     adminGetLog,     0,                0 },
   { CorVerbGet,    "/admin/log/lines", LOG_LINES(adminGetLogLines), ADMIN_LOG_PARAMS, 0 },
+  { CorVerbGet,    "/admin/log/trimmed",   LOG_TRIM(adminGetLogTrimmed),     0, 0 },
+  { CorVerbGet,    "/admin/log/trimmed/*", LOG_TRIM(adminGetLogTrimmedFile), 0, 0 },
   { CorVerbGet,    "/admin/tenants", adminGetTenants, 0,                0 },
   { CorVerbGet,    "/admin/plugins", adminGetPlugins, 0,                0 },
   { CorVerbGet,    "/admin/metrics", adminGetMetrics, 0,                0 },
@@ -152,11 +165,13 @@ static CorRestServiceSimplified adminServices[] =
   { CorVerbPut,    "/admin/log",     adminPutLog,     ADMIN_LOG_PARAMS, 0 },
   // POST
   { CorVerbPost,   "/admin/log",             adminPostLog,             ADMIN_LOG_PARAMS, 0 },
+  { CorVerbPost,   "/admin/log/trim",        LOG_TRIM(adminPostLogTrim),   0,            0 },
   { CorVerbPost,   "/admin/subStats/flush",  SUBS(adminPostSubStatsFlush), 0,            0 },
   { CorVerbPost,   "/admin/indexes",         INDEXES(adminPostIndexes),    0,            0, NULL, { .features = { .plainJsonBody = 1 } } },  // the body is the admin API's own JSON
   { CorVerbPost,   "/admin/troeIndexes",     INDEXES(adminPostTroeIndexes), 0,           0, NULL, { .features = { .plainJsonBody = 1 } } },
   // DELETE
   { CorVerbDelete, "/admin/log",     adminDeleteLog,  ADMIN_LOG_PARAMS, 0 },
+  { CorVerbDelete, "/admin/log/trimmed/*", LOG_TRIM(adminDeleteLogTrimmedFile), 0, 0 },
   { CorVerbDelete, "/admin/indexes/*", INDEXES(adminDeleteIndex), 0,    0 },
   { CorVerbDelete, "/admin/troeIndexes/*", INDEXES(adminDeleteTroeIndex), 0, 0 },
   { CorVerbDelete, "/admin/probes",  PROBES(adminDeleteProbes), 0,      0 },

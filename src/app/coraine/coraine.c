@@ -159,6 +159,9 @@
 #include "inlineDispatch.h"                                  // inlineDispatchInit
 #include "memoryBudget.h"                                    // memoryBudgetInit, memoryBudgetAdmit
 #include "storePause.h"                                      // storePauseAdmit, storePauseValues
+#if COR_FEATURE_LOG_TRIM
+#include "logTrim/logTrim.h"                                 // logTrimInit, logTrimLimitsSet
+#endif
 #if COR_FEATURE_HEALTH
 #include "health.h"                                          // healthStart, healthRequestEnd, ...
 #endif
@@ -232,6 +235,12 @@ char*          logDir       = "/var/log/coraine";
 char*          logTo        = "stdout";
 #if COR_FEATURE_LOG_LINES
 int            logLines     = 256;          // KiB of the log kept in memory for GET /admin/log/lines (0: none)
+#endif
+#if COR_FEATURE_LOG_TRIM
+int            logTrimAt      = 90;         // % full the log file's disk may get before the log is trimmed (0: never)
+int            logTrimTo      = 85;         // % full a trim brings the disk under (or the log to half its size)
+int            logTrimKeep    = 10000;      // the newest lines a trim always keeps
+int            logTrimKeepFor = 86400;      // seconds the trimmed-off lines are kept, gzipped (0: not kept)
 #endif
 bool           versionOnly  = false;   // --version: handled before corArgsInit; in the table so --usage lists it
 int            poolSize     = 0;
@@ -341,6 +350,12 @@ static CorArg kargV[] =
   { "--logDir",             "-logDir",      CorArgString, _vp &logDir,       CorArgOpt, _vp "/var/log/coraine", NULL, NULL, "the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old" },
 #if COR_FEATURE_LOG_LINES
   { "--logLines",           "-logLines",    CorArgInt,    _vp &logLines,     CorArgOpt, _vp 256,   _vp 0,     _vp 65536, "KiB of the recent log kept in memory, for GET /admin/log/lines (the admin API) - whatever --logTo is (0: none)" },
+#endif
+#if COR_FEATURE_LOG_TRIM
+  { "--logTrimAt",          "-logTrimAt",   CorArgInt,    _vp &logTrimAt,    CorArgOpt, _vp 90,    _vp 0,     _vp 100, "% full the log file's disk may get (as df says it, the blocks reserved for root not counted) - then the log file is trimmed, its oldest lines of least importance dropped (0: never - only on request, POST /admin/log/trim); with --logTo file or both" },
+  { "--logTrimTo",          "-logTrimTo",   CorArgInt,    _vp &logTrimTo,    CorArgOpt, _vp 85,    _vp 1,     _vp 99,  "% full a trim for the disk brings it under - or the log to half its size, whichever comes first; under --logTrimAt" },
+  { "--logTrimKeep",        "-logTrimKeep", CorArgInt,    _vp &logTrimKeep,  CorArgOpt, _vp 10000, _vp 0,     _vp 10000000, "the newest lines of the log file a trim always keeps, whatever their type" },
+  { "--logTrimKeepFor",     "-logTrimKeepFor", CorArgInt, _vp &logTrimKeepFor, CorArgOpt, _vp 86400, _vp 0,   _vp 2592000, "seconds the lines a trim drops are kept, gzipped beside the log (GET /admin/log/trimmed) - unless deleted before (0: not kept)" },
 #endif
   { "--logTo",              "-logTo",       CorArgString, _vp &logTo,        CorArgOpt, _vp "stdout", NULL, NULL,     "where the log goes: stdout (the default), file (<logDir>/coraine.log) or both (the file and stdout)" },
   { "--insecureNotif",      "-insecureNotif",CorArgBool,  _vp &insecureNotif, CorArgOpt, _vp false, _vp false, _vp true, "accept any TLS certificate (a self-signed one) on every outgoing HTTPS request - notifications, forwards, @context downloads, and mqtts:// with the MQTT bridge (endpoints inside a trusted network)" },
@@ -2113,6 +2128,19 @@ int main(int argC, char* argV[])
     COR_I("--daemon: detached, pid %d", (int) getpid());
     corLogInfo = info;
   }
+
+#if COR_FEATURE_LOG_TRIM
+  //
+  // The log file kept in bounds (doc/log-file.md) - its thread started after --daemon's fork
+  //
+  if ((logTrimAt > 0) && (logTrimTo >= logTrimAt))
+    COR_X(1, "--logTrimTo %d: must be under --logTrimAt %d", logTrimTo, logTrimAt);
+
+  if (logFile == true)
+    logTrimInit(logDir, "coraine", logTrimAt, logTrimTo, logTrimKeep, logTrimKeepFor);
+  else
+    logTrimLimitsSet(logTrimAt, logTrimTo, logTrimKeep, logTrimKeepFor);   // no file: GET /admin/log says the limits all the same
+#endif
 
   COR_V("coraine  %s", CORAINE_VERSION);
   COR_I("Advertised HTTP endpoint: %s (%s)", ldBrokerHttpEndpoint, endpointSource);

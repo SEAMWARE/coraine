@@ -1,0 +1,280 @@
+#
+# FILE            log_trim.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# The log file kept in bounds (doc/log-file.md): a trim drops the oldest lines of least importance (T, V, F, I, W -
+# never E, X, nor the newest --logTrimKeep lines), merges repeated W/E lines into one with " (<n> times, <first> -
+# <last>)", keeps what it dropped gzipped (GET /admin/log/trimmed) and says it in an I line that starts "Log trimmed".
+# A trim on request (POST /admin/log/trim) and for the disk (full to --logTrimAt percent).
+#
+#   - GET /admin/log: the log file, the limits, the disk, no trim yet
+#   - the limits of a running broker: 400 for trimTo not under trimAt, a value out of range, not a number
+#   - 30 entities not found (3 ids): 30 W lines; a trim - the V lines dropped, 27 W merged into 3
+#   - the kept file: listed, downloaded whole (gzip, every line it says) and in part (Range: 206, 416)
+#   - DELETE: 204, then 404; --logTrimKeepFor passed: gone
+#   - the disk: trimAt at its fill now - trimmed by the thread within a second, "why": "disk"
+#   - restarted: the kept file of the earlier run is listed - its why and lines not known
+#   - --logTo stdout: no file - "file": null, POST /admin/log/trim 409
+#   - --logTrimTo not under --logTrimAt: the broker does not start
+#
+# REQUIRE_FEATURE: LOG_TRIM
+#
+--NAME--
+The log file kept in bounds: trimmed on request and for the disk, repeats merged, the trimmed-off lines kept gzipped
+
+--TAGS--
+admin log
+
+--INIT--
+D=/tmp/corTest-logTrim
+rm -rf $D
+mkdir -p $D
+corDbDrop
+COR_TRACE_LEVELS=""
+coraineStart --apiPlugins admin -v --logTo file --logDir $D --logTrimKeep 5 --logTrimKeepFor 3600
+
+--RUN--
+D=/tmp/corTest-logTrim
+B="localhost:$CB_PORT"
+
+#
+# trimOf <json> - what a trim did, the numbers that depend on the build (how many V lines the start wrote) as checks
+#
+trimOf() {
+  python3 -c '
+import json, re, sys
+t = json.loads(sys.argv[1])
+if t is None:
+  print("no trim"); sys.exit()
+print("why", t["why"], "| dropped", sorted(t["dropped"]), "| merged", t["merged"], "| smaller", t["sizeAfter"] < t["sizeBefore"],
+      "| file", re.sub(r"\d{8}T\d{6}Z", "<time>", t["file"] or "null") + (" | error " + t["error"] if "error" in t else ""))
+' "$1"
+}
+
+echo "01. GET /admin/log - the log file, the limits, the disk, no trim yet"
+echo "====================================================================="
+curl -s "$B/admin/log" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+t = d["trim"]
+print("file", d["file"])
+print("at", t["at"], "to", t["to"], "keep", t["keep"], "keepFor", t["keepFor"], "disk a percent", 0 < t["disk"] <= 100, "last", t["last"])
+'
+echo
+echo
+
+
+echo "02. The limits of a running broker - refused: trimTo not under trimAt, out of range, not a number; then set"
+echo "========================================================================================================="
+for q in "trimTo=95" "trimAt=101" "trimKeep=many" "trimKeepFor=-1"; do
+  curl -s -X PUT "$B/admin/log?$q" | python3 -c 'import json, sys; e = json.load(sys.stdin); print(e["status"], e["detail"])'
+done
+curl -s -X PATCH "$B/admin/log?trimKeep=1&trimKeepFor=3600" | python3 -c 'import json, sys; t = json.load(sys.stdin)["trim"]; print("keep", t["keep"], "keepFor", t["keepFor"])'
+echo
+echo
+
+
+echo "03. 30 entities not found, 3 ids - a trim: the V lines dropped, the 27 repeated W lines merged into 3"
+echo "======================================================================================================"
+for i in $(seq 1 30); do curl -s -o /dev/null "$B/ngsi-ld/v1/entities/urn:LT:$((i % 3))"; done
+trimOf "$(curl -s -X POST $B/admin/log/trim)"
+python3 -c '
+import re, sys
+for l in open(sys.argv[1]):
+  m = re.match(r"W: (\d+\.\d{3}): getEntity\.c\[\d+\]: entityRetrieve: 404 Entity not found: entity .(urn:LT:\d). not found \((\d+) times, (\d+\.\d{3}) - (\d+\.\d{3})\)$", l)
+  if m:
+    print(" ", m.group(2), m.group(3), "times, the first before the last:", m.group(4) < m.group(5), "- the line is the last one:", m.group(1) == m.group(5))
+  m = re.match(r"I: \d+\.\d{3}: logTrim\.c\[\d+\]: trimSay: (Log trimmed \(request\): dropped V \d+; 27 repeated lines merged; .* the disk \d+% full; the trimmed-off lines in coraine\.log\.trimmed-\d{8}T\d{6}Z\.gz)$", l)
+  if m:
+    print("  the I line:", re.sub(r"\d+", "<n>", m.group(1)))
+' $D/coraine.log
+echo
+echo
+
+
+echo "04. GET /admin/log/trimmed - the kept file: why, lines (the V dropped + the 27 merged), size, expires in an hour"
+echo "================================================================================================================"
+curl -s "$B/admin/log/trimmed" > $D/list.json
+python3 -c '
+import json, re, sys, datetime
+l = json.load(open(sys.argv[1]))
+last = json.loads(sys.argv[2])["trim"]["last"]
+p = lambda s: datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+for f in l:
+  print(re.sub(r"\d{8}T\d{6}Z", "<time>", f["name"]), f["why"], "| lines = dropped + merged:", f["lines"] == sum(last["dropped"].values()) + last["merged"],
+        "| size", f["size"] > 0, "| expires an hour after:", (p(f["expires"]) - p(f["time"])).seconds)
+' $D/list.json "$(curl -s $B/admin/log)"
+echo
+echo
+
+
+echo "05. GET /admin/log/trimmed/{name} - whole: gzip, every line; Range: 206 with its part; past the end: 416"
+echo "======================================================================================================"
+N=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))[0]["name"])' $D/list.json)
+curl -s -D $D/h.txt -o $D/t.gz "$B/admin/log/trimmed/$N"
+tr -d '\r' < $D/h.txt | grep -E "^HTTP|^Content-Type|^Accept-Ranges|^Content-Disposition" | sed "s/$N/<name>/"
+python3 -c '
+import json, sys
+l = json.load(open(sys.argv[1]))[0]
+print("lines in it = lines listed:", sum(1 for _ in open(sys.argv[2])) == l["lines"])
+' $D/list.json <(zcat $D/t.gz)
+echo "the 27 merged W copies in it: $(zcat $D/t.gz | grep -c '^W: .*urn:LT:')"
+curl -s -D - -o $D/part -H 'Range: bytes=0-9' "$B/admin/log/trimmed/$N" | tr -d '\r' | grep -E "^HTTP|^Content-Range|^Content-Length" | sed -E 's#/[0-9]+$#/<size>#'
+cmp -s $D/part <(head -c 10 $D/t.gz) && echo "the part = the file's first 10 bytes"
+curl -s -o /dev/null -w "%{http_code}\n" -H 'Range: bytes=99999999-' "$B/admin/log/trimmed/$N"
+echo
+echo
+
+
+echo "06. DELETE - 204, then 404; another trim's file, --logTrimKeepFor 1 passed: gone"
+echo "================================================================================"
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "$B/admin/log/trimmed/$N"
+curl -s -X DELETE "$B/admin/log/trimmed/$N" | python3 -c 'import json, sys; e = json.load(sys.stdin); print(e["status"], e["title"], "-", e["detail"])' | sed "s/$N/<name>/"
+curl -s "$B/admin/log" | python3 -c 'import json, sys; print("last file:", json.load(sys.stdin)["trim"]["last"]["file"])'
+for i in $(seq 1 20); do curl -s -o /dev/null "$B/ngsi-ld/v1/entities/urn:LT:x$i"; done
+curl -s -o /dev/null -X POST "$B/admin/log/trim"
+echo "kept: $(curl -s $B/admin/log/trimmed | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))')"
+curl -s -o /dev/null -X PATCH "$B/admin/log?trimKeepFor=1"
+for i in $(seq 1 30); do [ "$(curl -s $B/admin/log/trimmed)" == "[]" ] && break; sleep 0.2; done
+echo "kept: $(curl -s $B/admin/log/trimmed | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))'), files: $(ls $D | grep -c 'trimmed-')"
+curl -s -o /dev/null -X PATCH "$B/admin/log?trimKeepFor=3600"
+echo
+echo
+
+
+echo "07. The disk - trimAt at its fill now: trimmed by the thread within a second, why disk"
+echo "======================================================================================"
+for i in $(seq 1 20); do curl -s -o /dev/null "$B/ngsi-ld/v1/entities/urn:LT:d$i"; done
+DISK=$(curl -s "$B/admin/log" | python3 -c 'import json, sys; print(json.load(sys.stdin)["trim"]["disk"])')
+curl -s -o /dev/null -X PUT "$B/admin/log?trimTo=$((DISK - 1))&trimAt=$DISK"
+for i in $(seq 1 50); do grep -q 'Log trimmed (disk' $D/coraine.log && break; sleep 0.1; done
+grep -c 'Log trimmed (disk' $D/coraine.log
+curl -s "$B/admin/log" | python3 -c '
+import json, sys
+t = json.load(sys.stdin)["trim"]
+print("why", t["last"]["why"], "| diskBefore >= trimAt:", t["last"]["diskBefore"] >= t["at"])
+'
+curl -s -o /dev/null -X PUT "$B/admin/log?trimAt=0"
+echo
+echo
+
+
+echo "08. Restarted - the kept file of the earlier run is listed, its why and lines not known"
+echo "======================================================================================="
+coraineStop
+COR_TRACE_LEVELS=""
+coraineStart --apiPlugins admin --logTo file --logDir $D
+curl -s "$B/admin/log/trimmed" | python3 -c '
+import json, re, sys
+for f in json.load(sys.stdin):
+  print(re.sub(r"\d{8}T\d{6}Z", "<time>", f["name"]), "why", f["why"], "lines", f["lines"], "size", f["size"] > 0)
+'
+echo
+echo
+
+
+echo "09. --logTo stdout - no file: \"file\" null, the disk null, POST /admin/log/trim 409"
+echo "===================================================================================="
+coraineStop
+coraineStart --apiPlugins admin
+curl -s "$B/admin/log" | python3 -c 'import json, sys; d = json.load(sys.stdin); print("file", d["file"], "disk", d["trim"]["disk"], "at", d["trim"]["at"])'
+curl -s -X POST "$B/admin/log/trim" | python3 -c 'import json, sys; e = json.load(sys.stdin); print(e["status"], e["title"], "-", e["detail"])'
+echo
+echo
+
+
+echo "10. --logTrimTo not under --logTrimAt - the broker does not start"
+echo "================================================================="
+coraineStop
+$COR_BROKER --port $CB_PORT --logTrimAt 50 --logTrimTo 60 > $D/refused.out 2>&1
+echo "exit: $?"
+grep -o 'X: .*' $D/refused.out | sed -E 's/^X: [0-9.]+: [a-zA-Z.]+\[[0-9]+\]: [a-zA-Z]+: /X: /'
+echo
+echo
+
+
+--EXPECT--
+01. GET /admin/log - the log file, the limits, the disk, no trim yet
+=====================================================================
+file /tmp/corTest-logTrim/coraine.log
+at 90 to 85 keep 5 keepFor 3600 disk a percent True last None
+
+
+02. The limits of a running broker - refused: trimTo not under trimAt, out of range, not a number; then set
+=========================================================================================================
+400 trimTo must be under trimAt (trimAt 90, trimTo 95)
+400 trimAt: 0 to 100
+400 trimKeep: 0 to 10000000
+400 trimKeepFor: 0 to 2592000
+keep 1 keepFor 3600
+
+
+03. 30 entities not found, 3 ids - a trim: the V lines dropped, the 27 repeated W lines merged into 3
+======================================================================================================
+why request | dropped ['V'] | merged 27 | smaller True | file coraine.log.trimmed-<time>.gz
+  urn:LT:1 10 times, the first before the last: True - the line is the last one: True
+  urn:LT:2 10 times, the first before the last: True - the line is the last one: True
+  urn:LT:0 10 times, the first before the last: True - the line is the last one: True
+  the I line: Log trimmed (request): dropped V <n>; <n> repeated lines merged; <n> KiB -> <n> KiB, the disk <n>% full; the trimmed-off lines in coraine.log.trimmed-<n>T<n>Z.gz
+
+
+04. GET /admin/log/trimmed - the kept file: why, lines (the V dropped + the 27 merged), size, expires in an hour
+================================================================================================================
+coraine.log.trimmed-<time>.gz request | lines = dropped + merged: True | size True | expires an hour after: 3600
+
+
+05. GET /admin/log/trimmed/{name} - whole: gzip, every line; Range: 206 with its part; past the end: 416
+======================================================================================================
+HTTP/1.1 200 OK
+Content-Type: application/gzip
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="<name>"
+lines in it = lines listed: True
+the 27 merged W copies in it: 27
+HTTP/1.1 206 Partial Content
+Content-Range: bytes 0-9/<size>
+Content-Length: 10
+the part = the file's first 10 bytes
+416
+
+
+06. DELETE - 204, then 404; another trim's file, --logTrimKeepFor 1 passed: gone
+================================================================================
+204
+404 Trimmed-off log lines not found - no kept file '<name>' (deleted, or --logTrimKeepFor passed)
+last file: None
+kept: 1
+kept: 0, files: 0
+
+
+07. The disk - trimAt at its fill now: trimmed by the thread within a second, why disk
+======================================================================================
+1
+why disk | diskBefore >= trimAt: True
+
+
+08. Restarted - the kept file of the earlier run is listed, its why and lines not known
+=======================================================================================
+coraine.log.trimmed-<time>.gz why None lines None size True
+
+
+09. --logTo stdout - no file: "file" null, the disk null, POST /admin/log/trim 409
+====================================================================================
+file None disk None at 90
+409 No log file - the broker logs to stdout (--logTo stdout) - there is no file to trim
+
+
+10. --logTrimTo not under --logTrimAt - the broker does not start
+=================================================================
+exit: 1
+X: --logTrimTo 60: must be under --logTrimAt 50
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+rm -rf /tmp/corTest-logTrim

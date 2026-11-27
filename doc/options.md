@@ -26,7 +26,7 @@ options, and its options are also documented with the plugin.
 
 ## The broker
 
-- [The program](#the-program) - 12
+- [The program](#the-program) - 16
 - [Listening](#listening) - 15
 - [Limits and memory](#limits-and-memory) - 7
 - [The HTTP server](#the-http-server) - 1
@@ -242,8 +242,8 @@ Where the log goes: `stdout` - standard output, what a terminal, `docker logs` a
 stdout. Any other value is refused at start, exit code 1:
 `coraine: --logTo 'syslog' is none of stdout, file, both`. With `--daemon` only `file` is accepted.
 
-The file is not reopened while the broker runs (no SIGHUP handler); it is written in append mode, so
-logrotate's `copytruncate` rotates it.
+The broker reopens the file only for its own trim ([The log file kept in bounds](log-file.md), `--logTrimAt`) -
+there is no SIGHUP handler; it is written in append mode, so logrotate's `copytruncate` rotates it.
 
     coraine -db corDB --logTo both --logDir .      # the log on the terminal and in ./coraine.log
 
@@ -260,6 +260,53 @@ file starts empty. The file is created `0664` minus the umask (`-rw-r--r--` unde
 
     sudo install -d -o coraine -g coraine -m 0755 /var/log/coraine
     coraine -db corDB --logTo file      # the log in /var/log/coraine/coraine.log
+
+### `--logTrimAt`
+
+`-logTrimAt` · `CORAINE_LOGTRIMAT` · Int · default: `90` (%)
+· values: 0-100 · needs: `--logTo file` or `both` (a file to trim) · plugin: core · build: `COR_FEATURE_LOG_TRIM`
+
+How full the log file's disk may get, in percent, before the broker trims the log file: the oldest lines of least
+importance are dropped (traces first, then verbose, FIXME, info and warnings; never errors, nor the newest
+`--logTrimKeep` lines), repeated warnings and errors merged into one line, and what goes kept gzipped beside the log
+(`--logTrimKeepFor`). The percentage is `df`'s `Use%` - the blocks a filesystem reserves for root are not counted as
+free. A thread looks at the disk once a second. 0: never for the disk - only on request, `POST /admin/log/trim`. The
+whole of it, and what changes it on a running broker (`PUT /admin/log?trimAt=`), in
+[The log file kept in bounds](log-file.md).
+
+    coraine --logTo file --logTrimAt 95     # trimmed when the disk is 95 % full
+
+### `--logTrimTo`
+
+`-logTrimTo` · `CORAINE_LOGTRIMTO` · Int · default: `85` (%)
+· values: 1-99, under `--logTrimAt` · plugin: core · build: `COR_FEATURE_LOG_TRIM`
+
+How far a trim for the disk goes: until the disk is under this percent full, or the log at half its size, whichever
+comes first (a trim on request: half its size). One not under `--logTrimAt` (with `--logTrimAt` over 0) stops the
+start, exit code 1: `X: ... main: --logTrimTo 60: must be under --logTrimAt 50`.
+
+    coraine --logTo file --logTrimAt 95 --logTrimTo 80
+
+### `--logTrimKeep`
+
+`-logTrimKeep` · `CORAINE_LOGTRIMKEEP` · Int · default: `10000` (lines)
+· values: 0-10000000 · plugin: core · build: `COR_FEATURE_LOG_TRIM`
+
+The newest lines of the log file a trim always keeps, whatever their type - the recent past stays readable as it was
+written.
+
+    coraine --logTo file --logTrimKeep 100000
+
+### `--logTrimKeepFor`
+
+`-logTrimKeepFor` · `CORAINE_LOGTRIMKEEPFOR` · Int · default: `86400` (seconds - a day)
+· values: 0-2592000 · plugin: core · build: `COR_FEATURE_LOG_TRIM`
+
+How long the lines a trim drops are kept, gzipped, as `<logDir>/coraine.log.trimmed-<UTC time>.gz` - listed and
+fetched through `GET /admin/log/trimmed`, deleted with `DELETE /admin/log/trimmed/{name}` or when this time has
+passed. 0: nothing is kept.
+
+    coraine --logTo file --logTrimKeepFor 604800    # a week
 
 ### `--pretty-print`
 
