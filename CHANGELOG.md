@@ -12,6 +12,452 @@ one per pull request; `tools/changelog.sh` prints the coming release's section w
 
 ---
 
+## 0.8.0 — 2026-11-27
+
+The NGSI-LD API over HTTPS, and both HTTP servers in one broker: with the built-in one an idle broker is
+8 MiB resident and answers its first request 3.4-4.5 ms after it is started. AssetChannels and the AAS bridge (a prototype),
+coraine as another broker's Service Executor, corCep's rule engine inside the broker (the `coraine-cep`
+package), EntityMaps on the temporal API and on a retrieve by id, ordering by distance from any geometry,
+the recent log through the admin API, and a log file kept in bounds. Changes of behaviour to check before
+upgrading: `-fg` is refused, as announced; a retrieve by id answers 200 for an existing entity whatever
+`attrs` leaves; `orderBy` without `local=true` is 400 (`--orderDistributed` allows it); creating a Snapshot
+answers 202, a HEAD on an EntityMap 201; a batch's `@context` error is that entity's (207); `[*]` in q
+matches a LanguageProperty only; ProblemDetails titles say what failed; a 404 is logged as a warning; ended
+Service Executions are kept an hour. And 56 fixes.
+
+### New
+
+- `coraine --https --key <file> --cert <file>`: the NGSI-LD API over HTTPS (TLS), on its `--port` - the
+  server's private key and certificate are PEM files, read at start; the default `--httpEndpoint` then
+  begins with `https://`. libmicrohttpd does the TLS: a build with the built-in HTTP server refuses
+  `--https`.
+  ([Command-line options](doc/options.md#--https))
+- `GET`, `HEAD` and `POST /ngsi-ld/v1/temporal/entityMaps` - Create EntityMap for Query Temporal Evolution of
+  Entities (TS 104-176 § 11.3, TS 104-175 § 14.6): the ids of the entities a temporal query selects, frozen
+  in an EntityMap, with the maps of the Context Sources whose registrations list
+  `createEntityMapQueryTemporal`. 201, the map and `NGSILD-EntityMap`, as `GET /entityMaps` answers.
+  ([EntityMaps](doc/installation.md#the-entitymap-of-a-temporal-query))
+- Query Temporal Evolution of Entities with an EntityMap (TS 104-176 table 8.2.3.1-1): `entityMap=true` on
+  `GET /temporal/entities` and `POST /temporal/entityOperations/query` makes a map and answers its first page;
+  `entityMap=<id>` (or the `NGSILD-EntityMap` request header) answers a page of a map - each entity's history
+  from where the map says it is, a Context Source's by the registration the map recorded, in the map's time
+  window and with its filters. A map made by `/temporal/entityMaps` is paged the same way.
+  ([EntityMaps](doc/installation.md#the-entitymap-of-a-temporal-query))
+- q takes a DateTime with or without quotes. TS 104-175 § 7.2.3 is unclear on quotes, and a quoted
+  `q=p.observedAt>"2021-01-01T00:00:00Z"` compared as a string, matching nothing. A quoted full DateTime is now
+  compared by time against a value stored as a time (`observedAt`, `createdAt`, `modifiedAt`), and as a string
+  against a string, as before. Date and Time values (no `T`) stay strings. Entity queries on mongoc, corDB and
+  ramDB, and subscriptions; TRoE's `observedAt` already did.
+- Service Execution: coraine as another broker's Service Executor - `POST /ngsi-ld/ex/v1/executor/{serviceName}` and `DELETE /ngsi-ld/ex/v1/executor/{serviceName}/{id}` take the requests a broker sends an HTTP executor; the service is executed as an invocation on coraine's own entity, and an asynchronous execution's every change is reported to the broker that asked with `PATCH <reportTo>/ngsi-ld/v1/services/{id}` (`?reportTo=` in the endpoint). Two coraines chain their services this way (doc/service-execution.md, "Another broker as the executor").
+- Service Execution: a registration's endpoint may be `cor://` - the executor's requests over the cor:// transport; and an execution's `notification.endpoint` may be `cor://`.
+- A third Debian package, `coraine-cep`: corCep's rules engine as the bridge plugin `cep.so`
+  (`coraine --bridges cep`). It is built with the broker of the same version, and `coraine` depends on exactly
+  that version, so `apt install coraine` brings it. `coraine-build` builds the CEP bridge by default
+  (`--bridges mqtt,modbus,cep`).
+  ([Installation](doc/installation.md#install-with-apt))
+- `--reservedTenants`: tenants kept apart from the data - corCep's rules tenant is one. Reached with
+  `NGSILD-Tenant` as any other tenant, but stored in a database of its own (mongoc `<dbName>_r-<tenant>`,
+  corDB `_r-<tenant>`), so the rules never show in an ordinary tenant's queries, `/types` or `/attributes`;
+  not listed by `GET /admin/tenants`. Found again at start by its database. A name whose ordinary tenant
+  already has data stays ordinary, with a warning - ordinary data always wins, and the broker always starts.
+  ([Command-line options](doc/options.md#--reservedtenants))
+- Plugins can reserve a tenant themselves (`tenantReserve`) and visit the data tenants - the default one and
+  every ordinary tenant, the reserved ones left out (`tenantDataVisit`): corCep's `cep.so` runs its rules in
+  each of them.
+- `GET /admin/log/lines` - the broker's recent log through the admin API, whatever `--logTo` is (stdout in a
+  container or under systemd included): the last lines, by type (`types=EW`), by text (`match=`), since a
+  time (`since=`), each with its UTC time first. The broker keeps them in memory, `--logLines` KiB (256 by
+  default; 0: none). Feature switch `COR_FEATURE_LOG_LINES`. Needs corLog#12.
+- Retrieve Attribute (`GET /ngsi-ld/v1/entities/{id}/attrs/{attr}`) takes `join` and `joinLevel` (TS 104 176
+  § 7.5.3.1): with `join=inline` a Relationship comes back with its linked entity nested as `entity`, down to
+  `joinLevel` (1 by default). `join=@none` leaves it as it is, and `join=flat` is a 400 BadRequestData - an
+  attribute has no flat form. Before, both parameters were refused as unknown.
+- `coraine-build --bridges aas` builds the AAS bridge (`aas.so`, [corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge) -
+  a prototype): an Asset Administration Shell server's shells and submodels as AssetChannels. It needs
+  OpenSSL's headers (libssl-dev); `--list-bridges` says so where they are missing. The source tarball carries it.
+  ([AAS](doc/aas.md))
+- `coraine-build --source <clones>` needs only the bridge clones `--bridges` names: a broker built without dds
+  needs no `corDdsBridge` clone, nor `corCkanBridge`, `corOpcuaBridge`, `corAasBridge` or `corCep` when those
+  are not built. `docker/vendor-libs.sh` exports the bridge repositories `VENDOR_BRIDGES` lists (unset: all
+  seven - the image is unchanged); corLibs' makefile builds the bridge directories that are there.
+- `docker/vendor-libs.sh --list` prints the repositories it would export (with `VENDOR_BRIDGES`), and
+  `coraine-build --list-bridges --json` names each bridge's `repository` - what c³'s Compile checks a directory
+  of clones against before a build.
+- An AssetChannel's operations are services: each operation of the model (an AAS Operation) becomes a Service
+  Registration of the entity it is in - `serviceName` its name, its input and output variables the
+  `inputSchema` and `outputSchema` (an `xs:*` type a JSON type, a bounded integer its range), the endpoint the
+  bridge gives - so `POST /ngsi-ld/v1/entities/{id}/services/{name}` invokes it. A new model creates, replaces
+  and deletes them as its operations come, change and go; an AssetChannel configured away loses them; a
+  client's own registration is never touched. `COR_FEATURE_ASSET_CHANNEL_SERVICES`.
+  ([AssetChannels § 4](doc/asset-channels.md#4-operations-and-methods-service-execution))
+- An AssetChannel operation's array variable (`"array": true` - an OPC UA method's array argument) is an array
+  in its Service Registration's schema, `{ "type": "array", "items": ... }`, and a variable without a
+  `valueType` takes any value - the input of an OPC UA method with an array argument is checked as the method
+  takes it. ([AssetChannels § 4](doc/asset-channels.md#4-operations-and-methods-service-execution))
+- `coraine-build --image <name>`: the build as a container image too - this distribution's base image, the packages
+  of the libraries it links (the ones built from source copied), laid out as the published image (`/usr/local/bin`,
+  `/opt/seamware`, `coraine-start`, `coraine-health`), so it runs where the published one does. 67 MiB with the
+  default bridges on Ubuntu 26.04. docker or podman (`CONTAINER_ENGINE`); checked before anything is compiled.
+- `coraine-build --ref <repo>=<ref>` (with `--source <dir>`): another branch, tag or commit of one clone goes
+  into the build - once per repository, e.g. `--ref coraine=origin/main --ref corNgsild=feat/x`. Checked before
+  anything is exported; MANIFEST.txt names each ref; `--list-features` and `--list-bridges` read the refs too.
+- Build switches for the temporal history: `COR_FEATURE_TROE_CORDB` (corDB's own history, `--troe corDB`) and `COR_FEATURE_TROE_TIMESCALE` (`timescale.so`), both on by default - `coraine-build --features TROE_CORDB=OFF,TROE_TIMESCALE=OFF` builds a broker that keeps no history of its own (`--troe none`), for a deployment that keeps it elsewhere by subscription (QuantumLeap, Cygnus, Kafnus). A broker built without one does not offer it as a `--troe` value.
+- Ordering by distance from any reference geometry: `orderGeometry=LineString`, `Polygon`, `MultiPoint`,
+  `MultiLineString`, `MultiPolygon` beside `Point` (TS 104-175 § 7.6.2). An entity's `geoDistance` is the
+  shortest distance between the reference and its GeoProperty - 0 when they meet.
+- EntityMaps on Retrieve Entity, Retrieve Attribute and Retrieve Attribute value (TS 104-175 § 10.4.2.4,
+  TS 104-176 tables 7.3.3.1-1, 7.5.3.1-1, 7.6.3.1-1). `?entityMap=true` makes a map of the entity, with the
+  sources that answered with it, and answers 201 with the map in `NGSILD-EntityMap`. The `NGSILD-EntityMap`
+  request header names a map to use: only the registrations its entry for the entity names are asked, each
+  sent its own map (the linked map) in `NGSILD-EntityMap`, and the maps the sources used become the map's
+  linked maps; 200, the map in `NGSILD-EntityMap`. A named map that is gone is made anew: 201.
+- `entityMapLifetime` (an ISO 8601 duration) on Query Entities, Query Temporal Evolution of Entities and the
+  three retrievals above, and in the Query of `POST /entityOperations/query` and
+  `POST /temporal/entityOperations/query`: the lifetime of the map `entityMap=true` (`createEntityMap`) makes.
+  Without it a map lives 5 minutes, as before.
+- `--orderDistributed` (`CORAINE_ORDERDISTRIBUTED`): accepts `orderBy` without `local=true`, and orders the merged
+  local and Context Source matches - what coraine did by default before.
+  ([--orderDistributed](doc/options.md#--orderdistributed))
+- **Both HTTP servers in one broker**: `cmake -DCOR_HTTP_SERVER=both` (`coraine-build --http-server both`) builds a
+  broker with libmicrohttpd and the built-in server, and `--httpServer mhd|builtin` (`CORAINE_HTTPSERVER`) picks the
+  one it runs - libmicrohttpd by default. `coraine -V` and `GET /build` say the one running (`httpServer`) and the ones
+  built (`httpServers`). A server the broker is not built with, and `--https` or `--policyApiPort` on the built-in
+  server, stop the start ([The HTTP server](doc/installation.md#the-http-server)).
+- **`coraine-build --list-http-servers [--json]`**: the `--http-server` values the source can build.
+- `COR_FEATURE_CORDB` (`make release COR_WITH_CORDB=0`, `coraine-build --features CORDB=OFF`): a broker without
+  corDB - the corDB repository is not built (`corDB.so`, `ramDB.so`, the TRoE `ramDB.so`), `TROE_CORDB` is off
+  with it (`--list-features --json`: `"requires": ["CORDB"]`). A build with neither `MONGOC` nor `CORDB` is
+  refused. `--pgo` / `--tune` refuse `CORDB=OFF` (their training runs corDB).
+- `--database` defaults to `corDB` in a broker built without mongoc (`MONGOC=OFF`); `coraine-import` the same.
+- `coraine-build --image-file`: `--image`'s image saved as `<dir>/image.tar.gz` too (gzipped `docker save`, the
+  name inside), for a machine without a registry - `docker load -i image.tar.gz` or `podman load -i`.
+- `coraine -V` prints a sixth line, `plugins:`: the plugins the broker would find in its plugin directory and
+  take, per kind, as its options name them - `db= troe= api= auth= bridges= transports=`. `GET /build` says the
+  same of a running broker in `plugins.found`.
+- AssetChannels: a reference to a node of another AssetChannel's model is a Relationship to the entity that
+  node is or is in - an AAS ReferenceElement to a shell, a submodel or an element that another AssetChannel
+  reads. A reference to a node in an entity (an AAS element), in its own model or another's, is a
+  Relationship to that entity with a `targetNode` sub-Property, the node's id; several of one name a
+  ListRelationship, `targetNode` a ListProperty, one per object. When another AssetChannel's next model changes
+  what such a reference becomes (the node now there, moved, or gone), the AssetChannel with the reference is
+  mapped and written again. Before, all of these were Properties, the target's id.
+- The coraine image carries the AAS and CKAN bridges, `aas.so` and `ckan.so` (`--bridges aas`, `--bridges ckan`).
+  The image build loads both once and fails if one is missing or does not load. The OPC UA bridge is not in
+  the image: it links open62541. ([docker/README.md](docker/README.md))
+- The coraine image can carry the OPC UA bridge, `opcua.so` (`--bridges opcua`): built with `OPCUA=on`
+  (`make docker OPCUA=on`, `--build-arg OPCUA=on`), and only then - it brings open62541 (the image 12 MB bigger, with
+  mbedTLS). The image build loads it once and fails if it does not load. ([docker/README.md](docker/README.md))
+- The log file kept in bounds ([doc/log-file.md](doc/log-file.md)): when the disk holding `<logDir>/coraine.log` is
+  full to `--logTrimAt` percent (90), the broker trims the file - repeated warnings and errors merged into one line
+  `(<n> times, <first> - <last>)`, then the oldest lines of least importance dropped (traces, verbose, FIXME, info,
+  warnings - never errors, nor the newest `--logTrimKeep` lines) until the disk is under `--logTrimTo` percent (85)
+  or the log at half its size. What goes is kept gzipped for `--logTrimKeepFor` seconds (a day). Over the admin API:
+  `POST /admin/log/trim` (trim now), `GET /admin/log/trimmed` and `GET`/`DELETE /admin/log/trimmed/{name}` (the kept
+  files, Range supported), the limits in `GET /admin/log` and changed with `PUT /admin/log?trimAt=&trimTo=&trimKeep=&trimKeepFor=`.
+  Each trim says what it did in an `I:` line starting `Log trimmed`, written whatever the log level.
+  Compiled in with `COR_FEATURE_LOG_TRIM` (on); the broker now links zlib.
+
+### Faster
+
+- With the built-in HTTP server, coraine answers its first request 3.4-4.5 ms after it is started, from
+  6.3-8.0 ms: the connection pool's slots are set up on first use, and the port opens only once the server
+  can answer. Throughput is unchanged.
+  ([Start-up](doc/performance.md#start-up))
+- Service Execution keeps its pace: with an id index in corDB's document store (corDB#52) and a bounded store,
+  58 800 services/s and 42 400 actions/s (with progress) on one core, the loopback executor, TRoE on - it was
+  2 840 and 1 600, falling as executions piled up, and every 5 s the broker stalled for up to 0.8 s to sweep
+  all of them. ([Performance](doc/performance.md#service-execution))
+
+### Less memory
+
+- With the built-in HTTP server, an idle coraine is 8.0 MiB resident, from 16.1 MiB: a connection slot
+  becomes resident when a connection first uses it. Memory follows the most connections ever open at once.
+  ([RAM](doc/performance.md#ram))
+
+### Changed behaviour
+
+- `POST /ngsi-ld/v1/snapshots` and `POST /ngsi-ld/v1/snapshots/{snapshotId}/clone` answer `202 Accepted`,
+  as TS 104 176 § 13.2.3.1 and § 13.4.3.1 say - they answered `201 Created`. The `Location` header is
+  unchanged.
+  ([Command-line options](doc/options.md#--asyncsnapshot))
+- A batch entity breaking the `@context` / Content-Type rule (TS 104 176 § 6.2.4) - no `@context` under
+  `application/ld+json`, one under `application/json` - is that entity's BadRequestData in the batch's
+  `errors[]` (207), and the other entities are processed. Was a 400 for the whole request. Decided at the ETSI
+  NGSI-LD API call of 2026-11-10 (ETSI suite 003_06_01, 003_08_01). corNgsild#122.
+- A q term with `[*]` (no natural language specified) matches a LanguageProperty only, as decided in the ETSI
+  NGSI-LD API call of 2026-11-10. On a Property whose value is a JSON object, `description[*]=="pain"` used to
+  match through the object's keys. Now `[*]` there does not resolve: `!description[*]` matches, and every other
+  term does not. This holds for the entity query on mongoc and corDB, and for subscriptions.
+- A HEAD on `/ngsi-ld/v1/entityMaps` or `/ngsi-ld/v1/temporal/entityMaps` creates an EntityMap as the GET
+  does, and now answers 201 with the `NGSILD-EntityMap` header and no body. It used to answer 204. Decided in
+  the ETSI NGSI-LD API call of 2026-11-10.
+- Ended Service Executions are kept an hour, not 24, and at most 1000 per tenant - the oldest to end goes
+  first; a combined or grouped execution counts as one and goes with its children. `--executionRetention`
+  and `--executionMaxEnded` set them. ([Command-line options](doc/options.md#service-execution))
+- Purge Snapshots (`DELETE /snapshots?q=...`) whose q matches no Snapshot answers 404 ResourceNotFound
+  (TS 104-176 table 13.2.3.2-2); it answered 204.
+- A request that makes an EntityMap in place of one that is gone (the `NGSILD-EntityMap` request header, or
+  a page link's `entityMap=<id>`, naming an expired or deleted map) answers 201, as TS 104-176 table
+  7.2.3.1-2 gives for a map "(re)created"; it answered 200.
+- Query Temporal Evolution of Entities with `?entityMap=true` (GET, and `POST /temporal/entityOperations/query`)
+  answers 201 (TS 104-176 table 8.2.3.1-2); it answered 200.
+- `orderBy` on a query without `local=true` is 400 BadRequestData, title "Ordering outside the local scope"
+  (TS 104-175 § 10.4.3.4, § 11.3.3.4): Query Entities and Query Temporal Evolution of Entities, GET and POST.
+  A query on a Snapshot (`NGSILD-Snapshot`) forwards nothing and is ordered as before.
+  ([Ordering and the local scope](doc/installation.md#ordering-and-the-local-scope))
+- A ProblemDetails `title` now says what failed instead of repeating the HTTP status phrase: "Entity not
+  found", "Snapshot not found", "Inside an exclusive registration", "Operation not supported by the
+  registration", "Forward failed", "Not supported by the database", ... (about 200 sites; TS 104-175
+  § 8.3.3 asks for "a short string summarizing the error"). `type`, `status` and `detail` are unchanged.
+  An `about:blank` error (the policy API, authentication) keeps the status phrase, as RFC 9457 § 4.2.1
+  asks, and so does a coraine type that names the phrase itself (MethodNotAllowed, NotImplemented).
+- `orderBy` on strings without ICU (the default build) follows the root collation (TS 104-175 § 7.6.2.1)
+  instead of an ASCII approximation: letters with accents sort beside their base letter (`äpple` beside
+  `apple`), punctuation before digits, case only breaks ties. `collation=` now works without ICU for `sv`,
+  `de-u-co-phonebk` and the numeric key `-u-kn` (`item2` < `item10`); any other tag is the root order. The
+  order is ICU 78's for every Latin-1 and Latin Extended-A letter; other scripts sort after Latin, by code
+  point. An ICU build (`make COR_WITH_ICU=1`) still uses ICU.
+- AssetChannels: an attribute name's first word is lower-case with a leading acronym whole - `URIOfTheProduct`
+  is `uriOfTheProduct`, `AASReference` `aasReference`, `PLC` `plc` (was `uRIOfTheProduct`, `aASReference`,
+  `pLC`). Names that start with one capital are as they were.
+- AssetChannels: a model in which two entity nodes have the same id (an AAS shell and a submodel given one id)
+  is refused - nothing written, the AssetChannel dormant with the id in `statusReason`, `samplesRefused`
+  counting it - and taken again with the source's next model of distinct ids. Before, the two were written as
+  one entity of both types.
+- A retrieve by id - `GET /entities/{id}` and `GET /temporal/entities/{id}` - answers 200 for an existing entity
+  whatever `attrs`, `datasetId` and the time range leave: `attrs` is a projection, the Entity ID selects the entity
+  (ts-104-175!42, ts-104-176!20). The entity with none of the attributes: `{ id, type }`; on the temporal API also
+  each requested attribute the entity has, without instances - `[]`, or `{ "type", "values": [] }` (temporalValues),
+  `{ "type", "<method>": [] }` (aggregatedValues). Was 404 ResourceNotFound. An entity the store (or, on the temporal
+  API, the temporal database) does not have is still 404.
+- A 404 answer is logged as a warning (`W:`), not an error (`E:`) - an entity, subscription or resource that is not
+  there is an answer, not a failure. Unknown resources (`GET /ngsi-ld/v1/ws` without the WebSocket transport) too.
+  `GET /admin/log/lines?types=E` no longer lists them; `types=W` does. Other 4xx answers are still `E:`.
+- `-fg` / `--foreground` is removed, as announced: a broker started with it, or with `CORAINE_FOREGROUND=true`,
+  does not start - it says why on stderr and exits with 1. The broker runs in the foreground by default, and
+  `--daemon` detaches it. Through 0.7.x the option did nothing but write a warning line.
+
+### Fixed
+
+- A functional-test shard in CI that hangs is stopped by a limit of its own (25 minutes), under the job's,
+  so the job still keeps the test outputs and logs, and records which test was running and what was still
+  alive. At the job's limit GitHub ended the job before any of that ran, and the log was lost.
+- `GET /entities/{id}/attrs/{attrId}/value` (the value only Attribute fragment): a JSON object value, and an
+  object inside an array value, came back with its member names expanded
+  (`"https://uri.etsi.org/ngsi-ld/default-context/streetAddress"`); they are compacted with the request's
+  `@context`, as in `GET .../attrs/{attrId}`. `?lang` was ignored - a LanguageProperty gave its whole languageMap;
+  it now gives the string in that language (§ 7.2.7). And the response had no Link header: a value only fragment
+  cannot hold an `@context`, so it is in the Link header (TS 104-175 § 5.4.2). Found by the ETSI suite's 062_02.
+- A ListRelationship follows TS 104-175 § 5.2.6.4.9: an `objectList` item is accepted as a URI or as
+  `{"object": <URI>}`, and the normalized output (an entity, an attribute, a temporal evolution, a notification)
+  gives every item as `{"object": <URI>}`, `previousObjectList` included. Concise and simplified keep the URIs.
+  An `objectList` of `{"object": <URI>}` items was refused with 400.
+- `["urn:ngsi-ld:null"]` as a `valueList` or an `objectList` is the NGSI-LD Null: the core `@context` declares both
+  `"@container": "@list"`, so it deletes the attribute in an update, and is refused in a create. A notification
+  gives a deleted ListProperty or ListRelationship as `["urn:ngsi-ld:null"]`.
+- Linked entity retrieval (`join=inline`, `join=flat`, in a query and in a notification) follows a
+  ListRelationship's targets: inline adds them as `entityList`, simplified gives the attribute as those entities.
+- q on an attribute's members follows TS 104-175 § 7.2.3: `name.valueType`, `rel.objectType` and
+  `temp.unitCode` compare the member itself. Only their existence test used to match.
+- `valueType`, `objectType`, `vocab` and `previousVocab` values are expanded as the core `@context` says: a
+  core term gets its IRI (`langString` is stored as `http://www.w3.org/1999/02/22-rdf-syntax-ns#langString`),
+  and a q value on `valueType` or `objectType` is expanded the same way, so the short form and the IRI are
+  one query. Responses still show the short form.
+- An IRI expanded through a prefix of the request's `@context` (`ex:attr` with `"ex": "http://example.org/types/"`)
+  is compacted back to that compact IRI when the response's `@context` has the prefix - an entity type, an
+  attribute name, a `valueType` or `objectType` value. It was given as the full IRI. The core `@context`'s own
+  prefixes are not used this way: an error type stays its IRI.
+- Discovery (`/types`, `/types/{type}`, `/attributes`, `/attributes/{attrId}`) is never forwarded to an auxiliary
+  Context Source: TS 104-175 § 4.3.6 limits auxiliary operations to context information consumption. A registration
+  without `operations` was forwarded to. The types and attributes it declares are still listed.
+- `DELETE /entities/{id}/attrs/scope` removes the scope again, with a `deletedAt` in the temporal history
+  (TS 104-175 § 10.2.7.4: "If the target Attribute is scope, remove the scope Attribute from the target
+  Entity"). 0.7.0 refused it with 400 BadRequestData. A term of the request's `@context` for `ngsi-ld:scope`
+  works the same. `PATCH`, `PUT` and `PUT .../value` on `.../attrs/scope` still answer 400 (§ 10.2.5.4,
+  § 10.2.6.4, § 10.2.11.4), and `DELETE .../attrs/id` and `.../attrs/type` still answer 400.
+- Simplified temporal representation (`options=temporalValues`): a deleted ListProperty or ListRelationship
+  gives `["urn:ngsi-ld:null"]` as the list of its `valueLists` / `objectLists` pair, as TS 104-175 § 5.3.2.6
+  requires an array there. Before, it gave the bare string `"urn:ngsi-ld:null"`.
+- A query forwarded to a Context Source asks only for what the source's registration covers
+  (TS 104-175 § 4.3.6.2). Each element of the registration's `information[]` and each element of its
+  `entities[]` is a part of its own: the forward carries the part's types, its ids or `idPattern`, and the
+  attributes of that `information[]` element as `pick`. A registration whose parts differ gets one forward
+  per part. Before, the client's whole type list went to every source, so a query for
+  `type=OffStreetParking,Vehicle` returned the Vehicles of a source registered for OffStreetParking only;
+  the attributes of the first matching `information[]` element (or of all of them, with split entities)
+  went with every type; client ids outside the registration were passed on; and an auxiliary registration
+  was asked for types it does not have. A client `id` list is narrowed to the registration's ids, and to
+  the ids its `idPattern` matches; a client `idPattern` is applied to the answer.
+- A forwarded write carries only what the registration part it goes to covers (TS 104-175 § 4.3.6.2). Each
+  element of a registration's `information[]`, with each element of its `entities[]`, is a part of its own:
+  an attribute reaches a source only through a part whose `entities[]` cover the entity - its type when the
+  request gives one, its `id`, or its `idPattern` - and whose attributes include the attribute. Before, the
+  type of a part was never checked (a Bus created with `a` and `b` sent `a` to a source registered for
+  `a` of Cars only), batch upsert, update and merge handed every part's attributes to any entity the
+  registration matched (`a`, pinned to `urn:T:A`, went with `urn:T:B`), and batch create took any part with an
+  `idPattern` without matching it. A write that does not say the
+  entity's type (`PATCH`/`PUT`/`DELETE .../attrs/{attr}`, `POST .../attrs`, a `PATCH` without `type`) takes it
+  from the local copy - read only when a registration matched; without a local copy the type is not checked.
+- With `--high-availability mongo`, a subscription created on a broker could end up in that broker's cache
+  twice, and notify twice: the create writes the subscription to the database and then adds it to the cache,
+  and the change event of that very write, applied by the broker's own HA sync in between, had already added
+  it. About one create in 300, more on a slower machine (seen on arm64, `ha_ws_run_gone`). A create now
+  replaces a cached copy of the same id, under the same lock hold - entity subscriptions, subscriptions to
+  registrations and periodic subscriptions (corNgsild `ldPernotCacheItemAdd`) alike. Registrations were not
+  affected: their create holds the cache lock across the database write.
+- A Snapshot whose `id` is not a URI is not created (400 BadRequestData), nor a clone whose `id` is not
+  one; `GET`, `PATCH`, `DELETE` and `clone` on `/ngsi-ld/v1/snapshots/{snapshotId}` with an id that is not
+  a URI answer 400 - they created it, or answered 404.
+- A Snapshot with a `temporalQ` in a Query of `snapshotQueries`, or a Query of `snapshotTemporalQueries`
+  without one, is not created (400 BadRequestData, TS 104 175 § 5.2.6.5.4) - it was.
+- A distributed Query Temporal Evolution of Entities sent as a POST (`/temporal/entityOperations/query`)
+  reaches the Context Sources with its query: the entities, `temporalQ`, `attrs`, `q` and the geo-query
+  of the body. Before, only the URL's parameters were forwarded, a source got none of the body's - and
+  answered nothing, so the response held the local entities only.
+- A CORS preflight (`OPTIONS`) of a URL with a query is answered (204, with the CORS headers): it was
+  refused 400 "Unknown/unsupported URL parameter", and a browser never sent the request - a batch upsert
+  with `?options=replace`, a `GET` with `?type=...` and a non-simple header. A preflight checks no URL
+  parameter; the request itself checks its own (corRest).
+- A `[*]` query on mongoc answered 500 when an Entity of the queried type had no such Attribute
+  (`$anyElementTrue's argument must be an array, but is null`).
+- The release and PGO builds (`make release`, `make pgo` - the published images) failed to compile the mongoc
+  backend's `[*]` q code (`-Werror=format-truncation`): a buffer one suffix too small. The debug build did not
+  warn. The images of #571's merge were not published.
+- With an auth plugin (`--auth oidc`, `--auth fdsc`) and `--corsOrigin`, a browser's CORS preflight (`OPTIONS`
+  with `Origin` and `Access-Control-Request-Method`) was a 401: a browser never sends credentials on a
+  preflight, so no web app on another origin could reach the broker. A preflight is now answered without a
+  token; the request itself still needs one. An `OPTIONS` that is no preflight is checked as before.
+- A write to an entity that two write-back DataChannels' `id` templates both fit (two bridges each making
+  `urn:ngsi-ld:Light:{@deviceId}`) goes to the DataChannel whose record made the entity - it went to the
+  first that fits, whose bridge has no such device: 400.
+  ([DataChannels](doc/bridge-channels.md#datachannels))
+- A broker stopped with WebSocket connections open could crash on its way out (SIGSEGV): the HTTP server was
+  stopped first, freeing the connections' handles, and each connection's thread then handed back a freed one.
+  The connections are now closed first - the client gets a close frame `1001` (going away), which it did not
+  before - and a WebSocket asked for during the stop is refused.
+- mongoc: a list on a timestamp (`q=p.observedAt==2026-01-01T00:00:00Z,2026-09-01T00:00:00Z`, also
+  `createdAt` / `modifiedAt`) matched nothing; a DateTime list item was compared as its text with the stored
+  time.
+- The deprecated `attrs` selects again on every page: an entity with one of the listed attributes was lost when
+  it was not among the store's first page (20 by default) - the selection was made after the page was cut.
+  `GET /entities?attrs=A` answered `[]` with `A` on the 25th entity, and `count=true` counted every entity
+  of the page's query. The selection is now the store's (an existence test per attribute, in OR, with `q`),
+  as `q=A`'s is. mongoc, corDB, ramDB.
+- A context source registration subscription whose notification fails keeps its `status` (`active`, `paused`
+  or `expired`, TS 104 175 § 5.2.6.5.2); the failure shows in `notification.status`, `"failed"`. A single GET
+  answered the subscription's own `status` as `"failed"`, which is not one of its values; the list GET did not.
+- A subscription whose notifications the auth plugin drops whole - its owner not kept, or no longer allowed
+  (`--oidcOwnerMaxAge` run out, no read right, another tenant) - is said in the log: a warning naming the
+  subscription, the reason and the remedy (a PATCH with a valid token), at most once an hour a subscription.
+  Until now the drop was silent: no failure on the subscription, no log line.
+- WebSocket: a client gone without a word - off the network, a proxy's stream dead - no longer keeps its
+  connection and thread for good. A connection quiet for 30 s gets a ping; nothing from the client for three of
+  them (90 s) closes it (1001). A browser answers pings by itself. The interval: `CORAINE_WS_PING` (seconds).
+- A child of a combined or grouped execution cancelled because its parent ended (a cancel, a sequential
+  child that failed) lost its parent: it was then deleted on its own, and could go before the parent did.
+- Set Attribute Value (`PUT /entities/{entityId}/attrs/{attrId}/value`) takes `?datasetId`: the instance
+  with that datasetId gets the value, keeping its own type, and the default instance is untouched. A
+  datasetId the Attribute has no instance of is a 404 ResourceNotFound (TS 104-175 § 10.2.6.4). It was
+  refused with 400 "Unknown/unsupported URL parameter" (ETSI test suite 063_04).
+- Service Execution: once a service is executed over http(s):// or cor://, invoking a service (`POST /ngsi-ld/v1/entities/{id}/services/{name}`) no longer runs on the I/O thread that read it - it may wait for the network, and an executor that called back on that thread (an HTTP executor's PATCH report) waited for it until the call timed out. With bridge executors only, invocations still run inline.
+- Service Execution: a cancel sent to an HTTP executor whose endpoint has a query puts the execution id in the path, before the query.
+- `georel=near` with `count=true` counts what the query matches: `NGSILD-Results-Count` had neither the type nor
+  `q` applied - every Entity near the point was counted, of any type. `type=Vehicle` near a point answered 15
+  where 4 Vehicles were returned and 12 existed in all. The Entities returned were right. mongoc.
+- A context source that answers a forwarded retrieve or query in plain JSON - no `Link` header, no
+  `@context` in the body - is read in the `@context` the request was forwarded with, not the core context.
+  Its attributes and type came back as `ngsi-ld:default-context/...` instead of the client's short names.
+  A source registered with a `jsonldContext` (`contextSourceInfo`) is such a source.
+- `?type` on the write operations of one Entity selects it: a type that names none of the Entity's types is a
+  404 ResourceNotFound, as for an unknown id, and nothing is written. Set Attribute Value, Partial Attribute
+  Update, Replace Attribute, Delete Attribute, Update Attributes, Append Attributes, Merge Entity, Replace
+  Entity and Delete Entity took the parameter and ignored it - a `DELETE /ngsi-ld/v1/entities/{id}?type=Car`
+  deleted a Vehicle.
+- Set Attribute Value (`PUT /entities/{entityId}/attrs/{attrId}/value`) on a ListRelationship takes the
+  normalized `objectList` form, `[{"object": <URI>}, ...]` (TS 104-175 § 5.2.6.4.9). It was refused with
+  400 "'objectList' items must be URIs or {"object": <URI>}" (ETSI test suite 063_01_08).
+- The nightly ETSI conformance job takes the suite's `@context` from the local context server again, not from
+  forge.etsi.org: `test/etsi/etsiForgeFree.sh` rewrites the suite's forge URLs of any forge group - it knew only
+  `rep/cim`, and the suite moved to `rep/data`, so nothing was rewritten and the run depended on forge being up.
+  The job clones the suite from `rep/data`.
+- An attribute name in the URL is one path segment (or a URL): `GET /ngsi-ld/v1/entities/{entityId}/attrs/a/b` is
+  404 - it reached the attribute with the name `a/b`. A 404 for a path ending in `/attrs/{attrId}/value` names the
+  whole path - it lost the `/value`.
+- `coraine-build --source <clones>` takes a git worktree as a clone (its `.git` is a file): `source.sh` and
+  `docker/vendor-libs.sh` refused it as "no clone".
+- A Query Entities whose `orderFrom` held something that is not a number (`orderFrom=[13.4,invalid]`) never
+  answered, on MongoDB: the broker parsed the coordinates forever. `orderFrom` is now checked as the
+  coordinates of a geo-query are: not JSON, or not the coordinates of the `orderGeometry` (a single number for
+  a Point, a position for a LineString) is 400 BadRequestData - on MongoDB it was a 500, on corDB a 200.
+- A distance order beside a geo-query: with `georel=within` (and every georel but `near`) the order was
+  ignored, and with `georel=near` the entities were ranked by their distance from the georel's point, not from
+  `orderFrom`.
+- corDB: `georel=near` and a distance order measured only Point GeoProperties - an entity whose GeoProperty
+  is a LineString or a Polygon had no distance; it now has the distance to the nearest point of its geometry,
+  as on MongoDB. A distance between two geometries that are not both Points is the haversine distance between
+  their nearest points (it was the planar distance in degrees times 111320 m, which at 52° N made an east-west
+  distance 60 % too long) - this also serves `near` against a registration's geometry.
+- Update Snapshot Status (`PATCH /snapshots/{id}`) refused a body carrying an output only member
+  (`snapshotStatus`, `snapshotQueriesDetails`, `snapshotTemporalQueriesDetails`, `createdAt`, `modifiedAt`,
+  `expiresAt`, `lastUsedAt`) with 400 "Immutable Field"; these are now ignored, as TS 104-175 § 5.2.6.5.4
+  requires, and the rest of the body is applied. Create Snapshot ignores a client's `snapshotQueriesDetails` and
+  `snapshotTemporalQueriesDetails` too - it kept them. `id`, `type`, `snapshotQueries` and
+  `snapshotTemporalQueries` are still refused in an update.
+- Purge Snapshots with a q naming something that is not a member of the Snapshot data type
+  (`q=temperature==20`) answered 204; it is 400 BadRequestData (TS 104-175 § 16.7.4).
+- `entityMapLifetime` was refused as an unknown URL parameter (400) on every operation.
+- `entityMap` with a value that is neither `true`, `false` nor the id of a map (a URI) was taken as the id of
+  a map that does not exist - a new map was made and the query answered 200. It is 400 BadRequestData.
+- `POST /entityOperations/query` with `"createEntityMap": true` was 400 "Invalid field for query": the v1.9
+  core context has no term for it, so it came out of the expansion in the default vocabulary. It makes a map,
+  201. The same for `firstN` and `offsetN` in the `temporalQ` of `POST /temporal/entityOperations/query`:
+  they were ignored.
+- Retrieve Entity with `join=flat` answers an array of Entities also when no linked entity is added (no
+  Relationships, all targets in `containedBy`, a self-cycle); it was the bare Entity object. TS 104-175 § 7.7.3:
+  a flat retrieval "shall always consist of an array of Entities".
+- The `lang` filter takes a list of language ranges with quality values, as TS 104-175 § 7.2.7 (example 4)
+  gives it: `lang=fr;q=0.5,nl;q=0.9` picks `nl`. Ranges are tried best q first (equal q in their order,
+  `q=0` not acceptable). For each range, the key with that tag (case-insensitive) is picked, else a key the
+  range is a prefix of (`de` picks `de-AT`). `*`, or no matching range, picks the default
+  (`@none` > `en` > the first key). Before, `lang` was compared as one whole tag.
+- A `collation` that is not a well-formed BCP 47 language tag (RFC 6067) is 400 BadRequestData
+  (TS 104-175 § 10.4.3.4), in every build. Before, `collation=!invalid!` was accepted and the default
+  order was used. A well-formed tag of an unknown language still falls back to the root order.
+- `Preference-Applied` names the version major.minor, `ngsi-ld=1.9`, as TS 104-176 annex A.2.5.3 does.
+  It was `ngsi-ld=1.9.1`.
+- A `csf` syntax error is titled "Invalid csf parameter". It was "Invalid q parameter".
+- `orderBy` on `POST /ngsi-ld/v1/entityOperations/query` and the temporal POST query: the attribute path
+  was expanded twice, giving 400 "Invalid Attribute Name".
+- A broker built without a store (`MONGOC=OFF`, `CORDB=OFF`) refuses it by name - `--database mongoc`,
+  `corDB`, `ramDB`, `--troe ramDB` - and leaves it out of its usage: a `.so` left in the plugin directory by
+  another build was loaded and run.
+- `make install` of a build with `MONGOC`, `TROE_TIMESCALE`, `ADMIN_API` or `TRANSPORTS` off failed on the
+  plugin it did not build.
+- `GET /assetChannels/{id}` (and `/channels/{id}`, `/dataChannels/{id}`) finds a channel whose id carries a URL -
+  `urn:ngsi-ld:AssetChannel:aas:https://acme.example/ids/aas/press-17`, its endpoint an AAS shell's id -
+  percent-encoded or as it is. It answered 400 "empty path segment".
+
+### Documentation
+
+- [Performance](doc/performance.md#every-feature-in-geo-queries-out): the size of a broker with every
+  feature but geo-queries - 1.76 MiB with `corDB`, no added library.
+- [Roadmap](doc/roadmap.md): a broker that fits itself to its machine - the same build, shaped at start by
+  its memory and CPU limits; short of memory, it adapts rather than refusing to start.
+- doc/options.md: `coraine-build --image` has its entry (it had none; tools/optionsDocumented.sh found it).
+- building-details.md, "HTTP server: libmicrohttpd": why it is the default and stays in a build - HTTPS, the
+  policy API's port and the Profile-guided and Tuned builds are libmicrohttpd's alone.
+- doc/aas.md: an AAS RelationshipElement is mapped (corAasBridge) - a Relationship on the entity its `first`
+  is or is in, to what its `second` refers to, as a ReferenceElement's target.
+- doc/aas.md: the AAS bridge's credentials - a fixed `Authorization` header, an OAuth2 client-credentials token
+  (renewed before it expires and after a 401), mutual TLS (corAasBridge).
+- doc/aas.md: the AAS bridge writes a SubmodelElementList whole, a PUT of the element, not by its `$value`.
+- doc/aas.md: the AAS bridge can find a shell and its submodels through an AAS Registry; open question 3 narrowed.
+- doc/aas.md: the AAS bridge can take BaSyx's and FA³ST's MQTT change events (push), polling underneath; open question 2 narrowed.
+- doc/aas.md: the AAS bridge's push takes a protected MQTT broker - mqtts (a CA file, a client certificate),
+  a user and password from the environment; only change events acted on; tested against BaSyx and FA³ST in CI.
+
+---
+
 ## 0.7.0 — 2026-11-04
 
 Three additions: a Subscription's `notification.geometryProperty` (the geometry of a GeoJSON
