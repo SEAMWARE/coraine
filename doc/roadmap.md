@@ -159,18 +159,19 @@ settles on.
 
 ## Short term
 
-- **Short option names that are short** - 79 options have a short name that is the long one with one dash
-  (`--noSplitEntities` / `-noSplitEntities`): 33 of the broker's, 13 of oidc's, 13 of fdsc's, 9 of mongoc's,
-  11 of timescale's, and corDB's own to check. A short name is there to be short, not self-explanatory:
-  2-4 letters, as `--orderDistributed` / `-od` already is (`-noSplitEntities` -> `-nose`). Open: whether the
-  old forms stay accepted with a warning until a release that refuses them (as `-fg` was through 0.7.x), and
-  whether mongoc's `-dbHost`, `-dbPort`, ... keep their Orion-LD-like spelling.
+Nothing at the moment - the next release ships what is under [Available now](#available-now).
 
 ## Medium term
 
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
+-   **Short option names that are short** - 79 options have a short name that is the long one with one dash
+    (`--noSplitEntities` / `-noSplitEntities`): 33 of the broker's, 13 of oidc's, 13 of fdsc's, 9 of mongoc's,
+    11 of timescale's, and corDB's own to check. A short name is there to be short, not self-explanatory:
+    2-4 letters, as `--orderDistributed` / `-od` already is (`-noSplitEntities` -> `-nose`). Open: whether the
+    old forms stay accepted with a warning until a release that refuses them (as `-fg` was through 0.7.x), and
+    whether mongoc's `-dbHost`, `-dbPort`, ... keep their Orion-LD-like spelling.
 -   **The entity type and the EntityMap of a distributed query** - on hold until it is settled in ETSI. Today the
     type of the request is left out when the map is created, so that an entity split across sources under
     different types (an RV: its Vehicle part in one broker, its Building part in another) can enter the map
