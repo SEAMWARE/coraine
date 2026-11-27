@@ -1051,31 +1051,11 @@ static bool entityRetrieve(const char* entityId, RetrieveMap* rmP)
   }
   else if (corNgsild.attrsV != NULL)
   {
+    //
+    // A projection only: the entity ID selects the entity - an existing entity with none of the attributes is
+    // 200, { id, type } (KZ 2026-11-27; ts-104-175!42 7.3.3, 10.4.2; ts-104-176!20 7.3.3.1)
+    //
     ldAttrsFilter(entityP, corNgsild.attrsV);
-
-    // Count surviving user attributes (skip entity members and
-    // system-managed timestamps — the filter preserves them but they
-    // don't satisfy the attrs existence rule).
-    bool hasUserAttr = false;
-    for (CorNode* c = entityP->value.head; c != NULL; c = c->next)
-    {
-      if (c->name == NULL)                            continue;
-      if (ldTermId(c) == CorTermId)    continue;
-      if (ldTermId(c) == CorTermType)  continue;
-      if (strcmp(c->name, "@context")         == 0)   continue;
-      if (ldTermId(c) == CorTermScope)       continue;
-      if (ldTermId(c) == CorTermCreatedAt)   continue;
-      if (ldTermId(c) == CorTermModifiedAt)  continue;
-      if (ldTermId(c) == CorTermExpiresAt)   continue;
-      hasUserAttr = true;
-      break;
-    }
-    if (!hasUserAttr)
-    {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Attribute not found",
-              "entity '%s' has none of the requested attributes", entityId);
-      return true;
-    }
   }
 
 #if COR_FEATURE_SERVICE_EXECUTION
