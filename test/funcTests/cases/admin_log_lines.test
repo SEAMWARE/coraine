@@ -9,7 +9,8 @@
 # is; each line with its UTC time first. The lines are the broker's, so the checks are what can be told of them:
 # how many matched, the time first, the type letter, the text matched.
 #
-#   - two entities not found: two E lines with their ids - types=E, match=urn:LL:
+#   - two entities not found, an unknown resource: three W lines with their ids - types=W, match=urn:LL: - a 404 is
+#     an answer, not an error: no E line for them
 #   - lines=1: the newest of them only
 #   - since a time to come: none
 #   - lines=0, since=yesterday: 400
@@ -47,10 +48,12 @@ for l in d["lines"]:
 }
 
 
-echo "01. Two entities not found - two E lines, with their ids"
-echo "========================================================"
+echo "01. Two entities not found, an unknown resource - three W lines with their ids, no E line"
+echo "========================================================================================"
 curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:LL:1"
 curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/entities/urn:LL:2"
+curl -s -o /dev/null "localhost:$CB_PORT/ngsi-ld/v1/nope/urn:LL:3"
+lines 'types=W&match=urn:LL:'
 lines 'types=E&match=urn:LL:'
 echo
 echo
@@ -58,7 +61,7 @@ echo
 
 echo "02. lines=1 - the newest only"
 echo "============================="
-lines 'types=E&match=urn:LL:&lines=1'
+lines 'types=W&match=urn:LL:&lines=1'
 echo
 echo
 
@@ -89,19 +92,22 @@ echo
 
 
 --EXPECT--
-01. Two entities not found - two E lines, with their ids
-========================================================
+01. Two entities not found, an unknown resource - three W lines with their ids, no E line
+========================================================================================
 status 200
-matched 2 returned 2 kept >= matched True
-  time E urn:LL:1
-  time E urn:LL:2
+matched 3 returned 3 kept >= matched True
+  time W urn:LL:1
+  time W urn:LL:2
+  time W urn:LL:3
+status 200
+matched 0 returned 0 kept >= matched True
 
 
 02. lines=1 - the newest only
 =============================
 status 200
-matched 2 returned 1 kept >= matched True
-  time E urn:LL:2
+matched 3 returned 1 kept >= matched True
+  time W urn:LL:3
 
 
 03. since a time to come - none
