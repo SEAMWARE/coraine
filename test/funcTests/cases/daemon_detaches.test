@@ -8,7 +8,7 @@
 # --daemon (-bg): the broker detaches from its terminal - the command returns (0) and the broker serves on
 # in a session of its own, no controlling terminal, its working directory /, stdin/stdout/stderr on
 # /dev/null. Its log is therefore a file: --daemon with --logTo stdout (the default) or both is refused,
-# with one line on stderr, and so is --daemon with -fg.
+# with one line on stderr, and so is -fg (removed in 0.8.0), with --daemon or without.
 #
 --NAME--
 Daemon mode (--daemon): the broker detaches and serves on; without a log file it is refused
@@ -114,7 +114,7 @@ exit code: 1
 
 03. --daemon --logTo file with -fg - refused
 ============================================
-coraine: --daemon and -fg contradict each other
+coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
 exit code: 1
 
 

@@ -1,0 +1,117 @@
+#
+# FILE            foreground_option_refused.test
+#
+# AUTHOR          Ken Zangelin
+#
+# Copyright 2026 Seamware
+#
+# -fg / --foreground: the broker runs in the foreground by default, and the option, deprecated through
+# 0.7.x, is removed in 0.8.0 - a broker started with it, or with CORAINE_FOREGROUND=true, says why on
+# stderr and exits with 1, before it opens its log. The usage does not list it.
+#
+--NAME--
+-fg / --foreground, removed in 0.8.0: refused at start with the reason, not in the usage
+
+--TAGS--
+cli log
+
+--INIT--
+
+--RUN--
+
+D=/tmp/corTest_fgRefused
+rm -rf $D
+mkdir -p $D
+XP=$((CB_PORT + 3250))
+
+#
+# refused <args> - the broker started with them: what it says, its exit code, and whether it served
+#
+refused() {
+  timeout 10 $COR_BROKER --port $XP --database corDB --troe none "$@" > $D/out 2>&1
+  echo "exit code: $?"
+  cat $D/out
+  echo "served: $(curl -s -o /dev/null -w '%{http_code}' "localhost:$XP/ngsi-ld/v1/entities?type=T")"
+}
+
+#
+# run - the broker started without the option, stopped (SIGTERM) once it serves; the lines that name -fg
+#
+run() {
+  $COR_BROKER --port $XP --database corDB --troe none > $D/out 2>&1 &
+  local pid=$!
+  for i in $(seq 1 100); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' "localhost:$XP/ngsi-ld/v1/entities?type=T")" = 200 ] && break
+    sleep 0.1
+  done
+  curl -s -w '\nstatus: %{http_code}\n' "localhost:$XP/ngsi-ld/v1/entities?type=T"
+  kill -TERM $pid
+  wait $pid
+  echo "exit code: $?"
+  echo "lines about -fg: $(grep -c -- '-fg' $D/out)"
+}
+
+
+echo "01. -fg - refused, the reason on stderr"
+echo "======================================="
+refused -fg
+echo
+echo
+
+
+echo "02. --foreground and CORAINE_FOREGROUND=true - the same"
+echo "======================================================="
+refused --foreground
+CORAINE_FOREGROUND=true refused
+echo
+echo
+
+
+echo "03. Without it - the broker serves, nothing about -fg"
+echo "====================================================="
+run
+echo
+echo
+
+
+echo "04. The usage does not list it"
+echo "=============================="
+$COR_BROKER -u -db corDB 2>&1 | grep -c -- '--foreground/-fg'
+echo
+echo
+
+
+--TEARDOWN--
+rm -rf /tmp/corTest_fgRefused
+
+--EXPECT--
+01. -fg - refused, the reason on stderr
+=======================================
+exit code: 1
+coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
+served: 000
+
+
+02. --foreground and CORAINE_FOREGROUND=true - the same
+=======================================================
+exit code: 1
+coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
+served: 000
+exit code: 1
+coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
+served: 000
+
+
+03. Without it - the broker serves, nothing about -fg
+=====================================================
+[]
+status: 200
+exit code: 0
+lines about -fg: 0
+
+
+04. The usage does not list it
+==============================
+0
+
+
