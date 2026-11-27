@@ -75,6 +75,7 @@ option(COR_FEATURE_SSE             "Enable Server-Sent Events - a subscription m
 option(COR_FEATURE_ADMIN_API       "Build the admin API plugin"                                 ON)
 option(COR_FEATURE_METRICS         "Enable Prometheus metrics via corProm (adds /admin/metrics)"  ON)
 option(COR_FEATURE_LOG_LINES       "Enable the log kept in memory (--logLines) and GET /admin/log/lines - the broker's recent log through the admin API, whatever --logTo is (the admin API plugin)" ON)
+option(COR_FEATURE_LOG_TRIM        "Enable the log file kept in bounds (--logTrimAt, --logTrimTo, --logTrimKeep, --logTrimKeepFor): trimmed when its disk is full to a limit and on request (POST /admin/log/trim), the trimmed-off lines kept gzipped (GET /admin/log/trimmed) - doc/log-file.md; zlib" ON)
 option(COR_FEATURE_PROBES          "Enable probes - what the code decided, for the functional tests: GET /admin/probes (the admin API plugin), src/lib/probe/probe.h" ON)
 option(COR_FEATURE_HEALTH        "Enable the health port (--healthPort): /live, /ready and a report, on a thread of its own" ON)
 
@@ -97,7 +98,7 @@ option(COR_FEATURE_MIGRATE           "Build coraine-import - a migration stream 
 # coraineFeatures.c reports the build's feature set on --version and /version
 # without fifteen #ifdefs.
 #
-set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC CORDB TROE_CORDB TROE_TIMESCALE ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES)
+set(COR_FEATURES SUBSCRIPTIONS REGISTRATIONS GEOQ CONTEXT_HOSTING MONGOC CORDB TROE_CORDB TROE_TIMESCALE ADMIN_API METRICS AUTH POLICY_API COR_PROTOCOL TRANSPORTS HA_RUNS SERVICE_EXECUTION SNAPSHOT_WRITE SNAPSHOT_SUBSCRIPTIONS MIGRATE HEALTH RESPONSE_BUDGET AUTO_ENTITY_MAP CHANNEL_STATUS_IN CHANNEL_CHECKS CHANNEL_WRITE_BACK BRIDGE_INVENTORY BRIDGE_HTTP_LISTEN ADMIN_CONFIG DATA_CHANNELS ASSET_CHANNELS ASSET_CHANNEL_SERVICES ICU_COLLATION TIMEPOINT TEMPORAL_ENTITY_MAP AUTH_OIDC AUTH_METADATA SSE Q_PREFILTER DB_INDEXES PROBES LOG_LINES LOG_TRIM)
 #
 # A subscription on a Snapshot is a subscription (SUBSCRIPTIONS), notified by the writes on the
 # snapshot (SNAPSHOT_WRITE) - without either it is off, and reported off.
@@ -376,6 +377,9 @@ message(STATUS "Optimized for: ${COR_OPTIMIZE}")
 add_compile_definitions(CORAINE_OPTIMIZE="${COR_OPTIMIZE}")
 
 set(COR_DYNAMIC_LIBS ssl crypto pthread dl m)
+if (COR_FEATURE_LOG_TRIM)
+  list(APPEND COR_DYNAMIC_LIBS z)                 # the trimmed-off log lines, gzipped (src/lib/logTrim)
+endif()
 
 # The one library the builtin server exists to remove. Linked only when the build
 # carries libmicrohttpd (mhd, both) - which is what makes `ldd coraine` the check
@@ -427,6 +431,9 @@ if (COR_FEATURE_METRICS)
 endif()
 if (COR_FEATURE_PROBES)
   ADD_SUBDIRECTORY(src/lib/probe)
+endif()
+if (COR_FEATURE_LOG_TRIM)
+  ADD_SUBDIRECTORY(src/lib/logTrim)
 endif()
 if (COR_FEATURE_SERVICE_EXECUTION)
   ADD_SUBDIRECTORY(src/lib/serviceExecution)

@@ -83,6 +83,7 @@ Q_PREFILTER=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 DB_INDEXES=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 PROBES=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 LOG_LINES=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
+LOG_TRIM=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true
 TROE_CORDB=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true troe=none|timescale corDB-refused=1
 TROE_TIMESCALE=OFF: build ok, start ok, REGISTRATIONS=true SUBSCRIPTIONS=true troe=corDB|none
 
