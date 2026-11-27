@@ -1,0 +1,315 @@
+#
+# FILE            troe_timescale_retrieve_attrs_projection.test
+#
+# Copyright 2026 Seamware
+# SPDX-License-Identifier: Apache-2.0
+#
+# A retrieve by id - Retrieve Entity, Retrieve Temporal Evolution of an Entity: the Entity ID selects the entity;
+# attrs (pick's deprecated synonym), datasetId and the temporal query only decide what comes back (KZ 2026-11-27;
+# ts-104-175!42: 7.3.3, 10.4.2, 11.3.2 - ts-104-176!20: 7.3.3.1). 404 ResourceNotFound only for an entity that is
+# not there. An existing entity is 200 whatever the projection leaves: { id, type } and, temporal, each requested
+# attribute the entity has, without instances - [] normalized, { type, values|objects: [] } simplified,
+# { type, <method>: [] } aggregated.
+#
+#   GET /entities/urn:R1?attrs=nope                      200 { id, type } (was 404 "none of the requested attributes")
+#   GET /entities/urn:R9?attrs=nope                      404 - no such entity
+#   temporal urn:R1, attrs=temperature, a range before   200 { id, type, temperature: [] } (was 404)
+#   the same, format=temporalValues                      "temperature": { "type": "Property", "values": [] }
+#   attrs=temperature,inRoom, temporalValues             the Relationship "objects": []
+#   the same, aggregatedValues, avg and max              { "type": "Property", "avg": [], "max": [] }
+#   attrs=nope                                           200 { id, type } - the entity has no such attribute
+#   datasetId=urn:ds:nope                                200 { id, type }
+#   a temporal-only entity (POST /temporal/entities)     its attributes from its history: temperature: []
+#   temporal urn:R9                                      404 - the temporal database has no such entity (the current
+#                                                        state is another database: an entity it has and the temporal
+#                                                        one does not is 404 too)
+#
+--NAME--
+Retrieve by id - attrs and the temporal query only project: an existing entity is 200, 404 only when it is not there
+
+--TAGS--
+troe timescale postgres temporal attrs retrieve
+
+--INIT--
+corDbDrop
+corTroeInit
+coraineStart --troe timescale
+
+--RUN--
+
+echo "01. Create urn:R1 - temperature 21 at 10:00, a Relationship inRoom; urn:T1 by the temporal API only"
+echo "===================================================================================================="
+corCurl --url /ngsi-ld/v1/entities --payload '{"id": "urn:R1", "type": "Room",
+  "temperature": {"type": "Property", "value": 21, "observedAt": "2026-04-28T10:00:00Z"},
+  "inRoom": {"type": "Relationship", "object": "urn:Building:B1", "observedAt": "2026-04-28T10:00:00Z"}}'
+corCurl --url /ngsi-ld/v1/temporal/entities --payload '{"id": "urn:T1", "type": "Room",
+  "temperature": [{"type": "Property", "value": 19, "observedAt": "2026-04-28T10:00:00Z"}]}'
+corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:R1?attrs=inRoom' 'urn:Building:B1' > /dev/null
+corAwaitBody 10 '/ngsi-ld/v1/temporal/entities/urn:T1' '2026-04-28T10:00:00Z' > /dev/null
+echo
+echo
+
+
+echo "02. GET /entities/urn:R1?attrs=nope - 200, id and type"
+echo "======================================================"
+corCurl --url '/ngsi-ld/v1/entities/urn:R1?attrs=nope'
+echo
+echo
+
+
+echo "03. GET /entities/urn:R9?attrs=nope - no such entity: 404"
+echo "========================================================="
+corCurl --url '/ngsi-ld/v1/entities/urn:R9?attrs=nope'
+echo
+echo
+
+
+echo "04. temporal urn:R1, attrs=temperature, before 09:00 - no instance in the range: 200, temperature []"
+echo "===================================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R1?attrs=temperature&timerel=before&timeAt=2026-04-28T09:00:00Z'
+echo
+echo
+
+
+echo "05. The same, format=temporalValues - temperature { type Property, values [] }"
+echo "=============================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R1?attrs=temperature&timerel=before&timeAt=2026-04-28T09:00:00Z&format=temporalValues'
+echo
+echo
+
+
+echo "06. attrs=temperature,inRoom, temporalValues - the Relationship's key: objects []"
+echo "================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R1?attrs=temperature,inRoom&timerel=before&timeAt=2026-04-28T09:00:00Z&format=temporalValues'
+echo
+echo
+
+
+echo "07. attrs=temperature, aggregatedValues avg,max - { type Property, avg [], max [] }"
+echo "==================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R1?attrs=temperature&timerel=before&timeAt=2026-04-28T09:00:00Z&format=aggregatedValues&aggrMethods=avg,max&aggrPeriodDuration=PT1H'
+echo
+echo
+
+
+echo "08. temporal urn:R1, attrs=nope - 200, id and type"
+echo "=================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R1?attrs=nope'
+echo
+echo
+
+
+echo "09. temporal urn:R1, datasetId=urn:ds:nope - 200, id and type"
+echo "============================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R1?datasetId=urn:ds:nope'
+echo
+echo
+
+
+echo "10. temporal urn:T1 (temporal API only), attrs=temperature, before 09:00 - temperature [] from its history"
+echo "=========================================================================================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:T1?attrs=temperature&timerel=before&timeAt=2026-04-28T09:00:00Z'
+echo
+echo
+
+
+echo "11. temporal urn:R9 - no such entity: 404"
+echo "========================================="
+corCurl --url '/ngsi-ld/v1/temporal/entities/urn:R9?attrs=temperature'
+echo
+echo
+
+
+--TEARDOWN--
+coraineStop
+corDbDrop
+corTroeDrop
+
+--EXPECT--
+01. Create urn:R1 - temperature 21 at 10:00, a Relationship inRoom; urn:T1 by the temporal API only
+====================================================================================================
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/entities/urn:R1
+Content-Length: 0
+
+
+HTTP/1.1 201 Created
+Date: REGEX(.*)
+Location: /ngsi-ld/v1/temporal/entities/urn:T1
+Content-Length: 0
+
+
+
+
+02. GET /entities/urn:R1?attrs=nope - 200, id and type
+======================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+{
+  "id": "urn:R1",
+  "type": "Room"
+}
+
+
+
+03. GET /entities/urn:R9?attrs=nope - no such entity: 404
+=========================================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 158
+
+{
+  "detail": "entity 'urn:R9' not found",
+  "status": 404,
+  "title": "Entity not found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+
+04. temporal urn:R1, attrs=temperature, before 09:00 - no instance in the range: 200, temperature []
+====================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "id": "urn:R1",
+  "temperature": [],
+  "type": "Room"
+}
+
+
+
+05. The same, format=temporalValues - temperature { type Property, values [] }
+==============================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 104
+
+{
+  "id": "urn:R1",
+  "temperature": {
+    "type": "Property",
+    "values": []
+  },
+  "type": "Room"
+}
+
+
+
+06. attrs=temperature,inRoom, temporalValues - the Relationship's key: objects []
+=================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 169
+
+{
+  "id": "urn:R1",
+  "inRoom": {
+    "objects": [],
+    "type": "Relationship"
+  },
+  "temperature": {
+    "type": "Property",
+    "values": []
+  },
+  "type": "Room"
+}
+
+
+
+07. attrs=temperature, aggregatedValues avg,max - { type Property, avg [], max [] }
+===================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 116
+
+{
+  "id": "urn:R1",
+  "temperature": {
+    "avg": [],
+    "max": [],
+    "type": "Property"
+  },
+  "type": "Room"
+}
+
+
+
+08. temporal urn:R1, attrs=nope - 200, id and type
+==================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+{
+  "id": "urn:R1",
+  "type": "Room"
+}
+
+
+
+09. temporal urn:R1, datasetId=urn:ds:nope - 200, id and type
+=============================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 39
+
+{
+  "id": "urn:R1",
+  "type": "Room"
+}
+
+
+
+10. temporal urn:T1 (temporal API only), attrs=temperature, before 09:00 - temperature [] from its history
+==========================================================================================================
+HTTP/1.1 200 OK
+Date: REGEX(.*)
+Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
+Content-Length: 60
+
+{
+  "id": "urn:T1",
+  "temperature": [],
+  "type": "Room"
+}
+
+
+
+11. temporal urn:R9 - no such entity: 404
+=========================================
+HTTP/1.1 404 Not Found
+Date: REGEX(.*)
+Content-Type: application/json
+Content-Length: 176
+
+{
+  "detail": "no temporal data for entity 'urn:R9'",
+  "status": 404,
+  "title": "Temporal data not found",
+  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+}
+
+
+

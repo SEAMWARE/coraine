@@ -83,14 +83,13 @@ echo
 echo
 
 
-echo "07. ?datasetId=urn:ds:nope — no match → 404 ResourceNotFound"
-echo "============================================================="
-# § 5.7.3.4: "if the time series, for all the concerned Attributes of
-# an Entity, does not include data corresponding to the temporal query
-# interval, then such Entity shall be removed from S". A datasetId
-# filter that wipes every instance falls in that bucket — single-entity
-# GET surfaces it as 404. (ETSI 020_08_01 expects the same shape with
-# ?attrs=unknownAttribute.)
+echo "07. ?datasetId=urn:ds:nope — no instance: 200, the entity without attributes (the id selects it)"
+echo "================================================================================================"
+# The entity ID selects the entity; datasetId, attrs and the temporal query only
+# project (KZ 2026-11-27; ts-104-175!42, 11.3.2: "S1 holds the Entity without
+# Attribute instances; this is not an error"). A datasetId that wipes every
+# instance leaves the entity without attributes: 200. (ETSI 020_08_01 expects
+# 404 for ?attrs=unknownAttribute - to change with the spec MR.)
 corCurl --url '/ngsi-ld/v1/temporal/entities/urn:V1?datasetId=urn:ds:nope'
 echo
 echo
@@ -211,18 +210,17 @@ Content-Length: REGEX(\d+)
 
 
 
-07. ?datasetId=urn:ds:nope — no match → 404 ResourceNotFound
-=============================================================
-HTTP/1.1 404 Not Found
+07. ?datasetId=urn:ds:nope — no instance: 200, the entity without attributes (the id selects it)
+================================================================================================
+HTTP/1.1 200 OK
 Date: REGEX(.*)
 Content-Type: application/json
+Link: <https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"
 Content-Length: REGEX(\d+)
 
 {
-  "detail": "no instances match the temporal query for entity 'urn:V1'",
-  "status": 404,
-  "title": "Temporal data not found",
-  "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound"
+  "id": "urn:V1",
+  "type": "Vehicle"
 }
 
 

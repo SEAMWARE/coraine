@@ -34,7 +34,7 @@
 #include "corNgsild/ldPagination.h"                   // ldTemporalPaginationLinkHeader
 #include "corNgsild/ldToAggregatedValues.h"           // ldAggrMethodValid
 #include "corTree/CorNode.h"                         // CorNode
-#include "corTree/corTreeBuilder.h"                  // corTreeChildAdd
+#include "corTree/corTreeBuilder.h"                  // corTreeChildAdd, corTreeObject, corTreeString
 #include "corTree/corTreeLookup.h"                   // corTreeLookup
 #include "corJson/corJsonParse.h"                    // corJsonParse
 #include "corAlloc/corAlloc.h"                       // corAlloc
@@ -250,7 +250,80 @@ static const char* buildTemporalForwardQuery(CorAlloc* kaP)
 }
 
 
+// -----------------------------------------------------------------------------
+//
+// attrsHad - the entity's requested attributes, each with its last instance (its type), whatever the range - from
+// its history: the current state is another database (only its updates are recorded here)
+//
+static CorNode* attrsHad(Tenant* tenantP, const char* entityId)
+{
+  TroeQueryFilter filter;
+  TroeRangeInfo   rangeInfo;
+  CorNode*        treeP = NULL;
 
+  memset(&filter, 0, sizeof(filter));
+  memset(&rangeInfo, 0, sizeof(rangeInfo));
+  filter.attrV = corNgsild.attrsV;
+  filter.lastN = 1;
+
+  if (troe.entityTemporalRetrieve(tenantP, entityId, &filter, &treeP, &rangeInfo) != TROE_OK)
+    return NULL;
+
+  return treeP;
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// emptyAttrsNote - the requested attributes the entity has (hadP: its history's), none with an
+// instance in the range: { <name>: "<attribute type>" } in corNgsild.temporalEmptyAttrsP - the render hook adds
+// each one without instances, in the format's shape (ldTemporalEmptyAttrsAdd)
+//
+static void emptyAttrsNote(CorNode* resultP, CorNode* hadP)
+{
+  if ((hadP == NULL) || (corNgsild.attrsV == NULL))
+    return;
+
+  CorAlloc* kaP = &corRest.kalloc;
+
+  for (int i = 0; corNgsild.attrsV[i] != NULL; i++)
+  {
+    const char* attrName = corNgsild.attrsV[i];
+    CorNode*    attrP    = corTreeLookup(hadP, attrName);
+
+    if ((attrP == NULL) || (corTreeLookup(resultP, attrName) != NULL))
+      continue;
+
+    //
+    // Its type: the instance's (several datasetIds - an array of instances, the first); a stored instance's
+    // "type" is the expanded term - looked up by its term id
+    //
+    CorNode*    instP = (attrP->type == CorArray) ? attrP->value.head : attrP;
+    const char* type  = "Property";
+
+    for (CorNode* c = (instP != NULL) ? instP->value.head : NULL; c != NULL; c = c->next)
+    {
+      if ((ldTermId(c) == CorTermType) && (c->type == CorString))
+      {
+        type = c->value.s;
+        break;
+      }
+    }
+
+    if (corNgsild.temporalEmptyAttrsP == NULL)
+      corNgsild.temporalEmptyAttrsP = corTreeObject(kaP, NULL);
+
+    corTreeChildAdd(corNgsild.temporalEmptyAttrsP, corTreeString(kaP, attrName, type));
+  }
+}
+
+
+
+// -----------------------------------------------------------------------------
+//
+// getEntityTemporal - GET /temporal/entities/{entityId}
+//
 bool getEntityTemporal(void)
 {
   // § 4.21 / § 6.4.3 — cross-parameter projection validation
@@ -643,40 +716,31 @@ bool getEntityTemporal(void)
     return true;
   }
 
-  // § 5.7.3.4: "if the time series, for all the concerned Attributes of
-  // an Entity, does not include data corresponding to the temporal query
-  // interval, then such Entity shall be removed from S". When ?attrs
-  // (or other narrowing filters) leave the entity with no user
-  // attributes, the spec says it doesn't appear in the result — for the
-  // single-entity endpoint that means 404. Don't trigger this on
-  // unfiltered retrieves: a bare temporal entity with id/type only is
-  // valid (e.g., right after a deleteAttrs that wiped every attr).
-  bool filterApplied = (corNgsild.attrsV     != NULL ||
-                        corNgsild.qExpr      != NULL ||
-                        corNgsild.datasetIdV != NULL);
-  if (filterApplied)
+  //
+  // The entity ID selects the entity; attrs, datasetId and the temporal range only decide what comes back
+  // (KZ 2026-11-27; ts-104-175!42: 10.4.2, 11.3.2 - "S1 holds the Entity without Attribute instances; this is not
+  // an error"). 404 only for an entity the temporal database does not have (above) - the current state is another
+  // database. An existing entity none of whose requested attributes has an instance in the range: { id, type } and
+  // each requested attribute it has, without instances
+  //
+  if (corNgsild.attrsV != NULL)
   {
     bool hasUserAttr = false;
     for (CorNode* c = result->value.head; c != NULL; c = c->next)
     {
-      if (c->name == NULL)                                  continue;
-      if (c->name[0] == '@')                                continue;
-      if (ldTermId(c) == CorTermId)     continue;
-      if (ldTermId(c) == CorTermType)   continue;
-      if (ldTermId(c) == CorTermScope)  continue;
-      // System temporal properties surfaced by the plugin for orderBy /
-      // sysAttrs handling — not "user attributes" for the empty-result test.
-      if (ldTermId(c) == CorTermCreatedAt)   continue;
-      if (ldTermId(c) == CorTermModifiedAt)  continue;
+      if (c->name == NULL)                    continue;
+      if (c->name[0] == '@')                  continue;
+      if (ldTermId(c) == CorTermId)           continue;
+      if (ldTermId(c) == CorTermType)         continue;
+      if (ldTermId(c) == CorTermScope)        continue;
+      if (ldTermId(c) == CorTermCreatedAt)    continue;   // system temporal properties - not user attributes
+      if (ldTermId(c) == CorTermModifiedAt)   continue;
       hasUserAttr = true;
       break;
     }
-    if (!hasUserAttr)
-    {
-      ldError(404, LD_ERROR_RESOURCE_NOT_FOUND, "Temporal data not found",
-              "no instances match the temporal query for entity '%s'", entityId);
-      return true;
-    }
+
+    if (hasUserAttr == false)
+      emptyAttrsNote(result, attrsHad(tenantP, entityId));
   }
 
   // § 4.5.4 / § 4.5.5: pick/omit attribute projection (lang reduction

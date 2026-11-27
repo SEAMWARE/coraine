@@ -187,7 +187,7 @@ echo
 echo
 
 
-echo "12. attrs=other - the huge instance is not asked for: 404 as without a budget, not 403"
+echo "12. attrs=other - the huge instance is not asked for: 200 as without a budget, not 403"
 echo "====================================================================================="
 show '/ngsi-ld/v1/temporal/entities/urn:Huge:1?attrs=other'
 \rm -f /tmp/budgetEntity.json /tmp/budgetInstance.json /tmp/budgetTemporal.out
@@ -289,10 +289,10 @@ HTTP/1.1 403 Forbidden
 error: https://uri.etsi.org/ngsi-ld/errors/TooManyResults - the next entity's temporal representation, even with one instance per attribute, exceeds the response size budget of 1 MiB (--maxResponseSize) - narrow the query
 
 
-12. attrs=other - the huge instance is not asked for: 404 as without a budget, not 403
+12. attrs=other - the huge instance is not asked for: 200 as without a budget, not 403
 =====================================================================================
-HTTP/1.1 404 Not Found
-error: https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound - no instances match the temporal query for entity 'urn:Huge:1'
+HTTP/1.1 200 OK
+urn:Huge:1
 
 
 --TEARDOWN--
