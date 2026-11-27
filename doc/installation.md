@@ -278,7 +278,7 @@ A refused combination stops the broker before anything starts, exit code 1, with
 ```text
 coraine: --daemon with --logTo stdout: a daemon's stdout is /dev/null - use --logTo file
 coraine: --daemon with --logTo both: a daemon's stdout is /dev/null - use --logTo file
-coraine: --daemon and -fg contradict each other
+coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
 coraine: --logTo 'syslog' is none of stdout, file, both
 ```
 
@@ -349,19 +349,17 @@ file that cannot be opened is still said on the terminal - and before everything
   `coraine: stopped during start-up (SIGTERM / SIGINT)` goes to the log file too.
   SIGHUP is not handled: it ends the process without the ordered shutdown - do not send it.
 
-### `-fg` / `--foreground` - deprecated
+### `-fg` / `--foreground` - removed
 
-The foreground is the default, so `-fg` does nothing. It is accepted through 0.7.x and **refused from
-0.8.0**; a broker started with it (or with `CORAINE_FOREGROUND=true`) writes one warning line at
-start:
+The foreground is the default, so `-fg` did nothing; deprecated through 0.7.x, it is **removed in
+0.8.0**. A broker started with it (or with `CORAINE_FOREGROUND=true`) does not start - it says why on
+stderr and exits with 1:
 
 ```text
-W: 000000.000: coraine.c[<line>]: main: -fg: the broker runs in the foreground by default now - the option is refused from 0.8.0
+coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
 ```
 
-(`<line>`: the source line, which changes from build to build.)
-
-`-fg` is no longer listed by `coraine -u`. Drop it from scripts and units.
+`-fg` is not listed by `coraine -u`. Drop it from scripts and units.
 
 ### Examples
 

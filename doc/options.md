@@ -180,22 +180,19 @@ With the `admin` API plugin the levels can be changed at run time (`/admin/log`)
 ### `--foreground`
 
 `-fg` · `CORAINE_FOREGROUND` · Bool · default: `false` (off)
-· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · deprecated: accepted through 0.7.x, refused from 0.8.0, not listed by `-u` · plugin: core
+· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · removed: 0.8.0 - refused at start (deprecated through 0.7.x), not listed by `-u` · plugin: core
 
-Does nothing: the broker runs in the foreground by default. A broker started with it, or with
-`CORAINE_FOREGROUND=true`, writes one warning line at start and runs as it would without it:
+The broker runs in the foreground by default, and `--daemon` detaches it. A broker started with `-fg`,
+or with `CORAINE_FOREGROUND=true`, does not start: it says why on stderr, before it opens its log, and
+exits with 1. Drop it from scripts and units.
 
-    W: 000000.000: coraine.c[<line>]: main: -fg: the broker runs in the foreground by default now - the option is refused from 0.8.0
-
-With `--daemon` it is refused at start, exit code 1: `coraine: --daemon and -fg contradict each other`.
-Drop it from scripts and units: from 0.8.0 the broker does not start with it.
-
-    coraine -fg -db corDB     # the same as: coraine -db corDB, plus the warning line
+    coraine -fg -db corDB
+    # coraine: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option
 
 ### `--daemon`
 
 `-bg` · `CORAINE_DAEMON` · Bool · default: `false` (the foreground)
-· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · needs: `--logTo file` · excludes: `--logTo stdout` (the default), `--logTo both`, `--foreground` · plugin: core
+· values: a switch; the environment variable `true` or `on`, `false` or `off` ([three spellings each](#command-line-options)) · needs: `--logTo file` · excludes: `--logTo stdout` (the default), `--logTo both` · plugin: core
 
 Runs the broker in the background: it detaches from the terminal - `fork` (the command returns 0 at
 once; the child is the broker), `setsid` (a session of its own, no controlling terminal), `chdir /`,

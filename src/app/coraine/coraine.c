@@ -229,7 +229,7 @@ char*          authName     = NULL;
 char*          bridgeConfig = NULL;
 unsigned int   prettySpaces = 0;
 bool           notifyValueChangeOnly = false;
-bool           fg           = false;   // -fg: deprecated, the foreground is the default - accepted, with a warning, through 0.7.x
+bool           fg           = false;   // -fg: removed in 0.8.0 (the foreground is the default) - refused at start, with the reason
 bool           daemonMode   = false;   // --daemon/-bg: detach from the terminal (corDaemonize)
 char*          logDir       = "/var/log/coraine";
 char*          logTo        = "stdout";
@@ -345,8 +345,8 @@ static CorArg kargV[] =
   { "--distOpTimeout",      "-dtmo",        CorArgInt,    _vp &corRestClientDefaultRequestTimeoutMs, CorArgOpt, _vp 5000, _vp 1, _vp 600000, "timeout (ms) of a request forwarded to a Context Source whose registration has none of its own, and of any other outgoing request that sets none - not notifications (10 s) nor @context downloads (10 s)" },
   { "--cooldownMillis",     "-cms",         CorArgInt,    _vp &cooldownMillis, CorArgOpt, _vp 30000, _vp 0, _vp 86400000, "default cooldown (ms) of a subscription's endpoint after a failed notification - its notifications in that window are dropped (0: none, unless the subscription has one); forwards cool down only by the registration's own" },
   { "--version",            "-V",           CorArgBool,   _vp &versionOnly,  CorArgOpt, _vp false,    _vp false, _vp true, "print version and exit" },
-  { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgHid, _vp false,    _vp false, _vp true, "deprecated, no effect: the broker runs in the foreground by default - accepted with a warning line, refused from 0.8.0" },
-  { "--daemon",             "-bg",          CorArgBool,   _vp &daemonMode,   CorArgOpt, _vp false,    _vp false, _vp true, "run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both, and with -fg" },
+  { "--foreground",         "-fg",          CorArgBool,   _vp &fg,           CorArgHid, _vp false,    _vp false, _vp true, "removed in 0.8.0: the broker runs in the foreground by default - refused at start, with the reason" },
+  { "--daemon",             "-bg",          CorArgBool,   _vp &daemonMode,   CorArgOpt, _vp false,    _vp false, _vp true, "run in the background: detach from the terminal (fork, setsid, chdir /, stdin/stdout/stderr on /dev/null), no pid file - the log says the pid; needs --logTo file, refused with --logTo stdout or both" },
   { "--logDir",             "-logDir",      CorArgString, _vp &logDir,       CorArgOpt, _vp "/var/log/coraine", NULL, NULL, "the directory of the log file <logDir>/coraine.log (default /var/log/coraine), with --logTo file or both - it must exist and be writable, else the broker does not start; a coraine.log already there is renamed coraine.log.old" },
 #if COR_FEATURE_LOG_LINES
   { "--logLines",           "-logLines",    CorArgInt,    _vp &logLines,     CorArgOpt, _vp 256,   _vp 0,     _vp 65536, "KiB of the recent log kept in memory, for GET /admin/log/lines (the admin API) - whatever --logTo is (0: none)" },
@@ -2084,6 +2084,15 @@ int main(int argC, char* argV[])
   }
 
   //
+  // -fg: removed in 0.8.0 - refused, so that a script or unit still passing it is fixed rather than silently accepted
+  //
+  if (fg == true)
+  {
+    fprintf(stderr, "%s: -fg / --foreground was removed in 0.8.0: the broker runs in the foreground by default (--daemon detaches) - drop the option\n", progName);
+    exit(1);
+  }
+
+  //
   // A daemon's stdout is /dev/null: a log there is no log at all
   //
   if ((daemonMode == true) && (logStdout == true))
@@ -2092,11 +2101,6 @@ int main(int argC, char* argV[])
     exit(1);
   }
 
-  if ((daemonMode == true) && (fg == true))
-  {
-    fprintf(stderr, "%s: --daemon and -fg contradict each other\n", progName);
-    exit(1);
-  }
 
   startupLog("coraine", traceLevels, (logFile == true) ? logDir : NULL, logStdout);   // the log, and the libraries' log through it - as coraine-import's
 
@@ -2104,9 +2108,6 @@ int main(int argC, char* argV[])
   if ((logLines > 0) && (corLogRingInit((size_t) logLines * 1024) == false))
     COR_X(1, "--logLines %d: no memory for it", logLines);
 #endif
-
-  if (fg == true)
-    COR_W("-fg: the broker runs in the foreground by default now - the option is refused from 0.8.0");
 
   //
   // --daemon: detached here - after the log file is open (a --logDir that cannot be written is said on

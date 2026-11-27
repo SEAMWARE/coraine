@@ -125,7 +125,7 @@ Recently built, and documented where it lives:
     [seamware.github.io/docs](https://seamware.github.io/docs/).
 -   **Running outside a container** - `--daemon` to detach, and the log in a file, on stdout or both
     (`--logTo`, `--logDir`); the broker stays in the foreground, logging to stdout, by default. `-fg` is
-    accepted, with a warning, until 0.8.0
+    refused from 0.8.0
     ([Running the broker](installation.md#running-the-broker-foreground-or-daemon-and-where-the-log-goes)).
 -   **EntityMaps the broker creates itself** - a distributed query, and a local query paginated past its
     first page, freezes its set of matching entities on the first page and serves the pages from it
@@ -163,7 +163,7 @@ settles on.
   (`--noSplitEntities` / `-noSplitEntities`): 33 of the broker's, 13 of oidc's, 13 of fdsc's, 9 of mongoc's,
   11 of timescale's, and corDB's own to check. A short name is there to be short, not self-explanatory:
   2-4 letters, as `--orderDistributed` / `-od` already is (`-noSplitEntities` -> `-nose`). Open: whether the
-  old forms stay accepted with a warning until a release that refuses them (as `--foreground`), and
+  old forms stay accepted with a warning until a release that refuses them (as `-fg` was through 0.7.x), and
   whether mongoc's `-dbHost`, `-dbPort`, ... keep their Orion-LD-like spelling.
 
 ## Medium term
@@ -1236,8 +1236,6 @@ only by a read.
 
 **Broker**
 
-- `-fg` / `--foreground`: deprecated (the foreground is the default, `--daemon` detaches) - refuse it
-  from 0.8.0.
 - PostGIS as a geo backend.
 - **`--wip` — a gate for what is implemented ahead of the spec.** Not built yet, and
   deliberately: the option has nothing to gate today, and its shape is easier to get
