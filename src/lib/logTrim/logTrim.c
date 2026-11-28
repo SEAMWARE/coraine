@@ -561,12 +561,14 @@ static void trimmedName(time_t t, char* name, int nameSize, char* path, int path
 
   for (int n = 1; n < 1000; n++)
   {
-    if (n == 1)
-      snprintf(name, nameSize, "%s.trimmed-%s.gz", logName, stamp);
-    else
-      snprintf(name, nameSize, "%s.trimmed-%s-%d.gz", logName, stamp, n);
+    int len = (n == 1)? snprintf(name, nameSize, "%s.trimmed-%s.gz", logName, stamp) : snprintf(name, nameSize, "%s.trimmed-%s-%d.gz", logName, stamp, n);
 
-    snprintf(path, pathSize, "%s/%s", logDir, name);
+    if ((len >= nameSize) || (snprintf(path, pathSize, "%s/%s", logDir, name) >= pathSize))
+    {
+      name[0] = 0;   // too long for the buffers: no file (gzopen of the path fails, and the trim says so)
+      path[0] = 0;
+      return;
+    }
 
     if (access(path, F_OK) != 0)
       return;
