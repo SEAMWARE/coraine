@@ -20,6 +20,6 @@
 //   - GET /info/sourceIdentity (contextSourceVersion field, § 5.2.40)
 //   - GET /version (broker product/version handshake)
 //
-#define CORAINE_VERSION "0.8.0"
+#define CORAINE_VERSION "0.8.0+dev"
 
 #endif  // SRC_APP_CORAINE_CORAINEVERSION_H_
