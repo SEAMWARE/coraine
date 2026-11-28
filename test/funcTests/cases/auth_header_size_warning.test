@@ -41,11 +41,13 @@ coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AU
 SMALL=$(ftAuthToken k2)
 BIG=$(ftAuthToken k1 --vc '{"type": ["VerifiableCredential", "UserCredential"], "issuer": "did:web:consumer", "credentialSubject": {}}')
 said() { grep -o "requests carry a [0-9]*-byte Authorization header - received with every request, its size is a cost of each" /tmp/coraine.CB.log | sed "s/ $1-byte / <the header's size>-byte /"; }
+ready() { for i in $(seq 1 100); do curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $1" "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=Vehicle" | grep -q 503 || return 0; sleep 0.1; done; }   # the keys: read by a thread after the start
 tenRequests() { for i in $(seq 1 10); do curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $1" "http://localhost:$COR_PORT/ngsi-ld/v1/entities?type=Vehicle"; done | sort | uniq -c | sed 's/^ *//'; }
 
 echo "01. Ten requests with an ES256 token - 200, nothing said"
 echo "========================================================"
 echo "under 512: $(( ${#SMALL} + 7 < 512 ))"
+ready $SMALL
 tenRequests $SMALL
 said $(( ${#SMALL} + 7 ))
 echo
@@ -56,6 +58,7 @@ echo "02. Ten requests with an RS256 token and a credential - 200, said once"
 echo "======================================================================"
 coraineStart --auth fdsc --fdscJwks $FT_AUTH_DIR/jwks.json --fdscPolicies $FT_AUTH_DIR/allowAll.json --fdscIssuer http://verifier.ft
 echo "over 512: $(( ${#BIG} + 7 > 512 ))"
+ready $BIG
 tenRequests $BIG
 said $(( ${#BIG} + 7 ))
 echo
