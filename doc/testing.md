@@ -308,8 +308,11 @@ release's performance is the local run against the previous release.
   No such run, and the release stops before anything is published: run the campaign on the release
   commit first. A part that went red is re-run with *Re-run failed jobs*, which keeps the run and its
   record; a run with `only` records one part and is never taken.
-- c³ is tagged by hand. The release checks c³'s `v<version>` against the record before it builds,
-  and stops with the `git tag` to run when it is missing or another commit.
+- c³ and corCep are tagged by hand (both are in the SEAMWARE organisation, which the release's token
+  does not reach; corCep is released with coraine, under its version). The release checks each one's
+  `v<version>` against the record before it builds, and stops with the `git tag` to run when it is
+  missing or another commit. corCep's tag starts corCep's own release (the `corcep` image and
+  packages), which wants its `CORCEP_VERSION` to be that version.
 - The campaign's tools - `test/sanitizer/`, `test/soak/`, `test/upgrade/` - come from the commit
   the workflow runs from (the branch it is dispatched on), the code and its suite from `ref`.
 - Nothing is published: `nightly.yml` and `packages.yml` are called with `publish: false` -

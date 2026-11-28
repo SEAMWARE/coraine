@@ -729,22 +729,43 @@ static bool queriedType(const char* type)
 
 // -----------------------------------------------------------------------------
 //
-// idParamBuild - "&<name>=v1,v2,..." (URL-encoded values)
+// idParamBuild - "&<name>=v1,v2,..." (URL-encoded values) - NULL: out of memory
 //
 static const char* idParamBuild(const char* name, const char** valueV, int valueN, CorAlloc* kaP)
 {
-  int need = strlen(name) + 3;
-  const char** encV = (const char**) corAlloc(kaP, valueN * sizeof(char*));
+  int          nameLen = strlen(name);
+  int          need    = nameLen + 3;
+  const char** encV    = (const char**) corAlloc(kaP, valueN * sizeof(char*));
+
+  if (encV == NULL)
+    return NULL;
+
   for (int i = 0; i < valueN; i++)
   {
     encV[i] = corRestUrlValueEncode(valueV[i], kaP);
-    need   += strlen(encV[i]) + 1;
+    if (encV[i] == NULL)
+      return NULL;
+    need += strlen(encV[i]) + 1;
   }
 
   char* buf = (char*) corAlloc(kaP, need);
-  int   pos = sprintf(buf, "&%s=", name);
+  if (buf == NULL)
+    return NULL;
+
+  int pos = 0;
+  buf[pos++] = '&';
+  strcpy(&buf[pos], name);
+  pos += nameLen;
+  buf[pos++] = '=';
+  buf[pos]   = 0;
+
   for (int i = 0; i < valueN; i++)
-    pos += sprintf(buf + pos, (i == 0) ? "%s" : ",%s", encV[i]);
+  {
+    if (i > 0)
+      buf[pos++] = ',';
+    strcpy(&buf[pos], encV[i]);
+    pos += strlen(encV[i]);
+  }
 
   return buf;
 }
@@ -834,6 +855,12 @@ static ForwardUnit* csrForwardUnits(LdRegCacheItem* csr, int* unitNP, CorAlloc* 
           else
             idParam = idParamBuild("idPattern", &patP->source, 1, kaP);
 
+          if (idParam == NULL)       // out of memory: not forwarded at all, rather than for more than the part covers
+          {
+            *unitNP = 0;
+            return NULL;
+          }
+
           if (unitN >= unitCap)
           {
             ForwardUnit* nV = (ForwardUnit*) corAlloc(kaP, 2 * unitCap * sizeof(ForwardUnit));
@@ -902,7 +929,13 @@ static ForwardUnit* csrForwardUnits(LdRegCacheItem* csr, int* unitNP, CorAlloc* 
         unitV   = nV;
         unitCap = 2 * unitCap;
       }
-      unitV[unitN++] = (ForwardUnit) { typeV, false, idParamBuild("id", idV, idN, kaP), riP->attributeNamesV };
+      const char* idParam = idParamBuild("id", idV, idN, kaP);
+      if (idParam == NULL)           // out of memory: not forwarded at all, rather than for more than the part covers
+      {
+        *unitNP = 0;
+        return NULL;
+      }
+      unitV[unitN++] = (ForwardUnit) { typeV, false, idParam, riP->attributeNamesV };
     }
   }
 

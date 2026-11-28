@@ -16,3 +16,11 @@
 013_04     DELETE .../attrs/scope refused (400) - scope is an Entity member (#544)
 020_19_01  deletes scope with DELETE .../attrs/scope first - refused (#544)
 020_20_01  deletes scope with DELETE .../attrs/scope first - refused (#544)
+#
+# A retrieve by id answers 200 for an existing entity, whatever attrs, datasetId and the time
+# range leave: attrs is a projection, the Entity ID selects the entity (KZ 2026-11-27, coraine#644;
+# spec MRs ts-104-175!42 and ts-104-176!20). These two expect 404 for an entity that exists but has
+# none of the attributes asked for.
+#
+018_03_02  expects 404 for an existing entity without the attribute asked for - 200 (#644)
+020_08_01  expects 404 for an existing entity without the attribute asked for (temporal) - 200 (#644)

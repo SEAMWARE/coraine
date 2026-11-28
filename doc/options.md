@@ -127,7 +127,7 @@ It is read from the command line only: `CORAINE_VERSION` is listed by `-U`, and 
 nothing - the broker starts.
 
     coraine -V
-    # coraine 0.7.0
+    # coraine 0.8.0
     # features: SUBSCRIPTIONS=1 REGISTRATIONS=1 GEOQ=1 ... ICU_COLLATION=0 ...
     # httpServer: mhd
     # httpServers: mhd

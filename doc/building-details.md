@@ -135,7 +135,7 @@ Ask a binary what it carries, without starting it:
 
 ```console
 $ coraine --version
-coraine 0.7.0
+coraine 0.8.0
 features: SUBSCRIPTIONS=1 REGISTRATIONS=0 GEOQ=1 ...
 ```
 
@@ -146,7 +146,7 @@ and the run-time settings that change what a client gets:
 ```json
 {
   "product": "coraine",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "build":    { "gitSha": "...", "builtAt": "...", "type": "Debug", "compiler": "GNU 15.2.0" },
   "features": { "REGISTRATIONS": false, ... },
   "plugins":  { "directory": "/opt/seamware/plugins", "built": [...], "found": {...}, "loaded": {...} },

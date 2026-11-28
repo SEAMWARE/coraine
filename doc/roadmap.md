@@ -150,8 +150,31 @@ Recently built, and documented where it lives:
 -   **The release is built from the libraries the pre-release campaign tested** - the campaign records
     the commit of every library (corLibs and c³ too) once, every part builds from that record, and
     `release.yml` builds and tags the release from the newest green campaign of the tag's tree; none,
-    and nothing is released. c³'s tag, made by hand, must be the commit in the record
+    and nothing is released. c³'s and corCep's tags, made by hand, must be the commits in the record
     ([Testing](testing.md#the-pre-release-campaign)).
+-   **HTTPS** - `--https --key <file> --cert <file>`: the NGSI-LD API over TLS on its `--port`
+    ([Installation](installation.md#https)).
+-   **Both HTTP servers in one broker** - libmicrohttpd and the built-in server in one build
+    (`COR_HTTP_SERVER=both`), `--httpServer mhd|builtin` picks one at start; with the built-in server an
+    idle broker is 8.0 MiB resident and answers its first request 3.4-4.5 ms after it is started
+    ([Choosing the HTTP server](building-details.md#choosing-the-http-server)).
+-   **AssetChannels and the AAS bridge - a prototype** - an Asset Administration Shell server's shells and
+    submodels as entities (`aas.so`, [corAasBridge](https://github.com/SEAMWARE-cor/corAasBridge)), found
+    through an AAS Registry, kept current by polling or by the server's MQTT change events; an AAS
+    Operation, as an OPC UA Method, is a Service Registration of its entity; a reference to another
+    AssetChannel's node is a Relationship ([Asset Administration Shells](aas.md),
+    [AssetChannels](asset-channels.md)).
+-   **coraine as another broker's Service Executor** - `POST /ngsi-ld/ex/v1/executor/{serviceName}`; and an
+    executor reached over `cor://` ([Service Execution](service-execution.md#another-broker-as-the-executor)).
+-   **The rule engine in the broker** - corCep as the bridge plugin `cep.so`, in the `coraine-cep` package;
+    its rules in a tenant kept apart from the data (`--reservedTenants`) ([The rule engine](cep-plugin.md)).
+-   **The log through the admin API, and the log file kept in bounds** - `GET /admin/log/lines`: the recent
+    log, whatever `--logTo` is ([Administration](installation.md#administration)); a log file trimmed when
+    its disk is full and on request, repeated warnings and errors merged, the trimmed-off lines kept gzipped
+    ([The log file kept in bounds](log-file.md)).
+-   **`coraine-build --image`** - a build as a container image of the distribution it runs on, saved as a
+    file too (`--image-file`), with the bridges `--bridges` names
+    ([coraine-build --image](options.md#--image)).
 
 Bridges and Channels are coraine's own mechanism, not a standard: anything normative from ETSI TC DATA
 will realistically follow in 2027. coraine implements its own objects now and adapts to whatever TC DATA
@@ -159,18 +182,19 @@ settles on.
 
 ## Short term
 
-- **Short option names that are short** - 79 options have a short name that is the long one with one dash
-  (`--noSplitEntities` / `-noSplitEntities`): 33 of the broker's, 13 of oidc's, 13 of fdsc's, 9 of mongoc's,
-  11 of timescale's, and corDB's own to check. A short name is there to be short, not self-explanatory:
-  2-4 letters, as `--orderDistributed` / `-od` already is (`-noSplitEntities` -> `-nose`). Open: whether the
-  old forms stay accepted with a warning until a release that refuses them (as `-fg` was through 0.7.x), and
-  whether mongoc's `-dbHost`, `-dbPort`, ... keep their Orion-LD-like spelling.
+Nothing at the moment - the next release ships what is under [Available now](#available-now).
 
 ## Medium term
 
 The following specific features are proposed to be addressed in the medium term,
 typically within the subsequent release(s) generated in the next **9 months**:
 
+-   **Short option names that are short** - 79 options have a short name that is the long one with one dash
+    (`--noSplitEntities` / `-noSplitEntities`): 33 of the broker's, 13 of oidc's, 13 of fdsc's, 9 of mongoc's,
+    11 of timescale's, and corDB's own to check. A short name is there to be short, not self-explanatory:
+    2-4 letters, as `--orderDistributed` / `-od` already is (`-noSplitEntities` -> `-nose`). Open: whether the
+    old forms stay accepted with a warning until a release that refuses them (as `-fg` was through 0.7.x), and
+    whether mongoc's `-dbHost`, `-dbPort`, ... keep their Orion-LD-like spelling.
 -   **The entity type and the EntityMap of a distributed query** - on hold until it is settled in ETSI. Today the
     type of the request is left out when the map is created, so that an entity split across sources under
     different types (an RV: its Vehicle part in one broker, its Building part in another) can enter the map
